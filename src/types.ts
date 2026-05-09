@@ -112,3 +112,98 @@ export interface Notification {
   priority: "low" | "high";
   timestamp: string;
 }
+
+/**
+ * Immersive Detail Page Types
+ */
+
+export type DetailType = "service" | "product" | "training";
+
+export interface Review {
+  id: number;
+  user: string;
+  avatar?: string;
+  rating: number;
+  text: string;
+  time: string;
+  isRepeat?: boolean;
+  media?: string[];
+}
+
+export interface Recommendation {
+  id: number;
+  title: string;
+  subtitle: string;
+  price?: number;
+  image: string;
+  type: DetailType;
+}
+
+export interface CreatorSummary {
+  id: number | string;
+  name: string;
+  avatar: string;
+  category: string;
+  location: string;
+  rating: number;
+  verified: boolean;
+  responseTime?: string;
+}
+
+export interface BaseDetail {
+  id: number | string;
+  title: string;
+  description: string;
+  heroMedia: string[];
+  creator: CreatorSummary;
+  reviews: Review[];
+  recommendations: Recommendation[];
+  socialStats: {
+    likes: number;
+    shares: number;
+    saves: number;
+  };
+}
+
+export interface ServiceDetailData extends BaseDetail {
+  type: "service";
+  priceStructure: {
+    startingPrice: number;
+    packages: {
+      name: string;
+      price: number;
+      features: string[];
+    }[];
+  };
+  portfolio: {
+    type: "image" | "video";
+    url: string;
+    description?: string;
+  }[];
+}
+
+export interface ProductDetailData extends BaseDetail {
+  type: "product";
+  price: number;
+  variants?: {
+    name: string;
+    options: string[];
+  }[];
+  stockStatus: "in-stock" | "low-stock" | "out-of-stock";
+  features: string[];
+}
+
+export interface TrainingDetailData extends BaseDetail {
+  type: "training";
+  mentor: CreatorSummary;
+  curriculum: {
+    module: string;
+    topics: string[];
+  }[];
+  duration: string;
+  format: "online" | "in-person" | "hybrid";
+  outcomes: string[];
+  requirements: string[];
+}
+
+export type DetailData = ServiceDetailData | ProductDetailData | TrainingDetailData;

@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from "motion/react";
 import { Heart, MessageSquare, Share2, Bookmark, Star, MapPin, CheckCircle, Repeat2, Music, ShoppingBag, ArrowRight, X, Plus, Send, Link, Link2, MessageCircle, HeartCrack } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import DetailScreen from "./DetailScreen";
+import { DetailData } from "../types";
 
 export interface EmbedCTA {
   type: "book" | "buy" | "apply";
@@ -36,7 +38,8 @@ export interface FeedCardProps {
     by: string;
     thought?: string;
   };
-  embedCTA?: EmbedCTA;
+  embedCTA?: EmbedCTA | EmbedCTA[];
+  detailData?: DetailData | DetailData[];
   recommendationReason?: string;
   isAd?: boolean;
 }
@@ -46,6 +49,7 @@ export default function FeedCard({
   content, 
   repost,
   embedCTA,
+  detailData,
   isAd,
   onProfileClick, 
   recommendationReason 
@@ -78,8 +82,16 @@ export default function FeedCard({
   ]);
   const [replyingTo, setReplyingTo] = useState<{id: number, user: string} | null>(null);
 
+  const [showSummarySheet, setShowSummarySheet] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<DetailData | null>(null);
+  const [showImmersiveDetail, setShowImmersiveDetail] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showCtaFlow, setShowCtaFlow] = useState(false);
+  // Normalize details and CTAs into arrays
+  const details = Array.isArray(detailData) ? detailData : detailData ? [detailData] : [];
+  const ctas = Array.isArray(embedCTA) ? embedCTA : embedCTA ? [embedCTA] : [];
+
+  const [selectedCta, setSelectedCta] = useState<EmbedCTA | null>(ctas[0] || null);
 
   // Stats for optimistic UI
   const [stats, setStats] = useState({
@@ -90,8 +102,20 @@ export default function FeedCard({
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
-  // Fallback for embed if not provided
-  const cta = embedCTA || { type: "book", label: "Book Service" as string };
+  const handleCtaClick = (item?: EmbedCTA) => {
+    if (item) setSelectedCta(item);
+    if (details.length > 0) {
+      setShowSummarySheet(true);
+    } else {
+      setShowCtaFlow(true);
+    }
+  };
+
+  const openImmersiveDetail = (data: DetailData) => {
+    setSelectedDetail(data);
+    setShowImmersiveDetail(true);
+    setShowSummarySheet(false);
+  };
 
   const handleDoubleTap = () => {
     if (!liked) {
@@ -221,6 +245,21 @@ export default function FeedCard({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Heart Break Animation */}
+        <AnimatePresence>
+          {showHeartBreak && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0.5, rotate: 15 }}
+              animate={{ scale: 2, opacity: 1, rotate: 0 }}
+              exit={{ scale: 3, opacity: 0 }}
+              transition={{ duration: 0.6, type: "spring", bounce: 0.6 }}
+              className="absolute inset-0 m-auto w-32 h-32 flex items-center justify-center pointer-events-none z-50 text-white/50 drop-shadow-2xl"
+            >
+              <HeartCrack size={120} className="text-white/40" />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Overlay: Bottom Information */}
@@ -295,29 +334,42 @@ export default function FeedCard({
             </div>
           )}
 
-          {/* Social Commerce Embed */}
-          <div className="mt-2">
-             <motion.button 
-               whileTap={{ scale: 0.97 }}
-               onClick={() => setShowCtaFlow(true)}
-               className={`h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md
-                 ${cta.type === 'buy' ? 'bg-black/50 border-white/20 hover:bg-white/10' : 
-                   cta.type === 'apply' ? 'bg-purple-500/20 border-purple-500/30 text-purple-100 hover:bg-purple-500/30' : 
-                   'bg-white text-black hover:bg-white/90 border-transparent'}
-               `}
-             >
-                <div className="flex items-center gap-2">
-                  {cta.type === 'book' && <CheckCircle size={16} />}
-                  {cta.type === 'buy' && <ShoppingBag size={16} />}
-                  {cta.type === 'apply' && <ArrowRight size={16} />}
-                  <span>{cta.label}</span>
-                </div>
-                {cta.price && (
-                  <span className={`font-black ml-2 ${cta.type === 'book' ? 'text-black/50' : 'text-white/50'}`}>
-                    ${cta.price}
-                  </span>
-                )}
-             </motion.button>
+          {/* Social Commerce Embed / Multi-Product Attachments */}
+          <div className="mt-2 flex flex-wrap gap-2">
+             {ctas.length > 0 ? ctas.map((item, idx) => (
+                <motion.button 
+                  key={idx}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleCtaClick(item)}
+                  className={`h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md
+                    ${item.type === 'buy' ? 'bg-black/50 border-white/20 hover:bg-white/10' : 
+                      item.type === 'apply' ? 'bg-purple-500/20 border-purple-500/30 text-purple-100 hover:bg-purple-500/30' : 
+                      'bg-white text-black hover:bg-white/90 border-transparent'}
+                  `}
+                >
+                   <div className="flex items-center gap-2">
+                     {item.type === 'book' && <CheckCircle size={16} />}
+                     {item.type === 'buy' && <ShoppingBag size={16} />}
+                     {item.type === 'apply' && <ArrowRight size={16} />}
+                     <span>{item.label}</span>
+                   </div>
+                   {item.price && (
+                     <span className={`font-black ml-2 ${item.type === 'book' ? 'text-black/50' : 'text-white/50'}`}>
+                       ${item.price}
+                     </span>
+                   )}
+                   {ctas.length === 1 && <ArrowRight size={14} className="opacity-40" />}
+                </motion.button>
+             )) : details.length > 0 ? (
+               <motion.button 
+                 whileTap={{ scale: 0.97 }}
+                 onClick={handleCtaClick}
+                 className="h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md bg-white text-black"
+               >
+                 <span>View Details</span>
+                 <ArrowRight size={14} className="opacity-40" />
+               </motion.button>
+             ) : null}
           </div>
         </div>
       </div>
@@ -438,7 +490,7 @@ export default function FeedCard({
                       
                       <div className="flex flex-col gap-3">
                         {commentsList.filter(c => c.isRepostReply).map(reply => (
-                          function renderComment(comment: any, depth: number = 0): JSX.Element {
+                          function renderComment(comment: any, depth: number = 0) {
                             return (
                               <div key={comment.id} className={`flex flex-col gap-4 ${depth > 0 ? 'pl-9 relative before:absolute before:left-[-18px] before:top-[-20px] before:bottom-[10px] before:w-[20px] before:border-l before:border-b before:border-white/10 before:rounded-bl-lg' : 'pl-9 relative before:absolute before:left-[-18px] before:top-[-20px] before:bottom-[10px] before:w-[20px] before:border-l before:border-b before:border-white/10 before:rounded-bl-lg'}`}>
                                 <div className="flex gap-3 relative z-10">
@@ -483,7 +535,7 @@ export default function FeedCard({
                     </div>
                   )}
 
-                  {commentsList.filter(c => !c.isRepostReply).map(function renderComment(comment: any, depth: number = 0): JSX.Element {
+                  {commentsList.filter(c => !c.isRepostReply).map(function renderComment(comment: any, depth: number = 0) {
                     return (
                       <div key={comment.id} className={`flex flex-col gap-4 ${depth > 0 ? 'pl-9 relative before:absolute before:left-[-18px] before:top-[-20px] before:bottom-[10px] before:w-[20px] before:border-l before:border-b before:border-white/10 before:rounded-bl-lg' : ''}`}>
                         <div className="flex gap-3 relative z-10">
@@ -732,7 +784,7 @@ export default function FeedCard({
                  <div className="w-10 h-1 bg-white/20 rounded-full" />
                </div>
                <div className="flex items-center justify-between px-6 pb-2 shrink-0">
-                 <h3 className="font-bold text-lg text-white">{cta.label}</h3>
+                 <h3 className="font-bold text-lg text-white">{selectedCta?.label}</h3>
                  <button onClick={() => setShowCtaFlow(false)} className="p-2 text-white/40 hover:text-white bg-white/5 rounded-full mt-[-8px]">
                    <X size={18} />
                  </button>
@@ -756,7 +808,7 @@ export default function FeedCard({
                  </div>
 
                  {/* Requirements/Details stub */}
-                 {cta.type === 'book' && (
+                 {selectedCta?.type === 'book' && (
                    <div className="flex flex-col gap-3">
                      <h5 className="font-bold text-sm text-white/80">Service Details</h5>
                      <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2">
@@ -765,7 +817,7 @@ export default function FeedCard({
                      </div>
                    </div>
                  )}
-                 {cta.type === 'buy' && (
+                 {selectedCta?.type === 'buy' && (
                    <div className="flex flex-col gap-3">
                      <h5 className="font-bold text-sm text-white/80">Product Options</h5>
                      <div className="flex gap-2">
@@ -778,22 +830,114 @@ export default function FeedCard({
                  <div className="mt-auto pt-6 flex flex-col gap-3">
                    <div className="flex justify-between items-center px-1">
                      <span className="text-white/60 font-medium">Total Price</span>
-                     <span className="text-2xl font-black">${cta.price || 'Free'}</span>
+                     <span className="text-2xl font-black">${selectedCta?.price || 'Free'}</span>
                    </div>
                    <button 
                      onClick={() => {
                         setShowCtaFlow(false);
                      }}
                      className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 text-base transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 ${
-                       cta.type === 'apply' ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-white text-black hover:bg-white/90'
+                       selectedCta?.type === 'apply' ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-white text-black hover:bg-white/90'
                      }`}
                    >
-                     {cta.type === 'book' ? 'Select Date & Time' : cta.type === 'buy' ? 'Add to Cart' : 'Submit Application'}
+                     {selectedCta?.type === 'book' ? 'Select Date & Time' : selectedCta?.type === 'buy' ? 'Add to Cart' : 'Submit Application'}
                    </button>
                  </div>
                </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+      
+      {/* Summary Preview Sheet */}
+      <AnimatePresence>
+        {showSummarySheet && (
+          <>
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               onClick={() => setShowSummarySheet(false)}
+               className="absolute inset-0 bg-black/80 z-[60] backdrop-blur-md"
+            />
+            <motion.div 
+               initial={{ y: "100%" }} 
+               animate={{ y: 0 }} 
+               exit={{ y: "100%" }}
+               transition={{ type: "spring", damping: 30, stiffness: 300 }}
+               className="absolute bottom-0 left-0 right-0 max-h-[85%] bg-[#0f0f0f] rounded-t-[3rem] z-[70] flex flex-col border-t border-white/10 shadow-2xl p-8"
+            >
+               <div className="w-full flex items-center justify-center mb-6">
+                 <div className="w-12 h-1.5 bg-white/10 rounded-full" />
+               </div>
+
+               <div className="flex flex-col gap-8 overflow-y-auto scrollbar-hide py-2">
+                  <div className="flex flex-col gap-2">
+                    <h2 className="text-3xl font-black italic uppercase tracking-tighter leading-none">
+                      {details.length > 1 ? "Linked Opportunities" : "Quick Preview"}
+                    </h2>
+                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Tap to view full details</p>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    {details.map((item, idx) => (
+                      <motion.div 
+                        key={idx}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => openImmersiveDetail(item)}
+                        className="bg-white/5 border border-white/10 rounded-[2.5rem] p-6 flex flex-col gap-6 group"
+                      >
+                        <div className="flex items-center gap-5">
+                          <div className="w-20 h-20 rounded-3xl bg-white/10 border border-white/10 overflow-hidden shrink-0">
+                            <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${item.heroMedia[0]})` }} />
+                          </div>
+                          <div className="flex flex-col gap-1 flex-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/30">{item.type}</span>
+                            <h3 className="text-xl font-bold tracking-tight">{item.title}</h3>
+                            <div className="flex items-center gap-3 mt-1">
+                               <div className="flex items-center gap-1">
+                                  <Star size={12} className="text-yellow-500 fill-current" />
+                                  <span className="text-xs font-bold">{item.creator.rating}</span>
+                               </div>
+                               <span className="text-white/20 text-xs">|</span>
+                               <span className="text-xs font-black text-green-500 uppercase tracking-widest">Verified</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                           <div className="flex flex-col">
+                              <span className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Starts at</span>
+                              <span className="text-2xl font-black">${'price' in item ? item.price : 'priceStructure' in item ? item.priceStructure.startingPrice : 'Free'}</span>
+                           </div>
+                           <button className="h-12 px-6 bg-white text-black rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center gap-2 group-hover:scale-105 transition-transform">
+                              Full Details <ArrowRight size={14} />
+                           </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+               </div>
+
+               <button 
+                onClick={() => setShowSummarySheet(false)}
+                className="mt-8 text-white/30 text-[10px] font-black uppercase tracking-[0.3em] hover:text-white transition-colors"
+               >
+                 Close Preview
+               </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+      
+      {/* Immersive Detail Screen */}
+      <AnimatePresence>
+        {showImmersiveDetail && selectedDetail && (
+          <DetailScreen 
+            isOpen={showImmersiveDetail}
+            onClose={() => setShowImmersiveDetail(false)}
+            data={selectedDetail}
+          />
         )}
       </AnimatePresence>
 
