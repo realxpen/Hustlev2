@@ -25,6 +25,24 @@ export enum EscrowStatus {
   REFUNDED = "refunded"
 }
 
+export enum MilestoneStatus {
+  PENDING = "pending",
+  IN_PROGRESS = "in_progress",
+  AWAITING_APPROVAL = "awaiting_approval",
+  RELEASED = "released",
+  DISPUTED = "disputed"
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  amount: number;
+  status: MilestoneStatus;
+  deadline: string;
+  description?: string;
+  approvedAt?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -78,18 +96,41 @@ export interface Booking {
   status: BookingStatus;
   price: number;
   escrowStatus: EscrowStatus;
+  milestones: Milestone[];
   scheduledAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export enum TransactionType {
+  BOOKING_PAYMENT = "booking_payment",
+  ESCROW_RELEASE = "escrow_release",
+  ESCROW_FUNDED = "escrow_funded",
+  AWAITING_APPROVAL = "awaiting_approval",
+  WITHDRAWAL = "withdrawal",
+  DEPOSIT = "deposit",
+  REFUND = "refund",
+  PURCHASE = "purchase"
+}
+
+export enum TransactionStatus {
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  DISPUTED = "disputed"
 }
 
 export interface Transaction {
   id: string;
   userId: string;
   bookingId?: string;
+  milestoneId?: string;
   amount: number;
-  type: "payment" | "withdrawal" | "refund";
-  status: "pending" | "success" | "failed";
+  type: TransactionType;
+  status: TransactionStatus;
+  title: string;
+  meta?: Record<string, any>;
   timestamp: string;
 }
 

@@ -1,6 +1,7 @@
-import { motion } from "motion/react";
-import { ChevronLeft, MoreHorizontal, MessageSquare, Phone, MapPin, Calendar, Clock, CheckCircle2, ChevronRight, Star } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { ChevronLeft, MoreHorizontal, MessageSquare, Phone, MapPin, Calendar, Clock, CheckCircle2, ChevronRight, Star, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import JobEscrowManager from "./JobEscrowManager";
 
 interface BookingDetailProps {
   booking: any;
@@ -16,6 +17,7 @@ const PROGRESS_STEPS = [
 
 export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
   const [activeTab, setActiveTab] = useState<"tracking" | "details">("tracking");
+  const [showEscrow, setShowEscrow] = useState(false);
 
   return (
     <motion.div
@@ -186,11 +188,20 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
       </div>
 
       {/* Persistent Bottom Action (if active) */}
-      <footer className="px-6 pt-4 pb-12 bg-gradient-to-t from-black to-transparent">
-         <button className="w-full h-14 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Share Progress Update</span>
+      <footer className="px-6 pt-4 pb-12 bg-gradient-to-t from-black to-transparent relative z-[200]">
+         <button 
+            onClick={() => {
+                alert("Clicked");
+                setShowEscrow(true);
+            }}
+            className="w-full h-14 bg-blue-500 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform"
+         >
+            <ShieldCheck size={16} />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Manage Escrow & Payments</span>
          </button>
       </footer>
+      
+      {showEscrow && <JobEscrowManager booking={booking} onClose={() => setShowEscrow(false)} />}
     </motion.div>
   );
 }

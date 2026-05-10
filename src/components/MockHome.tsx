@@ -379,10 +379,13 @@ export default function MockHome() {
         <h2 className="text-xl font-display font-black tracking-[0.2em] pointer-events-auto">HUSTLE</h2>
         <div className="flex gap-4 pointer-events-auto">
           <button 
-            onClick={() => setActiveNav("search")}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors"
+            onClick={() => setActiveNav("bookings")}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors relative"
           >
-            <Search size={18} />
+            {activeNav !== "bookings" && (
+               <div className="w-2 h-2 rounded-full bg-blue-500 absolute top-2 right-2" />
+            )}
+            <Calendar size={18} />
           </button>
           <button 
             onClick={() => setIsActivityOpen(true)}
@@ -396,10 +399,15 @@ export default function MockHome() {
             <Bell size={18} />
           </button>
           <button 
-            onClick={() => setActiveNav("profile")}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors"
+            onClick={() => setActiveNav("chat")}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors relative"
           >
-            <User size={18} />
+            <motion.div 
+               animate={{ scale: [1, 1.3, 1] }}
+               transition={{ duration: 2, repeat: Infinity }}
+               className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" 
+            />
+            <MessageSquare size={18} />
           </button>
         </div>
       </header>
@@ -566,17 +574,6 @@ export default function MockHome() {
         </button>
 
         <button 
-          onClick={() => setActiveNav("bookings")}
-          className={`flex flex-col items-center gap-1 transition-colors relative ${activeNav === "bookings" ? 'text-white' : 'text-white/40'}`}
-        >
-          {activeNav !== "bookings" && (
-             <div className="w-2 h-2 rounded-full bg-blue-500 absolute -top-1" />
-          )}
-          <Calendar size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Jobs</span>
-        </button>
-
-        <button 
           onClick={() => setActiveNav("wallet")}
           className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "wallet" ? 'text-white' : 'text-white/40'}`}
         >
@@ -585,16 +582,11 @@ export default function MockHome() {
         </button>
 
         <button 
-          onClick={() => setActiveNav("chat")}
-          className={`flex flex-col items-center gap-1 transition-colors relative ${activeNav === "chat" ? 'text-white' : 'text-white/40'}`}
+          onClick={() => setActiveNav("profile")}
+          className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "profile" ? 'text-white' : 'text-white/40'}`}
         >
-          <motion.div 
-             animate={{ scale: [1, 1.3, 1] }}
-             transition={{ duration: 2, repeat: Infinity }}
-             className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" 
-          />
-          <MessageSquare size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Chat</span>
+          <User size={20} />
+          <span className="text-[10px] uppercase tracking-widest font-bold">Profile</span>
         </button>
       </motion.nav>
 

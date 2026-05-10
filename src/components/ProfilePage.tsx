@@ -3,11 +3,12 @@ import {
   ChevronLeft, Star, MapPin, CheckCircle2, MessageSquare, MoreHorizontal, Grid, 
   Briefcase, MessageCircle, Info, Calendar, ShieldCheck, ShieldAlert, Edit2, 
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, X, Plus, Play, Link as LinkIcon,
-  Check, AlertCircle, TrendingUp, CreditCard, User, History
+  Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
 import ReportSheet from "./ReportSheet";
+import ImageEditorModal from "./ImageEditorModal";
 
 interface ProfilePageProps {
   hustler: any;
@@ -26,6 +27,10 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
   const [showSchedule, setShowSchedule] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Open for Bookings");
   const [reviewFilter, setReviewFilter] = useState<"received" | "given">("received");
+  
+  const [imageEditorState, setImageEditorState] = useState<{isOpen: boolean, type: 'avatar' | 'cover' | null}>({ isOpen: false, type: null });
+  const [localAvatar, setLocalAvatar] = useState(hustler.creator.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=60");
+  const [localCover, setLocalCover] = useState("https://images.unsplash.com/photo-1557683316-973673baf926?w=800&auto=format&fit=crop&q=80"); // fallback cover
 
   const schedule = [
     { day: "Mon", active: true, start: "09:00", end: "18:00" },
@@ -59,11 +64,37 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
   const tabs = [
     { id: "posts", label: "Posts", icon: <Grid size={14} /> },
     { id: "services", label: "Services", icon: <Briefcase size={14} /> },
-    { id: "products", label: "Shop", icon: <ShoppingBag size={14} /> },
+    { id: "products", label: "Products", icon: <ShoppingBag size={14} /> },
     { id: "trainings", label: "Trainings", icon: <BookOpen size={14} /> },
     { id: "reviews", label: "Reviews", icon: <Star size={14} /> },
-    ...(isOwnerMode ? [{ id: "jobs", label: "Jobs", icon: <History size={14} /> }] : []),
     { id: "about", label: "About", icon: <Info size={14} /> }
+  ];
+
+  const featuredOfferings = [
+    { id: 'f1', name: "Figma UI Kit 2026", price: 49, type: "product", image: "https://images.unsplash.com/photo-1541461985943-955a15064562?w=400&auto=format&fit=crop&q=60", sales: 843 },
+    { id: 'f2', name: "Product Design Sprint", price: 499, type: "service", image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&auto=format&fit=crop&q=60", delivery: "5 days" },
+  ];
+
+  const myServices = [
+    { id: 's1', name: "Full Product Design Sprint", price: 499, time: "5-7 days", desc: "End-to-end design from wireframes to high fidelity mockups and interactive prototypes.", features: ["3 Revision Cycles", "Source Files", "Developer Handoff"], popular: true },
+    { id: 's2', name: "UI/UX Audit", price: 150, time: "2 days", desc: "Comprehensive actionable tear-down of your current product's user experience and visual design.", features: ["Loom Video Walkthrough", "PDF Report", "Quick Fixes List"] },
+    { id: 's3', name: "Brand Identity System", price: 850, time: "2 weeks", desc: "Complete visual identity including logos, typography, color palettes, and brand guidelines.", features: ["3 Concepts", "Social Media Kit", "Print Ready Files"] }
+  ];
+
+  const myProducts = [
+    { id: 'p1', name: "Figma UI Kit 2026", price: 49, type: "Digital", image: "https://images.unsplash.com/photo-1541461985943-955a15064562?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.9, sales: 843 },
+    { id: 'p2', name: "Creator Notion Template", price: 29, type: "Digital", image: "https://images.unsplash.com/photo-1517842645767-c639042777db?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.7, sales: 1205 },
+    { id: 'p3', name: "Premium Font: Hustle Sans", price: 79, type: "Digital", image: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 5.0, sales: 124 },
+    { id: 'p4', name: "Physical Prints Collection", price: 120, type: "Physical", image: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&auto=format&fit=crop&q=60", stock: "12 Left", rating: 4.8, sales: 56 }
+  ];
+
+  const myTrainings = [
+    { id: 't1', name: "Advanced Figma Systems", price: 199, duration: "6 Hours", type: "Masterclass", modules: 12, rating: 4.9, image: "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=400&auto=format&fit=crop&q=60", outcomes: ["Atomic Design Master", "Prototyping Expert", "Complex Auto-layout Control"] },
+    { id: 't2', name: "Freelance Business 101", price: 99, duration: "3 Hours", type: "Digital Workshop", modules: 5, rating: 4.8, image: "https://images.unsplash.com/photo-1454165833767-027ffea9e772?w=400&auto=format&fit=crop&q=60", outcomes: ["Contract Writing", "Pricing Strategies", "Client Pipeline Strategy"] }
+  ];
+
+  const myApprenticeships = [
+    { id: 'a1', name: "Product Design Apprenticeship", duration: "3 Months", slots: "2 Open", type: "Mentorship", stipend: "Paid Opp", image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&auto=format&fit=crop&q=60", level: "Intermediate", perks: ["Direct Client Access", "Portfolio Review", "Handoff Mastery"] }
   ];
 
   const handleTabChange = (id: string) => {
@@ -135,9 +166,13 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
           </motion.div>
 
           {/* Cover Photo */}
-          <div className="w-full h-48 bg-gradient-to-br from-blue-900/40 to-purple-900/20 relative group">
+          <div 
+            className={`w-full h-48 bg-gradient-to-br from-blue-900/40 to-purple-900/20 relative group ${isOwnerMode ? 'cursor-pointer' : ''}`}
+            onClick={() => isOwnerMode && setImageEditorState({ isOpen: true, type: 'cover' })}
+          >
+            <img src={localCover} className="w-full h-full object-cover absolute inset-0 opacity-50" alt="Cover" />
             {isOwnerMode && (
-              <button className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="absolute top-4 right-4 p-2 bg-black/50 backdrop-blur-md rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <Camera size={16} />
               </button>
             )}
@@ -145,15 +180,18 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
           </div>
 
           {/* Profile Avatar */}
-          <div className="relative -mt-16 mb-4 z-10 group">
+          <div 
+            className="relative -mt-16 mb-4 z-10 group"
+            onClick={() => isOwnerMode && setImageEditorState({ isOpen: true, type: 'avatar' })}
+          >
             <motion.div 
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.1 }}
-              className="w-32 h-32 rounded-full border-4 border-[#050505] overflow-hidden bg-white/5 relative shadow-2xl"
+              className={`w-32 h-32 rounded-full border-4 border-[#050505] overflow-hidden bg-white/5 relative shadow-2xl ${isOwnerMode ? 'cursor-pointer' : ''}`}
             >
               <img 
-                src={hustler.creator.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=60"} 
+                src={localAvatar} 
                 alt={hustler.creator.name}
                 className="w-full h-full object-cover"
               />
@@ -318,28 +356,72 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
           </div>
         </section>
 
-        {/* Scrollable Sticky Tabs Architecture */}
-        <div className="sticky top-0 z-50 bg-[#050505]/95 backdrop-blur-xl border-y border-white/5 mt-8 shadow-2xl">
-          <nav className="flex overflow-x-auto no-scrollbar px-2 items-center snap-x w-full">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-5 py-4 relative transition-all whitespace-nowrap snap-start shrink-0 ${
-                  activeTab === tab.id ? 'text-white font-bold' : 'text-white/40 font-medium hover:text-white/70'
-                }`}
-              >
-                {tab.icon}
-                <span className="text-[11px] uppercase tracking-widest">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <motion.div 
-                    layoutId="activeTabIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                  />
-                )}
-              </button>
-            ))}
-          </nav>
+        {/* Recent Hustles - Proof of Work for Visitors */}
+        <section className="px-6 mt-8 mb-8">
+          <div className="flex items-center justify-between mb-4 px-1">
+             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 italic">Recent Hustles</h3>
+             <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-green-400">
+               <ShieldCheck size={12} /> Escrow Verified
+             </div>
+          </div>
+          <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
+             {[
+               { id: 1, title: "UI System for Fintech", client: "Elena R.", status: "Completed", rating: 5, image: "https://images.unsplash.com/photo-1551288049-bbbda536339a?w=400&auto=format&fit=crop&q=60" },
+               { id: 2, title: "Brand Identity Design", client: "David M.", status: "Completed", rating: 5, image: "https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400&auto=format&fit=crop&q=60" },
+               { id: 3, title: "3D Motion Product Clip", client: "Sophia K.", status: "Completed", rating: 5, image: "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=400&auto=format&fit=crop&q=60" }
+             ].map((hustle) => (
+               <div key={hustle.id} className="min-w-[240px] bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] overflow-hidden snap-start group relative shadow-2xl">
+                  <div className="h-32 relative overflow-hidden">
+                     <img src={hustle.image} className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={hustle.title} />
+                     <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0c] to-transparent" />
+                     <div className="absolute top-4 right-4 flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10">
+                        <Star size={10} className="text-yellow-500 fill-yellow-500" />
+                        <span className="text-[10px] font-black text-white">{hustle.rating}</span>
+                     </div>
+                  </div>
+                  <div className="p-5 flex flex-col gap-1">
+                     <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">{hustle.status}</span>
+                     <h4 className="text-sm font-black text-white uppercase tracking-tight truncate leading-tight">{hustle.title}</h4>
+                     <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mt-1">Client: {hustle.client}</p>
+                  </div>
+               </div>
+             ))}
+             
+             {/* Total Impact Card */}
+             <div className="min-w-[160px] bg-blue-600/10 border border-blue-500/20 rounded-[2.5rem] flex flex-col items-center justify-center p-6 snap-start text-center">
+                <span className="text-2xl font-black text-white tracking-tighter">140+</span>
+                <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest leading-tight mt-1">Hustles Successfully Executed</span>
+             </div>
+          </div>
+        </section>
+
+        {/* Segmented Sticky Navigation Architecture */}
+        <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-2xl border-y border-white/5 py-3 shadow-2xl">
+          <div className="max-w-2xl mx-auto px-4">
+            <nav className="flex overflow-x-auto no-scrollbar gap-1 items-center p-1 bg-white/[0.03] border border-white/10 rounded-2xl relative snap-x w-full shadow-inner">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2 px-6 py-2.5 relative transition-all whitespace-nowrap snap-start shrink-0 rounded-xl group ${
+                    activeTab === tab.id ? 'text-black' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  <div className="relative z-10 flex items-center gap-2">
+                    {tab.icon}
+                    <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
+                  </div>
+                  {activeTab === tab.id && (
+                    <motion.div 
+                      layoutId="profileSegmentHighlight"
+                      className="absolute inset-0 bg-white rounded-xl shadow-[0_4px_12px_rgba(255,255,255,0.2)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
 
         {/* Content Area Rendering */}
@@ -353,18 +435,52 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-3 gap-1 md:gap-2"
+                className="flex flex-col gap-8"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-                  <div key={i} className="aspect-[3/4] relative rounded-lg border border-white/5 overflow-hidden group cursor-pointer bg-white/5 text-white/20 flex flex-col items-center justify-center hover:bg-white/10 transition-colors">
-                    {/* Placeholder for video/image thumbnail */}
-                    {i % 3 === 0 ? <Play size={24} className="opacity-50" /> : <Camera size={24} className="opacity-50" />}
-                    <div className="absolute bottom-2 left-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play size={10} className="text-white" />
-                      <span className="text-[10px] text-white font-bold">{(i * 12.4).toFixed(1)}k</span>
-                    </div>
+                {/* Featured Storefront in Feed (Visitor) */}
+                <div className="mb-2">
+                  <div className="flex items-center justify-between mb-4">
+                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 italic">Shop My Direct</h3>
+                     <button onClick={() => handleTabChange("products")} className="text-[9px] font-black uppercase tracking-widest text-blue-400">View Catalog</button>
                   </div>
-                ))}
+                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 snap-x">
+                    {featuredOfferings.map((item) => (
+                      <div key={item.id} className="min-w-[280px] h-44 bg-[#0c0c0c] border border-white/10 rounded-[2.5rem] overflow-hidden flex snap-start relative group transition-all hover:border-blue-500/50 shadow-2xl">
+                        <div className="w-1/2 h-full relative overflow-hidden">
+                          <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80" alt={item.name} />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/20 to-[#0c0c0c]" />
+                        </div>
+                        <div className="w-1/2 p-6 flex flex-col justify-center gap-1 z-10 bg-black/40 backdrop-blur-3xl">
+                          <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">{item.type}</span>
+                          <h4 className="text-sm font-black text-white leading-tight mb-2 uppercase tracking-tight">{item.name}</h4>
+                          <div className="flex items-center justify-between mt-auto">
+                            <span className="text-lg font-black text-white">${item.price}</span>
+                            <div className="px-3 py-1.5 rounded-xl bg-white text-black group-hover:bg-blue-500 group-hover:text-white transition-all text-[8px] font-black uppercase tracking-widest">
+                               {item.type === 'service' ? 'Book' : 'Get'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1 md:gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+                    <div key={i} className="aspect-[3/4] relative rounded-xl border border-white/5 overflow-hidden group cursor-pointer bg-[#0c0c0c] text-white/20 flex flex-col items-center justify-center hover:scale-[0.98] transition-all">
+                      <img src={`https://images.unsplash.com/photo-${1500000000000 + i * 1000}?w=400&auto=format&fit=crop&q=60`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                      
+                      <div className="absolute top-2 right-2 z-10 p-1.5 bg-black/60 backdrop-blur-md rounded-lg">
+                        {i % 3 === 0 ? <Play size={12} className="text-white fill-white" /> : <Camera size={12} className="text-white" />}
+                      </div>
+
+                      <div className="absolute bottom-3 left-3 flex items-center gap-1.5 drop-shadow-lg">
+                        <Play size={10} className="text-white fill-white" />
+                        <span className="text-[10px] text-white font-black tracking-tighter uppercase">{(i * 12.4).toFixed(1)}k</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
 
@@ -372,34 +488,76 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             {activeTab === "services" && (
               <motion.div
                 key="services"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col gap-4"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-6"
               >
-                {[
-                  { name: "Full Product Design Sprint", price: 499, time: "5-7 days", desc: "End-to-end design from wireframes to high fidelity." },
-                  { name: "UI/UX Audit", price: 150, time: "2 days", desc: "Actionable tear-down of your current product." },
-                  { name: "Brand Identity System", price: 850, time: "2 weeks", desc: "Logos, typography, color palettes, and guidelines." }
-                ].map((item, i) => (
-                  <div key={i} className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 flex flex-col gap-3 group hover:border-white/20 transition-all cursor-pointer shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-bold text-white text-lg">{item.name}</h3>
-                        <p className="text-sm text-white/50 mt-1">{item.desc}</p>
+                <div className="px-2">
+                   <h3 className="text-lg font-black text-white uppercase tracking-tighter">Professional Offerings</h3>
+                   <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-medium mt-1">Direct bookings with guaranteed escrow protection</p>
+                </div>
+
+                <div className="flex flex-col gap-5">
+                  {myServices.map((item, i) => (
+                    <div key={i} className="p-7 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 flex flex-col gap-6 group hover:border-blue-500/40 transition-all cursor-pointer shadow-2xl relative overflow-hidden active:scale-[0.98]">
+                      {item.popular && (
+                        <div className="absolute top-0 right-14 px-5 py-2 bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.3em] rounded-b-2xl shadow-xl z-20">
+                          Elite Service
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-start relative z-10">
+                        <div className="flex-1">
+                          <h3 className="font-black text-white text-2xl tracking-tighter leading-tight group-hover:text-blue-400 transition-colors uppercase">{item.name}</h3>
+                          <div className="flex items-center gap-3 mt-3">
+                             <div className="flex items-center gap-1.5 text-[10px] font-black text-white/40 uppercase tracking-widest bg-white/5 px-2 py-1 rounded-lg">
+                               <Clock size={12} /> {item.time}
+                             </div>
+                             <div className="flex items-center gap-1.5 text-[10px] font-black text-green-400 uppercase tracking-widest bg-green-400/5 px-2 py-1 rounded-lg border border-green-500/10">
+                               <Zap size={12} /> Priority Intro
+                             </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0 ml-4">
+                          <span className="text-3xl font-black text-white tracking-tighter leading-none">${item.price}</span>
+                          <span className="text-[9px] text-white/20 uppercase tracking-widest font-black mt-1">Starting At</span>
+                        </div>
                       </div>
-                      <span className="bg-white/10 text-white px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shadow-sm border border-white/5">${item.price}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                      <div className="flex items-center gap-2 text-white/40 text-[10px] uppercase tracking-widest font-bold">
-                        <Clock size={12} /> {item.time}
+
+                      <p className="text-[13px] text-white/50 font-medium leading-relaxed max-w-[90%]">
+                        {item.desc}
+                      </p>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {item.features.map((f, fi) => (
+                          <div key={fi} className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.04] border border-white/5">
+                            <CheckCircle2 size={12} className="text-blue-500" />
+                            <span className="text-[10px] font-black text-white/60 uppercase tracking-widest leading-none">{f}</span>
+                          </div>
+                        ))}
                       </div>
-                      <button className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity translate-x-1 group-hover:translate-x-0">
-                        Book Now <ChevronLeft size={14} className="rotate-180" />
-                      </button>
+
+                      <div className="flex items-center justify-between mt-2 pt-6 border-t border-white/5">
+                        <div className="flex items-center gap-5">
+                           <div className="flex items-center gap-1.5">
+                              <Star size={12} className="text-yellow-500 fill-yellow-500" />
+                              <span className="text-sm font-black text-white">4.9</span>
+                           </div>
+                           <div className="flex -space-x-3">
+                              {[1,2,3].map(user => (
+                                <div key={user} className="w-8 h-8 rounded-full border-2 border-[#0c0c0c] bg-white/10 flex items-center justify-center text-[10px] font-black">{String.fromCharCode(64+user)}</div>
+                              ))}
+                              <div className="w-8 h-8 rounded-full border-2 border-[#0c0c0c] bg-blue-900 flex items-center justify-center text-[8px] font-black">+12</div>
+                           </div>
+                        </div>
+                        <button className="px-8 py-4 rounded-[2rem] bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-2xl active:scale-95">
+                          Book This Service
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </motion.div>
             )}
 
@@ -407,33 +565,66 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             {activeTab === "products" && (
               <motion.div
                 key="products"
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="grid grid-cols-2 gap-4"
+                exit={{ opacity: 0, y: -15 }}
+                className="flex flex-col gap-8"
               >
-                {[
-                  { name: "Figma UI Kit 2026", price: "$49", type: "Digital" },
-                  { name: "Creator Notion Template", price: "$29", type: "Digital" },
-                  { name: "Premium Font: Hustle Sans", price: "$79", type: "Digital" },
-                  { name: "1-on-1 Mentorship Call", price: "$99", type: "Consulting" }
-                ].map((prod, i) => (
-                  <div key={i} className="flex flex-col gap-3">
-                    <div className="aspect-square bg-white/5 rounded-3xl border border-white/10 flex flex-col items-center justify-center p-4 relative group cursor-pointer overflow-hidden shadow-sm">
-                       <ShoppingBag size={32} className="text-white/20 mb-2 transform group-hover:scale-110 transition-transform" />
-                       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
-                         <span className="bg-white text-black px-4 py-2 rounded-full text-xs font-bold shadow-lg">View Product</span>
-                       </div>
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white line-clamp-1">{prod.name}</h3>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/40">{prod.type}</span>
-                        <span className="text-sm font-black text-white">{prod.price}</span>
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex flex-col">
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">The Creator Drop</h3>
+                    <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-black mt-1">Exclusives & Digital Assets</p>
+                  </div>
+                  <div className="flex gap-2">
+                     <button className="p-3 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:text-white">
+                        <Grid size={16} />
+                     </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-10">
+                  {myProducts.map((prod, i) => (
+                    <div key={i} className="flex flex-col gap-4 group">
+                      <div className="aspect-[4/5] bg-black rounded-[3rem] border border-white/10 overflow-hidden relative group cursor-pointer shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] active:scale-[0.97] transition-all hover:border-blue-500/50">
+                         <img src={prod.image} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 blur-[0px] group-hover:blur-0" alt={prod.name} />
+                         
+                         {/* Dynamic Badge */}
+                         <div className="absolute top-5 left-5 z-20">
+                           <span className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-[8px] font-black text-white uppercase tracking-widest">
+                             {prod.type}
+                           </span>
+                         </div>
+
+                         <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent flex flex-col gap-1.5">
+                            <div className="flex items-center gap-1 text-yellow-500">
+                               <Star size={10} className="fill-yellow-500" />
+                               <span className="text-[10px] font-black text-white">{prod.rating}</span>
+                            </div>
+                            <h3 className="text-base font-black text-white uppercase tracking-tight leading-tight line-clamp-2">{prod.name}</h3>
+                            <div className="flex items-center justify-between mt-3">
+                              <span className="text-xl font-black text-white tracking-tighter italic">${prod.price}</span>
+                              <div className="w-10 h-10 rounded-2xl bg-white text-black flex items-center justify-center shadow-xl group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                <ShoppingBag size={18} />
+                              </div>
+                            </div>
+                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+
+                {/* Newsletter / Drops Module */}
+                <div className="p-8 rounded-[3rem] bg-indigo-600 shadow-2xl relative overflow-hidden group mt-4">
+                   <div className="relative z-10">
+                      <h4 className="text-2xl font-black text-white tracking-tighter italic mb-2 uppercase">Join The Insiders</h4>
+                      <p className="text-xs text-white/70 font-medium leading-relaxed mb-6 max-w-[80%]">Get notified 24h before new asset drops and exclusive workshops go live.</p>
+                      <div className="flex gap-2">
+                        <input className="flex-1 bg-black/20 border border-white/20 rounded-2xl px-5 py-3 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-white transition-all" placeholder="Enter your email" />
+                        <button className="px-6 py-3 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">Join</button>
+                      </div>
+                   </div>
+                   <Zap size={120} className="absolute -bottom-10 -right-10 text-white/10 rotate-12 group-hover:scale-110 transition-transform duration-700" />
+                </div>
               </motion.div>
             )}
             
@@ -441,27 +632,105 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             {activeTab === "trainings" && (
               <motion.div
                 key="trainings"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col gap-4"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-10"
               >
-                {[
-                  { name: "Mastering Client Acquisition", format: "Video Course", duration: "2 Hours" },
-                  { name: "Advanced UI Apprenticeship", format: "Live Coaching", duration: "4 Weeks" }
-                ].map((training, i) => (
-                  <div key={i} className="p-1 rounded-[26px] bg-gradient-to-r from-blue-500/20 to-purple-500/20 shadow-lg">
-                     <div className="bg-[#0f0f0f] p-6 rounded-[24px] flex justify-between items-center group cursor-pointer transition-colors hover:bg-[#151515]">
-                        <div>
-                          <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest">{training.format} • {training.duration}</span>
-                          <h3 className="font-bold text-white text-lg mt-1">{training.name}</h3>
-                        </div>
-                        <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/20 group-hover:scale-105 transition-all">
-                           <Play size={18} className="text-white ml-1" />
-                        </div>
-                     </div>
+                <div className="px-2">
+                   <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Academy Hub</h3>
+                   <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-medium mt-1">Growth opportunities & shared mastery</p>
+                </div>
+
+                {/* Apprenticeship Card - High Impact Mentorship */}
+                <div className="flex flex-col gap-6">
+                  {myApprenticeships.map((app) => (
+                    <div key={app.id} className="relative p-1 rounded-[3rem] bg-gradient-to-br from-indigo-500/30 via-purple-500/20 to-transparent group cursor-pointer shadow-2xl transition-all hover:scale-[0.99]">
+                       <div className="bg-[#0c0c0c] p-8 rounded-[2.9rem] flex flex-col gap-6">
+                         <div className="flex justify-between items-start">
+                            <div>
+                               <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 text-[8px] font-black uppercase tracking-widest mb-3 inline-block">{app.type}</span>
+                               <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-tight group-hover:text-indigo-400 transition-colors">{app.name}</h3>
+                            </div>
+                            <div className="w-20 h-20 rounded-[2.5rem] bg-white/5 border border-white/10 p-0.5 shadow-2xl">
+                               <img src={app.image} className="w-full h-full object-cover rounded-[2.4rem] opacity-80" alt={app.name} />
+                            </div>
+                         </div>
+
+                         <div className="flex gap-6 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                            <div className="flex items-center gap-2"><Clock size={14} /> {app.duration}</div>
+                            <div className="flex items-center gap-2 text-indigo-400"><History size={14} /> {app.slots}</div>
+                            <div className="flex items-center gap-2 text-green-400"><CheckCircle2 size={14} /> {app.stipend}</div>
+                         </div>
+
+                         <div className="flex flex-wrap gap-2">
+                            {app.perks.map((perk, pi) => (
+                              <div key={pi} className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black text-white/60 uppercase tracking-widest">
+                                {perk}
+                              </div>
+                            ))}
+                         </div>
+
+                         <button className="w-full py-5 rounded-[2rem] bg-indigo-600 text-white text-[11px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-500/20 hover:bg-white hover:text-black transition-all active:scale-95">
+                            Apply for Apprenticeship
+                         </button>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Trainings Preview */}
+                <div className="flex flex-col gap-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 px-2">Knowledge Drops</h4>
+                  <div className="grid grid-cols-1 gap-5">
+                    {myTrainings.map((training) => (
+                      <div key={training.id} className="p-6 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 group flex gap-5 hover:border-indigo-500/30 transition-all cursor-pointer">
+                         <div className="w-32 h-32 rounded-3xl overflow-hidden shrink-0 shadow-2xl relative">
+                            <img src={training.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={training.name} />
+                            <Play size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white fill-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </div>
+                         <div className="flex-1 flex flex-col justify-between py-1">
+                            <div>
+                               <div className="flex items-center justify-between mb-2">
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-indigo-400">{training.type}</span>
+                                  <div className="flex items-center gap-1">
+                                     <Star size={8} className="text-yellow-500 fill-yellow-500" />
+                                     <span className="text-[8px] font-black text-white">{training.rating}</span>
+                                  </div>
+                               </div>
+                               <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight line-clamp-2 group-hover:text-indigo-400 transition-colors">{training.name}</h3>
+                               <div className="flex items-center gap-2 mt-2 text-[9px] font-black text-white/30 uppercase tracking-widest">
+                                  <span>{training.modules} Modules</span>
+                                  <span>•</span>
+                                  <span>{training.duration}</span>
+                               </div>
+                            </div>
+                            <div className="flex items-center justify-between mt-3">
+                               <span className="text-xl font-black text-white tracking-widest">${training.price}</span>
+                               <div className="px-5 py-2.5 rounded-xl bg-white text-black text-[9px] font-black uppercase tracking-widest group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xl">
+                                  Enroll
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* Mentor Showcase Highlight */}
+                <div className="p-8 rounded-[3rem] bg-white/[0.03] border border-white/5 relative overflow-hidden group">
+                   <div className="relative z-10 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white mb-4 shadow-2xl">
+                         <Star size={24} className="fill-white" />
+                      </div>
+                      <h4 className="text-xl font-black text-white tracking-tighter uppercase italic mb-2">Mentor Access</h4>
+                      <p className="text-xs text-white/40 font-medium leading-relaxed mb-6 max-w-[200px]">Unlock direct lineage to {hustler.creator.name}'s professional network and secret workflows.</p>
+                      <button className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all">
+                        Upgrade To Insider
+                      </button>
+                   </div>
+                   <Zap size={140} className="absolute -bottom-10 -right-10 text-white/5 rotate-12 group-hover:scale-110 transition-all duration-700" />
+                </div>
               </motion.div>
             )}
 
@@ -535,66 +804,6 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
                         </div>
                       </div>
                       <p className="text-sm text-white/70 font-light leading-relaxed">"{review.comment}"</p>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* 2. JOBS / BOOKINGS MANAGEMENT SECTION (Owner Only) */}
-            {activeTab === "jobs" && isOwnerMode && (
-              <motion.div
-                key="jobs"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex flex-col gap-6"
-              >
-                {/* Management Tabs */}
-                <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
-                  {['Active (2)', 'Pending (5)', 'Completed (142)', 'Cancelled'].map((t, i) => (
-                    <button key={i} className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${i === 0 ? 'bg-white text-black shadow-lg' : 'bg-white/10 border border-white/5 text-white hover:bg-white/20'}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  {[
-                    { id: "J-092", client: "Elena R.", service: "Brand Identity System", amount: "$850", due: "In 3 Days", status: "In Progress", progress: 65 },
-                    { id: "J-091", client: "David M.", service: "UI/UX Audit", amount: "$150", due: "Tomorrow", status: "Waiting on Client", progress: 90 }
-                  ].map((job, i) => (
-                    <div key={i} className="p-6 rounded-3xl bg-[#111] border border-white/10 flex flex-col gap-5 shadow-xl">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase tracking-widest font-bold border border-blue-500/20">
-                              {job.status}
-                            </span>
-                            <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">ID: {job.id}</span>
-                          </div>
-                          <h3 className="font-bold text-white text-base">{job.service}</h3>
-                          <p className="text-xs font-bold text-white/50 mt-1 uppercase tracking-widest">Client: {job.client}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-black text-xl text-green-400 block tracking-tight">{job.amount}</span>
-                          <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold mt-1 block">Due: {job.due}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Job Progress */}
-                      <div className="w-full bg-white/5 h-2.5 rounded-full overflow-hidden border border-white/5">
-                        <div className="bg-white h-full rounded-full animate-pulse" style={{ width: `${job.progress}%` }} />
-                      </div>
-                      
-                      <div className="flex justify-end gap-3 mt-1">
-                        <button className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-bold transition-colors">
-                          Message
-                        </button>
-                        <button className="px-5 py-2.5 rounded-xl bg-white text-black text-xs font-bold transition-colors hover:bg-white/90 shadow-md">
-                          Update Progress
-                        </button>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -776,6 +985,18 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
         )}
       </AnimatePresence>
 
+      <ImageEditorModal 
+        isOpen={imageEditorState.isOpen}
+        onClose={() => setImageEditorState({ isOpen: false, type: null })}
+        onSave={(imageUrl) => {
+          if (imageEditorState.type === 'avatar') {
+            setLocalAvatar(imageUrl);
+          } else if (imageEditorState.type === 'cover') {
+            setLocalCover(imageUrl);
+          }
+        }}
+        title={imageEditorState.type === 'avatar' ? 'Edit Profile Picture' : 'Edit Cover Photo'}
+      />
     </motion.div>
   );
 }

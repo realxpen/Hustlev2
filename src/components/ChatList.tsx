@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Search, MoreHorizontal, CheckCircle } from "lucide-react";
+import { Search, MoreHorizontal, CheckCircle2 } from "lucide-react";
 
 interface ChatListProps {
   onChatSelect: (chat: any) => void;
@@ -81,7 +81,7 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
                <div className="flex justify-between items-baseline mb-1">
                   <div className="flex items-center gap-1.5">
                      <h3 className="font-bold text-sm truncate">{chat.name}</h3>
-                     {chat.verified && <CheckCircle size={10} className="text-blue-400" />}
+                     {chat.verified && <CheckCircle2 size={10} className="text-blue-400" />}
                   </div>
                   <span className="text-[10px] text-white/20 font-bold uppercase">{chat.time}</span>
                </div>

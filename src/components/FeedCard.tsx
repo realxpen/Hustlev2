@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageSquare, Share2, Bookmark, Star, MapPin, CheckCircle, Repeat2, Music, ShoppingBag, ArrowRight, X, Plus, Send, Link, Link2, MessageCircle, HeartCrack } from "lucide-react";
+import { Heart, MessageSquare, Share2, Bookmark, Star, MapPin, CheckCircle2, Repeat2, Music, ShoppingBag, ArrowRight, X, Plus, Send, Link, Link2, MessageCircle, HeartCrack } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import DetailScreen from "./DetailScreen";
 import { DetailData } from "../types";
@@ -299,7 +299,7 @@ export default function FeedCard({
              <div className="flex flex-col cursor-pointer" onClick={onProfileClick}>
                <h3 className="text-base font-display font-bold tracking-tight flex items-center gap-1.5">
                  {creator.name}
-                 {creator.verified && <CheckCircle size={12} className="text-blue-400 fill-blue-500/20" />}
+                 {creator.verified && <CheckCircle2 size={12} className="text-blue-400 fill-blue-500/20" />}
                </h3>
                <div className="flex items-center gap-2 text-[10px] text-white/60 font-medium tracking-wide">
                  <span>{creator.category}</span>
@@ -348,7 +348,7 @@ export default function FeedCard({
                   `}
                 >
                    <div className="flex items-center gap-2">
-                     {item.type === 'book' && <CheckCircle size={16} />}
+                     {item.type === 'book' && <CheckCircle2 size={16} />}
                      {item.type === 'buy' && <ShoppingBag size={16} />}
                      {item.type === 'apply' && <ArrowRight size={16} />}
                      <span>{item.label}</span>
@@ -798,7 +798,7 @@ export default function FeedCard({
                    </div>
                    <div className="flex flex-col gap-1">
                      <span className="text-sm font-black text-white/60 uppercase tracking-widest">{creator.category}</span>
-                     <h4 className="text-xl font-bold flex items-center gap-2">{creator.name} {creator.verified && <CheckCircle size={14} className="text-blue-500" />}</h4>
+                     <h4 className="text-xl font-bold flex items-center gap-2">{creator.name} {creator.verified && <CheckCircle2 size={14} className="text-blue-500" />}</h4>
                      <div className="flex gap-2 text-xs font-semibold text-white/40 items-center">
                        <span>★ {creator.rating}</span>
                        <span>•</span>

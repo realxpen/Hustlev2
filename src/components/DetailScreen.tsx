@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  X, Heart, Share2, Bookmark, Star, MapPin, CheckCircle, 
+  X, Heart, Share2, Bookmark, Star, MapPin, CheckCircle2, 
   ChevronRight, Play, ShoppingBag, Calendar, GraduationCap,
   ShieldCheck, Clock, MessageSquare, AlertCircle, ArrowRight
 } from "lucide-react";
@@ -42,7 +42,7 @@ export default function DetailScreen({ isOpen, onClose, data }: DetailScreenProp
               <ul className="flex flex-col gap-3 mt-2">
                 {pkg.features.map((f, i) => (
                   <li key={i} className="text-xs text-white/50 flex items-center gap-2">
-                    <CheckCircle size={10} className="text-green-500" /> {f}
+                    <CheckCircle2 size={10} className="text-green-500" /> {f}
                   </li>
                 ))}
               </ul>
@@ -275,7 +275,7 @@ export default function DetailScreen({ isOpen, onClose, data }: DetailScreenProp
             <div className="flex flex-col">
               <h4 className="font-bold text-base flex items-center gap-1.5 leading-none">
                 {data.creator.name}
-                {data.creator.verified && <CheckCircle size={14} className="text-blue-500" />}
+                {data.creator.verified && <CheckCircle2 size={14} className="text-blue-500" />}
               </h4>
               <span className="text-xs text-white/40 font-medium mt-1">{data.creator.category} • {data.creator.location}</span>
             </div>

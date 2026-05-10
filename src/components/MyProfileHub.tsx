@@ -3,12 +3,13 @@ import {
   Star, MapPin, CheckCircle2, MessageSquare, MoreHorizontal, Grid, 
   Briefcase, Info, Calendar, Edit2, ChevronLeft,
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, Plus, Play, Link as LinkIcon,
-  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History
+  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
 import ReportSheet from "./ReportSheet";
 import HustlerUpgradeFlow from "./HustlerUpgradeFlow";
+import ImageEditorModal from "./ImageEditorModal";
 
 interface MyProfileHubProps {
   isHustler?: boolean;
@@ -27,6 +28,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
   const [showAvailabilityManager, setShowAvailabilityManager] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Open for Bookings");
   const [reviewFilter, setReviewFilter] = useState<"received" | "given">("received");
+  const [imageEditorState, setImageEditorState] = useState<{isOpen: boolean, type: 'avatar' | 'cover' | null}>({ isOpen: false, type: null });
 
   const [schedule, setSchedule] = useState([
     { day: "Mon", active: true, start: "09:00", end: "18:00" },
@@ -90,15 +92,33 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
     { id: 1, type: 'video', views: '2.4M', duration: '0:15', pinned: true, thumb: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&auto=format&fit=crop&q=60" },
     { id: 2, type: 'image', views: '840k', pinned: true, thumb: "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?w=400&auto=format&fit=crop&q=60" },
     { id: 3, type: 'video', views: '1.2M', duration: '0:22', pinned: true, thumb: "https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&auto=format&fit=crop&q=60" },
-    { id: 4, type: 'repost', views: '45k', user: '@mika_designs', thumb: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&auto=format&fit=crop&q=60" },
-    { id: 5, type: 'video', views: '312k', duration: '0:58', thumb: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=60" },
-    { id: 6, type: 'image', views: '128k', thumb: "https://images.unsplash.com/photo-1492724441997-5dc865305da7?w=400&auto=format&fit=crop&q=60" },
-    { id: 7, type: 'video', views: '2.1M', duration: '0:12', thumb: "https://images.unsplash.com/photo-1551269901-5c5e14c25df7?w=400&auto=format&fit=crop&q=60" },
-    { id: 8, type: 'video', views: '98k', duration: '1:04', thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400&auto=format&fit=crop&q=60" },
-    { id: 9, type: 'image', views: '256k', thumb: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400&auto=format&fit=crop&q=60" },
-    { id: 10, type: 'video', views: '4.5M', duration: '0:08', thumb: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=400&auto=format&fit=crop&q=60" },
-    { id: 11, type: 'image', views: '67k', thumb: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&auto=format&fit=crop&q=60" },
-    { id: 12, type: 'video', views: '11k', duration: '0:45', thumb: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&auto=format&fit=crop&q=60" },
+  ];
+
+  const featuredOfferings = [
+    { id: 'f1', name: "Figma UI Kit 2026", price: 49, type: "product", image: "https://images.unsplash.com/photo-1541461985943-955a15064562?w=400&auto=format&fit=crop&q=60", sales: 843 },
+    { id: 'f2', name: "Product Design Sprint", price: 499, type: "service", image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&auto=format&fit=crop&q=60", delivery: "5 days" },
+  ];
+
+  const myServices = [
+    { id: 's1', name: "Full Product Design Sprint", price: 499, time: "5-7 days", desc: "End-to-end design from wireframes to high fidelity mockups and interactive prototypes.", features: ["3 Revision Cycles", "Source Files", "Developer Handoff"], popular: true },
+    { id: 's2', name: "UI/UX Audit", price: 150, time: "2 days", desc: "Comprehensive actionable tear-down of your current product's user experience and visual design.", features: ["Loom Video Walkthrough", "PDF Report", "Quick Fixes List"] },
+    { id: 's3', name: "Brand Identity System", price: 850, time: "2 weeks", desc: "Complete visual identity including logos, typography, color palettes, and brand guidelines.", features: ["3 Concepts", "Social Media Kit", "Print Ready Files"] }
+  ];
+
+  const myProducts = [
+    { id: 'p1', name: "Figma UI Kit 2026", price: 49, type: "Digital", image: "https://images.unsplash.com/photo-1541461985943-955a15064562?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.9, sales: 843 },
+    { id: 'p2', name: "Creator Notion Template", price: 29, type: "Digital", image: "https://images.unsplash.com/photo-1517842645767-c639042777db?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.7, sales: 1205 },
+    { id: 'p3', name: "Premium Font: Hustle Sans", price: 79, type: "Digital", image: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 5.0, sales: 124 },
+    { id: 'p4', name: "Physical Prints Collection", price: 120, type: "Physical", image: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&auto=format&fit=crop&q=60", stock: "12 Left", rating: 4.8, sales: 56 }
+  ];
+
+  const myTrainings = [
+    { id: 't1', name: "Advanced Figma Systems", price: 199, duration: "6 Hours", type: "Video Course", modules: 12, students: 450, rating: 4.9, image: "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=400&auto=format&fit=crop&q=60" },
+    { id: 't2', name: "Freelance Business 101", price: 99, duration: "3 Hours", type: "Digital Workshop", modules: 5, students: 890, rating: 4.8, image: "https://images.unsplash.com/photo-1454165833767-027ffea9e772?w=400&auto=format&fit=crop&q=60" }
+  ];
+
+  const myApprenticeships = [
+    { id: 'a1', name: "Visual Arts Apprenticeship", duration: "3 Months", slots: "2 Open", type: "1-on-1 Mentorship", stipend: "Paid Opportunity", image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&auto=format&fit=crop&q=60", level: "Intermediate" }
   ];
 
   const hustlerJobs = [
@@ -117,11 +137,10 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
   const tabs = [
     { id: "posts", label: "Posts", icon: <Grid size={14} /> },
     { id: "services", label: "Services", icon: <Briefcase size={14} /> },
-    { id: "products", label: "Shop", icon: <ShoppingBag size={14} /> },
+    { id: "products", label: "Products", icon: <ShoppingBag size={14} /> },
     { id: "trainings", label: "Trainings", icon: <BookOpen size={14} /> },
     { id: "reviews", label: "Reviews", icon: <Star size={14} /> },
-    { id: "jobs", label: "Hustles", icon: <History size={14} />, ownerOnly: true },
-    { id: "about", label: "About", icon: <User size={14} /> },
+    { id: "about", label: "About", icon: <Info size={14} /> },
   ];
 
   const handleTabChange = (id: string) => {
@@ -159,19 +178,31 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
         </div>
         
         <div className="flex items-center gap-2">
-          <div className="p-0.5 bg-white/[0.03] border border-white/10 rounded-full flex items-center shadow-inner">
-            <button 
-              onClick={() => setHustlerMode(false)}
-              className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!hustlerMode ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
-            >
-              Social
-            </button>
-            <button 
-              onClick={() => setHustlerMode(true)}
-              className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${hustlerMode ? 'bg-blue-500 text-white shadow-lg' : 'text-white/30 hover:text-white'}`}
-            >
-              Hustle
-            </button>
+          {/* Enhanced Mode Switcher with Explanatory Helper */}
+          <div className="relative group">
+            <div className={`p-0.5 ${hustlerMode ? 'bg-blue-500/20' : 'bg-white/5'} border border-white/10 rounded-full flex items-center shadow-inner relative z-10`}>
+              <button 
+                onClick={() => setHustlerMode(false)}
+                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!hustlerMode ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
+              >
+                Social
+              </button>
+              <button 
+                onClick={() => setHustlerMode(true)}
+                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${hustlerMode ? 'bg-blue-500 text-white shadow-lg' : 'text-white/30 hover:text-white'}`}
+              >
+                Hustle
+              </button>
+            </div>
+            
+            {/* Context Tooltip */}
+            <div className="absolute top-full mt-2 right-0 w-48 p-3 rounded-2xl bg-[#111] border border-white/10 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+               <p className="text-[10px] text-white/80 font-medium leading-relaxed">
+                 {hustlerMode 
+                   ? "Managing your business, jobs, and earnings." 
+                   : "Browsing, booking, and managing personal profile."}
+               </p>
+            </div>
           </div>
 
           <button className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-colors">
@@ -184,27 +215,37 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
       <div className="flex-1 flex flex-col pb-48">
         {/* Cover & Identity Section - High Impact Redesign */}
         <section className="relative flex flex-col items-center w-full">
-          {/* Status Indicator Chip - Floats over Cover */}
+          {/* Quick Availability Action Bar - Frictionless */}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 z-20"
+            className="absolute top-4 left-4 z-20 flex items-center gap-1.5"
           >
             <button 
-              onClick={() => setShowAvailabilityManager(true)}
+              onClick={() => setIsAvailable(!isAvailable)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-2xl border transition-all shadow-2xl active:scale-95 ${
                 isAvailable ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400'
               }`}
             >
               <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                {isAvailable ? (statusMessage || "Open") : "Paused"}
+                {isAvailable ? (statusMessage || "Live") : "Paused"}
               </span>
+            </button>
+            
+            <button 
+              onClick={() => setShowAvailabilityManager(true)}
+              className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all shadow-xl backdrop-blur-xl"
+            >
+              <Settings size={12} />
             </button>
           </motion.div>
 
           {/* Cover Photo - Editable */}
-          <div className="w-full h-56 bg-gradient-to-br from-blue-900/20 to-purple-900/20 relative group overflow-hidden cursor-pointer">
+          <div 
+            className="w-full h-56 bg-gradient-to-br from-blue-900/20 to-purple-900/20 relative group overflow-hidden cursor-pointer"
+            onClick={() => setImageEditorState({ isOpen: true, type: 'cover' })}
+          >
             <motion.img 
               initial={{ scale: 1.1 }}
               animate={{ scale: 1 }}
@@ -233,7 +274,10 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
           {/* Profile Identity Card */}
           <div className="relative -mt-20 px-6 w-full flex flex-col items-center z-10 transition-all">
             {/* Editable Avatar */}
-            <div className="relative group cursor-pointer">
+            <div 
+              className="relative group cursor-pointer"
+              onClick={() => setImageEditorState({ isOpen: true, type: 'avatar' })}
+            >
               <motion.div 
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -424,28 +468,94 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
           </div>
         </section>
 
-        {/* Scrollable Sticky Tabs Architecture */}
-        <div className="sticky top-[64px] z-40 bg-[#050505]/95 backdrop-blur-xl border-y border-white/5 mt-8 shadow-2xl">
-          <nav className="flex overflow-x-auto no-scrollbar px-2 items-center snap-x w-full">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-5 py-4 relative transition-all whitespace-nowrap snap-start shrink-0 ${
-                  activeTab === tab.id ? 'text-white font-bold' : 'text-white/40 font-medium hover:text-white/70'
-                }`}
+        {/* Active Hustle Feed - Frictionless Work Status */}
+        {hustlerMode && (
+          <div className="px-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Active Hustles</h3>
+               <button 
+                 onClick={() => setActiveNav && setActiveNav("bookings")}
+                 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
+               >
+                 Go to Work Hub <ChevronLeft size={12} className="rotate-180" />
+               </button>
+            </div>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
+              {hustlerJobs.filter(j => j.type === "Active").map((job) => (
+                <div 
+                  key={job.id} 
+                  className="min-w-[240px] p-5 rounded-[2rem] bg-white/[0.03] border border-white/10 snap-start relative overflow-hidden group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl"
+                  onClick={() => setActiveNav && setActiveNav("bookings")}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                     <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/40">
+                        {job.avatar}
+                     </div>
+                     <div className="flex-1">
+                        <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{job.service}</h4>
+                        <p className="text-[9px] text-white/30 uppercase tracking-widest font-black">Client: {job.client}</p>
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-end">
+                       <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{job.status}</span>
+                       <span className="text-[10px] font-black text-white">{job.progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                       <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${job.progress}%` }}
+                          className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                       />
+                    </div>
+                  </div>
+
+                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                     <TrendingUp size={40} />
+                  </div>
+                </div>
+              ))}
+              
+              {/* Add New Job Ghost Card */}
+              <button 
+                onClick={() => setActiveNav && setActiveNav("bookings")}
+                className="min-w-[120px] rounded-[2rem] border border-white/5 border-dashed flex flex-col items-center justify-center gap-2 text-white/20 hover:text-white/40 hover:bg-white/[0.01] transition-all group"
               >
-                {tab.icon}
-                <span className="text-[11px] uppercase tracking-widest">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <motion.div 
-                    layoutId="myHubTabIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                  />
-                )}
+                <Plus size={24} className="group-hover:scale-110 transition-transform" />
+                <span className="text-[8px] font-black uppercase tracking-widest">New Slot</span>
               </button>
-            ))}
-          </nav>
+            </div>
+          </div>
+        )}
+
+        {/* Segmented Sticky Navigation Architecture */}
+        <div className="sticky top-[64px] z-40 bg-[#050505]/80 backdrop-blur-2xl border-y border-white/5 py-3 shadow-2xl">
+          <div className="max-w-2xl mx-auto px-4">
+            <nav className="flex overflow-x-auto no-scrollbar gap-1 items-center p-1 bg-white/[0.03] border border-white/10 rounded-2xl relative snap-x w-full shadow-inner">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2 px-6 py-2.5 relative transition-all whitespace-nowrap snap-start shrink-0 rounded-xl group ${
+                    activeTab === tab.id ? 'text-black' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  <div className="relative z-10 flex items-center gap-2">
+                    {tab.icon}
+                    <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
+                  </div>
+                  {activeTab === tab.id && (
+                    <motion.div 
+                      layoutId="hubSegmentHighlight"
+                      className="absolute inset-0 bg-white rounded-xl shadow-[0_4px_12px_rgba(255,255,255,0.2)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
 
         {/* Portfolio Tools Bar */}
@@ -483,10 +593,41 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className={viewMode === "grid" ? "grid grid-cols-3 gap-1 md:gap-2" : "flex flex-col gap-4 px-2"}
+                className="flex flex-col gap-6"
               >
-                {myPosts.map((post) => (
-                  viewMode === "grid" ? (
+                {/* Featured Commerce Section in Feed */}
+                {hustlerMode && (
+                  <div className="mb-4 px-1">
+                    <div className="flex items-center justify-between mb-4">
+                       <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Featured Storefront</h3>
+                       <button onClick={() => setActiveTab("products")} className="text-[9px] font-black uppercase tracking-widest text-blue-400">View All Shop</button>
+                    </div>
+                    <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 snap-x">
+                      {featuredOfferings.map((item) => (
+                        <div key={item.id} className="min-w-[280px] h-40 bg-[#0c0c0c] border border-white/10 rounded-[2rem] overflow-hidden flex snap-start relative group transition-all hover:border-blue-500/50">
+                          <div className="w-1/2 h-full relative overflow-hidden">
+                            <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60" alt={item.name} />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0c0c0c]" />
+                          </div>
+                          <div className="w-1/2 p-5 flex flex-col justify-center gap-1 z-10">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">{item.type}</span>
+                            <h4 className="text-sm font-black text-white leading-tight mb-2 uppercase tracking-tight">{item.name}</h4>
+                            <div className="flex items-center justify-between mt-auto">
+                              <span className="text-base font-black text-white">${item.price}</span>
+                              <div className="p-2 rounded-xl bg-white/5 border border-white/10 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                                 {'delivery' in item ? <Zap size={12} /> : <ShoppingBag size={12} />}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Posts Gallery */}
+                <div className={viewMode === "grid" ? "grid grid-cols-3 gap-1 md:gap-2" : "flex flex-col gap-4"}>
+                  {myPosts.map((post) => (
+                    viewMode === "grid" ? (
                     <motion.div 
                       key={post.id} 
                       className="aspect-[3/4] relative rounded-xl overflow-hidden group cursor-pointer bg-white/5 hover:scale-[0.98] transition-all shadow-lg active:ring-2 active:ring-blue-500/50"
@@ -545,6 +686,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                     </div>
                   )
                 ))}
+                </div>
               </motion.div>
             )}
 
@@ -552,32 +694,67 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
             {activeTab === "services" && (
               <motion.div
                 key="services"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="flex flex-col gap-5"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-6"
               >
-                {hustlerMode ? [
-                  { name: "Full Product Design Sprint", price: 499, time: "5-7 days", desc: "End-to-end design from wireframes to high fidelity." },
-                  { name: "UI/UX Audit", price: 150, time: "2 days", desc: "Actionable tear-down of your current product." },
-                  { name: "Brand Identity System", price: 850, time: "2 weeks", desc: "Logos, typography, color palettes, and guidelines." }
-                ].map((item, i) => (
-                  <div key={i} className="p-6 rounded-[2rem] bg-white/[0.03] border border-white/10 flex flex-col gap-4 group hover:border-white/20 transition-all cursor-pointer shadow-xl relative overflow-hidden active:scale-[0.98]">
-                    <div className="absolute top-0 left-0 w-[2px] h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-black text-white text-xl tracking-tight leading-tight">{item.name}</h3>
-                        <p className="text-xs text-white/40 mt-2 font-medium leading-relaxed">{item.desc}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="bg-white text-black px-4 py-2 rounded-2xl text-[13px] font-black whitespace-nowrap shadow-xl border border-white/10">${item.price}</span>
-                        <div className="flex items-center gap-1.5 mt-2 text-white/30 text-[9px] uppercase tracking-widest font-black">
-                          <Clock size={10} /> {item.time}
-                        </div>
-                      </div>
+                {hustlerMode ? (
+                  <>
+                    <div className="flex items-center justify-between px-2">
+                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">My Service Deck</h3>
+                      <button className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                        <Plus size={14} /> New Service
+                      </button>
                     </div>
-                  </div>
-                )) : (
+
+                    <div className="flex flex-col gap-5">
+                      {myServices.map((item, i) => (
+                        <div key={i} className="p-7 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 flex flex-col gap-5 group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl relative overflow-hidden active:scale-[0.98]">
+                          {item.popular && (
+                            <div className="absolute top-0 right-12 px-4 py-1.5 bg-blue-500 text-white text-[8px] font-black uppercase tracking-[0.3em] rounded-b-xl shadow-lg z-20">
+                              Best Seller
+                            </div>
+                          )}
+                          <div className="flex justify-between items-start relative z-10">
+                            <div>
+                              <h3 className="font-black text-white text-2xl tracking-tighter leading-tight group-hover:text-blue-400 transition-colors">{item.name}</h3>
+                              <p className="text-[13px] text-white/40 mt-3 font-medium leading-loose max-w-[80%]">{item.desc}</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className="text-3xl font-black text-white tracking-tighter">${item.price}</span>
+                              <div className="flex items-center gap-1.5 mt-2 text-white/30 text-[9px] font-black uppercase tracking-[0.2em] bg-white/5 px-2 py-1 rounded-lg">
+                                <Clock size={10} /> {item.time}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {item.features.map((f, fi) => (
+                              <div key={fi} className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/[0.03] border border-white/5">
+                                <CheckCircle2 size={10} className="text-blue-500" />
+                                <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">{f}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+                            <div className="flex items-center gap-4">
+                               <div className="flex items-center gap-1">
+                                  <Star size={10} className="text-yellow-500 fill-yellow-500" />
+                                  <span className="text-[10px] font-black text-white">4.9</span>
+                               </div>
+                               <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">24 Hires</span>
+                            </div>
+                            <button className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl">
+                              Manage Listing
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
                   <div className="p-12 text-center text-white/30 border border-white/5 border-dashed rounded-[3rem] bg-white/[0.01]">
                     <Briefcase size={32} className="mx-auto mb-4 opacity-20" />
                     <p className="text-xs uppercase tracking-[0.2em] font-black">Services are only available in Hustler mode.</p>
@@ -590,30 +767,74 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
             {activeTab === "products" && (
               <motion.div
                 key="products"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="grid grid-cols-2 gap-5"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex flex-col gap-6"
               >
-                {hustlerMode ? [
-                  { name: "Figma UI Kit 2026", price: "$49", type: "Digital" },
-                  { name: "Creator Notion Template", price: "$29", type: "Digital" },
-                  { name: "Premium Font: Hustle Sans", price: "$79", type: "Digital" },
-                  { name: "1-on-1 Mentorship Call", price: "$99", type: "Consulting" }
-                ].map((prod, i) => (
-                  <div key={i} className="flex flex-col gap-3 group">
-                    <div className="aspect-square bg-white/[0.03] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center p-6 relative group cursor-pointer overflow-hidden shadow-xl active:scale-95 transition-all">
-                       <ShoppingBag size={40} className="text-white/20 mb-2 transform group-hover:scale-110 transition-transform duration-500" />
-                       <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                          <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{prod.type}</span>
+                {hustlerMode ? (
+                  <>
+                    <div className="flex items-center justify-between px-2">
+                      <h3 className="text-lg font-black text-white uppercase tracking-tighter">Marketplace Storefront</h3>
+                      <button className="px-5 py-2 rounded-xl bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
+                        Add New Item
+                      </button>
+                    </div>
+
+                    {/* Storefront Categories */}
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1">
+                      {['All', 'Digital Apps', 'Assets', 'Physical', 'Courses'].map((cat, ci) => (
+                        <button key={ci} className={`px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${ci === 0 ? 'bg-white text-black shadow-lg' : 'bg-white/5 border border-white/10 text-white/40 hover:text-white'}`}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {myProducts.map((prod, i) => (
+                        <div key={i} className="flex flex-col gap-4 group">
+                          <div className="aspect-[4/5] bg-[#0c0c0c] rounded-[2.5rem] border border-white/10 overflow-hidden relative group cursor-pointer shadow-2xl transition-all hover:border-blue-500/50">
+                             <img src={prod.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={prod.name} />
+                             
+                             <div className="absolute top-4 right-4 z-20">
+                               <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 group-hover:bg-blue-500 group-hover:border-blue-400 transition-all shadow-xl">
+                                  <Edit2 size={16} />
+                               </div>
+                             </div>
+
+                             <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black via-black/60 to-transparent flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/20 text-[7px] font-black uppercase tracking-widest">
+                                    {prod.type}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <Star size={8} className="text-yellow-500 fill-yellow-500" />
+                                    <span className="text-[8px] font-black text-white">{prod.rating}</span>
+                                  </div>
+                                </div>
+                                <h3 className="text-sm font-black text-white/90 uppercase tracking-tight line-clamp-2 leading-tight group-hover:text-white transition-colors">{prod.name}</h3>
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="text-lg font-black text-white tracking-widest">${prod.price}</span>
+                                  <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em]">{prod.sales} Sold</span>
+                                </div>
+                             </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-8 p-10 rounded-[3rem] bg-indigo-500/5 border border-indigo-500/10 text-center relative overflow-hidden group">
+                       <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                         <Zap size={80} />
                        </div>
+                       <h4 className="text-xl font-black text-white tracking-tighter mb-2">Commerce Insights</h4>
+                       <p className="text-xs text-white/40 font-medium leading-loose mb-6">Your storefront generated $1,240 in sales this week with a 12% conversion lift.</p>
+                       <button className="px-8 py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all">
+                         View Store Dashboard
+                       </button>
                     </div>
-                    <div className="px-1 text-center">
-                      <h3 className="text-xs font-black text-white line-clamp-1 uppercase tracking-tight">{prod.name}</h3>
-                      <span className="text-base font-black text-white/80 mt-1 block">{prod.price}</span>
-                    </div>
-                  </div>
-                )) : (
+                  </>
+                ) : (
                   <div className="col-span-2 p-12 text-center text-white/30 border border-white/5 border-dashed rounded-[3rem] bg-white/[0.01]">
                     <ShoppingBag size={32} className="mx-auto mb-4 opacity-20" />
                     <p className="text-xs uppercase tracking-[0.2em] font-black">Connect your shop in Hustler Settings.</p>
@@ -621,35 +842,113 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                 )}
               </motion.div>
             )}
-            
-            {/* 9. MARKETPLACE ACCESS LAYER - Trainings */}
+                     {/* 9. MARKETPLACE ACCESS LAYER - Trainings */}
             {activeTab === "trainings" && (
               <motion.div
                 key="trainings"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="flex flex-col gap-5"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-8"
               >
-                {hustlerMode ? [
-                  { name: "Mastering Client Acquisition", format: "Video Course", duration: "2 Hours" },
-                  { name: "Advanced UI Apprenticeship", format: "Live Coaching", duration: "4 Weeks" }
-                ].map((training, i) => (
-                  <div key={i} className="p-0.5 rounded-[2.5rem] bg-gradient-to-br from-blue-500/30 via-purple-500/20 to-transparent shadow-2xl active:scale-[0.99] transition-transform">
-                     <div className="bg-[#0b0b0b] p-7 rounded-[calc(2.5rem-2px)] flex justify-between items-center group cursor-pointer transition-colors hover:bg-[#111]">
-                        <div className="flex-1 pr-4">
-                          <span className="text-[9px] text-blue-400 font-black uppercase tracking-[0.3em]">{training.format} • {training.duration}</span>
-                          <h3 className="font-black text-white text-xl mt-2 tracking-tight leading-tight">{training.name}</h3>
+                {hustlerMode ? (
+                  <>
+                    <div className="flex items-center justify-between px-2">
+                      <div className="flex flex-col">
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">Academy & Mentorship</h3>
+                        <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-black mt-1">Scale your knowledge</p>
+                      </div>
+                      <button className="px-5 py-2.5 rounded-xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+                        Create Offering
+                      </button>
+                    </div>
+
+                    {/* Apprenticeship High-Impact Cards */}
+                    <div className="flex flex-col gap-4">
+                      {myApprenticeships.map((app) => (
+                        <div key={app.id} className="relative p-7 rounded-[2.5rem] bg-gradient-to-br from-indigo-600/20 to-[#0c0c0c] border border-white/10 group overflow-hidden cursor-pointer shadow-2xl">
+                           <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                              <Star size={100} />
+                           </div>
+                           <div className="relative z-10 flex justify-between items-start">
+                              <div className="flex-1">
+                                 <span className="px-3 py-1 rounded-lg bg-indigo-500 text-white text-[8px] font-black uppercase tracking-widest">{app.type}</span>
+                                 <h3 className="text-2xl font-black text-white mt-3 tracking-tighter uppercase leading-tight group-hover:text-indigo-400 transition-colors">{app.name}</h3>
+                                 <div className="flex items-center gap-4 mt-4 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                                    <span className="flex items-center gap-1.5"><Clock size={12} /> {app.duration}</span>
+                                    <span className="flex items-center gap-1.5 text-indigo-400"><History size={12} /> {app.slots}</span>
+                                 </div>
+                              </div>
+                              <div className="w-16 h-16 rounded-[2rem] bg-white/5 border border-white/10 p-0.5 overflow-hidden">
+                                 <img src={app.image} className="w-full h-full object-cover rounded-[1.8rem]" alt={app.name} />
+                              </div>
+                           </div>
+                           
+                           <div className="mt-8 pt-6 border-t border-white/5 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                 <CheckCircle2 size={12} className="text-indigo-400" />
+                                 <span className="text-[10px] font-black text-white/60 uppercase tracking-widest">{app.stipend}</span>
+                              </div>
+                              <button className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                                 Manage Applicants
+                              </button>
+                           </div>
                         </div>
-                        <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 group-hover:scale-105 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all">
-                           <Play size={20} className="text-white ml-1 fill-white/20" />
-                        </div>
-                     </div>
-                  </div>
-                )) : (
+                      ))}
+                    </div>
+
+                    {/* Trainings Preview Grid */}
+                    <div className="grid grid-cols-1 gap-5">
+                       {myTrainings.map((training) => (
+                         <div key={training.id} className="p-1 rounded-[2.5rem] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all group cursor-pointer active:scale-[0.98]">
+                           <div className="bg-[#0c0c0c] p-6 rounded-[2.3rem] flex gap-5">
+                              <div className="w-32 h-32 rounded-3xl overflow-hidden shrink-0 shadow-2xl relative">
+                                 <img src={training.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={training.name} />
+                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Play size={24} className="text-white fill-white/20" />
+                                 </div>
+                              </div>
+                              <div className="flex-1 flex flex-col justify-between py-1">
+                                 <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                       <span className="text-[8px] font-black uppercase tracking-widest text-[#6366f1]">{training.type}</span>
+                                       <div className="flex items-center gap-1">
+                                          <Star size={8} className="text-yellow-500 fill-yellow-500" />
+                                          <span className="text-[8px] font-black text-white">{training.rating}</span>
+                                       </div>
+                                    </div>
+                                    <h4 className="text-lg font-black text-white leading-tight uppercase tracking-tight group-hover:text-indigo-400 transition-colors">{training.name}</h4>
+                                    <div className="flex items-center gap-3 mt-3 text-[9px] font-black text-white/30 uppercase tracking-widest">
+                                       <span>{training.modules} Modules</span>
+                                       <span>•</span>
+                                       <span>{training.duration}</span>
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center justify-between mt-4">
+                                    <span className="text-xl font-black text-white tracking-widest">${training.price}</span>
+                                    <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">{training.students} Enrolled</span>
+                                 </div>
+                              </div>
+                           </div>
+                         </div>
+                       ))}
+                    </div>
+
+                    <div className="p-10 rounded-[3rem] bg-indigo-600 shadow-2xl relative overflow-hidden group">
+                       <Zap size={140} className="absolute -bottom-10 -right-10 text-white/10 rotate-12" />
+                       <div className="relative z-10">
+                          <h4 className="text-2xl font-black text-white tracking-tighter uppercase italic mb-3">Elevate Your Academy</h4>
+                          <p className="text-xs text-white/80 font-medium leading-relaxed mb-8 max-w-[80%]">Turn your workflow into wealth. Your courses generated $3.4k in passive earnings last month.</p>
+                          <button className="px-10 py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-2xl hover:scale-105 active:scale-95 transition-all">
+                             View Analytics
+                          </button>
+                       </div>
+                    </div>
+                  </>
+                ) : (
                    <div className="p-12 text-center text-white/30 border border-white/5 border-dashed rounded-[3rem] bg-white/[0.01]">
                     <BookOpen size={32} className="mx-auto mb-4 opacity-20" />
-                    <p className="text-xs uppercase tracking-[0.2em] font-black">Trainings require a verified Hustler profile.</p>
+                    <p className="text-xs uppercase tracking-[0.2em] font-black">Academy access is reserved for verified Hustlers.</p>
                   </div>
                 )}
               </motion.div>
@@ -667,18 +966,19 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                 {/* Trust Score Architecture Card */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                    {[
-                     { label: "Overall Rating", value: trustMetrics.rating, sub: "Verified", icon: <Star className="text-yellow-500 fill-yellow-500" size={14} /> },
-                     { label: "Completion Rate", value: `${trustMetrics.completionScore}%`, sub: "Reliable", icon: <CheckCircle className="text-green-500" size={14} /> },
-                     { label: "Repeat Business", value: `${trustMetrics.repeatClientRate}%`, sub: "High Trust", icon: <History className="text-blue-500" size={14} /> },
-                     { label: "Total Hustles", value: trustMetrics.totalJobs, sub: "Managed", icon: <Briefcase className="text-purple-500" size={14} /> },
+                     { label: "Overall Rating", value: trustMetrics.rating, sub: "Verified Reviews", icon: <Star className="text-yellow-500 fill-yellow-500" size={14} /> },
+                     { label: "Completion Rate", value: `${trustMetrics.completionScore}%`, sub: "Perfect Record", icon: <CheckCircle2 className="text-green-500" size={14} /> },
+                     { label: "Repeat Business", value: `${trustMetrics.repeatClientRate}%`, sub: "High Retention", icon: <History className="text-blue-500" size={14} /> },
+                     { label: "Total Hustles", value: trustMetrics.totalJobs, sub: "Contracts Handled", icon: <Briefcase className="text-purple-500" size={14} /> },
                    ].map((stat, i) => (
-                     <div key={i} className="p-5 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-1 shadow-inner group hover:bg-white/[0.05] transition-all">
-                        <div className="flex items-center justify-between mb-1">
+                     <div key={i} className="p-5 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col gap-1 shadow-inner group hover:bg-white/[0.05] transition-all relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-center justify-between mb-1 relative z-10">
                            <span className="text-[8px] font-black uppercase text-white/30 tracking-widest">{stat.label}</span>
                            {stat.icon}
                         </div>
-                        <span className="text-xl font-black text-white tracking-tighter">{stat.value}</span>
-                        <span className="text-[8px] font-black uppercase text-white/20 tracking-tighter">{stat.sub}</span>
+                        <span className="text-xl font-black text-white tracking-tighter relative z-10">{stat.value}</span>
+                        <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest relative z-10">{stat.sub}</span>
                      </div>
                    ))}
                 </div>
@@ -737,129 +1037,6 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                        )}
                     </div>
                   ))}
-                </div>
-              </motion.div>
-            )}
-
-            {/* 2. JOBS / BOOKINGS MANAGEMENT SECTION (Owner Only) */}
-            {activeTab === "jobs" && (
-              <motion.div
-                key="jobs"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                className="flex flex-col gap-8"
-              >
-                {/* Management Perspective Header */}
-                <div className="flex items-center justify-between px-2">
-                   <div className="flex flex-col">
-                      <h3 className="text-xl font-black text-white uppercase tracking-tighter">
-                         {hustlerMode ? "Client Orders" : "My Bookings"}
-                      </h3>
-                      <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mt-1">
-                         {hustlerMode ? "Managing your incoming revenue" : "Tracking services you've acquired"}
-                      </p>
-                   </div>
-                   {hustlerMode && (
-                     <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex flex-col items-end">
-                        <span className="text-[9px] text-white/40 font-black uppercase tracking-widest">Est. Earnings</span>
-                        <span className="text-lg font-black text-green-400 font-mono tracking-tighter">$2,450.00</span>
-                     </div>
-                   )}
-                </div>
-
-                {/* Management Tabs */}
-                <div className="flex overflow-x-auto no-scrollbar gap-3 pb-2 px-1">
-                  {['Active', 'Pending', 'Completed', 'Cancelled'].map((t) => (
-                    <button 
-                      key={t} 
-                      onClick={() => setJobFilter(t)}
-                      className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${jobFilter === t ? 'bg-white text-black shadow-xl scale-105' : 'bg-white/5 border border-white/10 text-white/50 hover:text-white hover:bg-white/10'}`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-col gap-5">
-                  {(hustlerMode ? hustlerJobs : myBookings)
-                    .filter(item => item.type === jobFilter)
-                    .map((item, i) => (
-                    <div key={i} className="p-7 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 flex flex-col gap-6 shadow-2xl relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-100 transition-opacity">
-                         <History size={16} />
-                      </div>
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-4">
-                           <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-lg font-black text-white/20 border border-white/10">
-                             {item.avatar}
-                           </div>
-                           <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-[8px] px-2 py-0.5 rounded-full uppercase tracking-[0.2em] font-black border ${item.progress === 100 ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                                  {item.status}
-                                </span>
-                                <span className="text-[9px] text-white/20 font-black uppercase tracking-widest">{item.id}</span>
-                              </div>
-                              <h3 className="font-black text-white text-lg tracking-tight leading-tight">{item.service}</h3>
-                              <p className="text-[10px] font-black text-white/40 mt-1.5 uppercase tracking-widest">
-                                {hustlerMode ? "Client" : "Hustler"}: {'client' in item ? item.client : 'hustler' in item ? item.hustler : ''}
-                              </p>
-                           </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-black text-2xl text-white tracking-tighter block">{item.amount}</span>
-                          <span className="text-[9px] text-white/20 uppercase tracking-widest font-black mt-2 block">
-                            {jobFilter === 'Completed' ? 'FINISHED' : `DUE: ${item.due}`}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Job Progress */}
-                      {jobFilter !== 'Completed' && (
-                        <div className="flex flex-col gap-3">
-                          <div className="flex justify-between items-center text-[9px] uppercase font-black text-white/30 tracking-widest px-1">
-                             <span>Progress</span>
-                             <span>{item.progress}%</span>
-                          </div>
-                          <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden border border-white/5 shadow-inner p-0.5">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${item.progress}%` }}
-                              transition={{ duration: 1, ease: "easeOut" }}
-                              className={`h-full rounded-full ${item.progress === 100 ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' : 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.2)]'}`} 
-                            />
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-2 gap-3 mt-2">
-                        <button className="py-3.5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95">
-                          {hustlerMode ? "Message Client" : "Contact Hustler"}
-                        </button>
-                        {jobFilter === 'Active' ? (
-                          <button className={`py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 shadow-xl ${item.progress === 100 ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-white text-black hover:bg-white/90'}`}>
-                            {hustlerMode ? (item.progress === 100 ? 'Deliver & Close' : 'Update Milestone') : 'Review Feedback'}
-                          </button>
-                        ) : jobFilter === 'Pending' ? (
-                          <button className="py-3.5 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95 shadow-xl hover:bg-white/90">
-                            {hustlerMode ? "Accept Terms" : "Check Status"}
-                          </button>
-                        ) : (
-                          <button className="py-3.5 rounded-2xl bg-white/10 text-white/60 text-[10px] font-black uppercase tracking-[0.2em] transition-all active:scale-95">
-                            View Receipt
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {(hustlerMode ? hustlerJobs : myBookings).filter(item => item.type === jobFilter).length === 0 && (
-                    <div className="p-12 text-center text-white/20 border border-white/5 border-dashed rounded-[3rem] bg-white/[0.01]">
-                       <History size={32} className="mx-auto mb-4 opacity-10" />
-                       <p className="text-xs uppercase tracking-[0.2em] font-black">No {jobFilter.toLowerCase()} {hustlerMode ? "jobs" : "bookings"} found.</p>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
@@ -1131,6 +1308,19 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
           </>
         )}
       </AnimatePresence>
+
+      <ImageEditorModal 
+        isOpen={imageEditorState.isOpen}
+        onClose={() => setImageEditorState({ isOpen: false, type: null })}
+        onSave={(imageUrl) => {
+          if (imageEditorState.type === 'avatar') {
+            setProfile({ ...profile, avatar: imageUrl });
+          } else if (imageEditorState.type === 'cover') {
+            setProfile({ ...profile, cover: imageUrl });
+          }
+        }}
+        title={imageEditorState.type === 'avatar' ? 'Edit Profile Picture' : 'Edit Cover Photo'}
+      />
     </div>
   );
 }
