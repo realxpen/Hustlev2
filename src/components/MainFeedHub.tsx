@@ -15,6 +15,7 @@ interface MainFeedHubProps {
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
   isNavVisible?: boolean;
   initialTab?: FeedTab;
+  onQuickBook?: (hustler: any) => void;
 }
 
 type FeedTab = 'for-you' | 'live' | 'nearby';
@@ -28,7 +29,8 @@ export default function MainFeedHub({
   onOpenSearch,
   onScroll, 
   isNavVisible = true,
-  initialTab = 'for-you'
+  initialTab = 'for-you',
+  onQuickBook
 }: MainFeedHubProps) {
   const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
   
@@ -434,6 +436,7 @@ export default function MainFeedHub({
                           : hustler.recommendationReason
                         }
                         isAd={activeTab === 'for-you' && hustler.isAd}
+                        onBook={() => onQuickBook?.(hustler)}
                       />
                     </div>
                   ))}

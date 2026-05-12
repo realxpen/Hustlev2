@@ -22,6 +22,7 @@ export interface FeedContent {
 export interface FeedCardProps {
   id: number;
   onProfileClick?: () => void;
+  onBook?: () => void;
   creator: {
     id: number;
     name: string;
@@ -51,7 +52,8 @@ export default function FeedCard({
   embedCTA,
   detailData,
   isAd,
-  onProfileClick, 
+  onProfileClick,
+  onBook,
   recommendationReason 
 }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
@@ -104,6 +106,13 @@ export default function FeedCard({
 
   const handleCtaClick = (item?: EmbedCTA) => {
     if (item) setSelectedCta(item);
+    
+    // If it's a quick book from a props-provided action, prioritize that
+    if (item?.type === 'book' && onBook) {
+      onBook();
+      return;
+    }
+
     if (details.length > 0) {
       setShowSummarySheet(true);
     } else {
