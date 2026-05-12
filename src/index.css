@@ -1,15 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@300;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
+  /* Brand Typography */
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Cinematic Color System - Dark First */
+  --color-brand-primary: #FF2D55; /* Vibrant Rose/Red for Live & Energy */
+  --color-brand-accent: #5856D6;  /* Deep Indigo for Trust & Premium UI */
+  --color-brand-success: #34C759; /* Growth & Commerce Green */
+  --color-brand-warning: #FF9500; /* Opportunity Orange */
+  --color-brand-info: #007AFF;    /* Reliable Blue */
+  
+  /* Surface Logic - The "Deep Layer" Strategy */
+  --color-surface-bg: #050505;
+  --color-surface-card: #0D0D0E;
+  --color-surface-elevated: #161617;
+  --color-surface-overlay: rgba(20, 20, 22, 0.8);
+  --color-surface-border: rgba(255, 255, 255, 0.08);
+  --color-surface-border-bright: rgba(255, 255, 255, 0.15);
+
+  /* Semantic Overlays */
+  --color-overlay-glass: rgba(5, 5, 5, 0.7);
+  --color-overlay-light: rgba(255, 255, 255, 0.03);
+
+  /* Animation Constants - Motion Personality */
+  --ease-elastic: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-in-out-sine: cubic-bezier(0.445, 0.05, 0.55, 0.95);
+
+  /* Shadows - The "Glow" Philosophy */
+  --shadow-glow-red: 0 0 20px rgba(255, 45, 85, 0.3);
+  --shadow-glow-blue: 0 0 20px rgba(88, 86, 214, 0.3);
+  --shadow-premium: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 @layer base {
   body {
-    @apply bg-[#050505] text-white antialiased overflow-hidden;
-    background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #050505 100%);
+    @apply bg-surface-bg text-white antialiased overflow-hidden selection:bg-brand-primary/30;
+    /* Cinematic Background Depth */
+    background-image: 
+      radial-gradient(circle at 0% 0%, rgba(88, 86, 214, 0.1) 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(255, 45, 85, 0.05) 0%, transparent 40%),
+      linear-gradient(to bottom, #050505, #080808);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    @apply font-display tracking-tight leading-tight;
+  }
+
+  /* Custom Touch Targets for Mobile */
+  button, [role="button"] {
+    @apply min-h-[44px] min-w-[44px] cursor-pointer;
   }
 }
 
@@ -21,15 +68,63 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .masked-fade-top {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
-    mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 100%);
+  
+  .glass {
+    @apply backdrop-blur-xl border border-surface-border bg-overlay-glass;
   }
+
+  .glass-light {
+    @apply backdrop-blur-md border border-white/5 bg-white/[0.02];
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/60;
+  }
+
+  .text-vibrant {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-primary to-brand-warning;
+  }
+
   .grain-overlay {
     position: absolute;
     inset: 0;
-    opacity: 0.03;
+    opacity: 0.025;
     pointer-events: none;
     background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+    z-index: 1000;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .active-scale {
+    @apply active:scale-95 transition-transform duration-200 ease-out-expo;
+  }
+
+  .hover-lift {
+    @apply hover:-translate-y-1 transition-transform duration-300 ease-out-expo;
+  }
+
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, black 80%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 0%, black 80%, transparent 100%);
+  }
+
+  .mask-fade-t {
+    -webkit-mask-image: linear-gradient(to top, black 0%, black 80%, transparent 100%);
+    mask-image: linear-gradient(to top, black 0%, black 80%, transparent 100%);
   }
 }

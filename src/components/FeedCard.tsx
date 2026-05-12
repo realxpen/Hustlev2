@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageSquare, Share2, Bookmark, Star, MapPin, CheckCircle2, Repeat2, Music, ShoppingBag, ArrowRight, X, Plus, Send, Link, Link2, MessageCircle, HeartCrack } from "lucide-react";
+import { Heart, MessageSquare, Share2, Bookmark, Star, MapPin, CheckCircle2, Repeat2, Music, ShoppingBag, ArrowRight, X, Plus, Send, Link, Link2, MessageCircle, HeartCrack, Calendar } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import DetailScreen from "./DetailScreen";
 import { DetailData } from "../types";
@@ -195,8 +195,28 @@ export default function FeedCard({
   };
 
 
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const longPressTimer = useRef<any>(null);
+
+  const handlePointerDown = () => {
+    longPressTimer.current = setTimeout(() => {
+      setShowQuickActions(true);
+    }, 500);
+  };
+
+  const handlePointerUp = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full bg-[#050505] overflow-hidden text-white">
+    <div 
+      className="relative w-full h-full bg-[#050505] overflow-hidden text-white"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+    >
       {/* Repost Header Layer */}
       {repost && (
         <div className="absolute top-20 left-4 right-4 z-40 bg-black/60 backdrop-blur-xl border border-white/10 p-3 rounded-2xl flex flex-col gap-2">
@@ -956,6 +976,55 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
+      {/* Quick Actions Overlay (Long Press) */}
+      <AnimatePresence>
+        {showQuickActions && (
+          <>
+            <motion.div 
+               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+               onClick={() => setShowQuickActions(false)}
+               className="fixed inset-0 bg-black/60 z-[200] backdrop-blur-md"
+            />
+            <motion.div 
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+               className="fixed inset-0 m-auto w-[280px] h-fit z-[210] flex flex-col gap-2 pointer-events-none"
+            >
+               <div className="flex flex-col bg-[#0f0f0f]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-4 pointer-events-auto shadow-2xl">
+                  <div className="flex flex-col items-center mb-6 pt-2">
+                     <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30">Quick Actions</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { icon: <Bookmark size={18} />, label: "Save", action: () => { setSaved(true); setShowQuickActions(false); } },
+                      { icon: <Share2 size={18} />, label: "Share", action: () => { setShowShareSheet(true); setShowQuickActions(false); } },
+                      { icon: <MessageSquare size={18} />, label: "Comment", action: () => { setShowComments(true); setShowQuickActions(false); } },
+                      { icon: <Calendar size={18} />, label: "Book", action: () => { handleCtaClick(); setShowQuickActions(false); } },
+                    ].map((item, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={item.action}
+                        className="flex flex-col items-center justify-center gap-2 p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 hover:bg-white/10 transition-all active:scale-95 transition-colors"
+                      >
+                        <div className="text-white/60">{item.icon}</div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button 
+                    onClick={() => setShowQuickActions(false)}
+                    className="mt-4 w-full py-4 rounded-2xl bg-white/5 text-white/40 text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

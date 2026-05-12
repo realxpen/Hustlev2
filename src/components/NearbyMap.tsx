@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   MapPin, SlidersHorizontal, Search, ShieldCheck, Zap, X, 
-  ChevronRight, Navigation, Compass, Flame, Play, Clock, User, CheckCircle2, Eye, Map as MapIcon, Grid, Bookmark, Car
+  ChevronRight, Navigation, Compass, Flame, Play, Clock, User, CheckCircle2, Eye, Map as MapIcon, Grid, Bookmark, Car, Star
 } from 'lucide-react';
 
 interface NearbyMapProps {
@@ -184,13 +184,21 @@ export default function NearbyMap({ onProfileSelect, onClose }: NearbyMapProps) 
                </div>
 
                {/* Avatar Pin */}
-               <button 
+               <motion.button 
                  onClick={(e) => { e.stopPropagation(); setSelectedPin(hustler); }}
                  className="relative"
+                 animate={{
+                   y: [0, -3, 0],
+                 }}
+                 transition={{
+                   duration: 2 + Math.random() * 2,
+                   repeat: Infinity,
+                   ease: "easeInOut"
+                 }}
                >
                   <img src={hustler.avatar} className="w-12 h-12 rounded-full border-[3px] border-black object-cover shadow-2xl" alt={hustler.name} />
                   <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-[3px] border-black ${getStatusColor(hustler.status, hustler.isLive)}`} />
-               </button>
+               </motion.button>
             </div>
           ))}
           

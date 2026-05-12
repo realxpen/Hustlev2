@@ -1,7 +1,7 @@
 import React from 'react';
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { MapPin, Radio, Bell, Calendar, ChevronDown, MessageSquare } from "lucide-react";
+import { MapPin, Radio, Bell, Calendar, ChevronDown, MessageSquare, Search } from "lucide-react";
 import FeedCard from "./FeedCard";
 import LiveStreamCard from "./LiveStreamCard";
 
@@ -11,16 +11,33 @@ interface MainFeedHubProps {
   onOpenBookings?: () => void;
   onOpenActivity?: () => void;
   onOpenChat?: () => void;
+  onOpenSearch?: () => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isNavVisible?: boolean;
+  initialTab?: FeedTab;
 }
 
 type FeedTab = 'for-you' | 'live' | 'nearby';
 
-export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBookings, onOpenActivity, onOpenChat }: MainFeedHubProps) {
-  const [activeTab, setActiveTab] = useState<FeedTab>('for-you');
+export default function MainFeedHub({ 
+  MOCK_HUSTLERS, 
+  bridgeIntent, 
+  onOpenBookings, 
+  onOpenActivity, 
+  onOpenChat, 
+  onOpenSearch,
+  onScroll, 
+  isNavVisible = true,
+  initialTab = 'for-you'
+}: MainFeedHubProps) {
+  const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
+  
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
   const [scrollPositions, setScrollPositions] = useState<Record<FeedTab, number>>({
     'for-you': 0,
-    'live': 0,
-    'nearby': 0
+    'live': 0
   });
   
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -35,16 +52,10 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
 
   const tabs = [
     { id: 'for-you', label: 'For You' },
-    { id: 'nearby', label: 'Nearby', icon: <MapPin size={12} /> },
     { id: 'live', label: 'Live', icon: <Radio size={12} className="animate-pulse" /> },
   ];
 
   const getFeedItems = () => {
-    if (activeTab === 'for-you') {
-      return MOCK_HUSTLERS;
-    } else if (activeTab === 'nearby') {
-      return [...MOCK_HUSTLERS].reverse(); 
-    }
     return MOCK_HUSTLERS;
   };
 
@@ -76,7 +87,6 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
     }
   };
 
-  // Visibility tracking for live stream active state
   const [activeStreamIndex, setActiveStreamIndex] = useState(0);
   const [isEnteredLive, setIsEnteredLive] = useState(false);
   const [isLiveExpanded, setIsLiveExpanded] = useState(true);
@@ -96,6 +106,7 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
     const clientHeight = e.currentTarget.clientHeight;
     
     setScrollPositions(prev => ({ ...prev, live: scrollTop }));
+    onScroll?.(e);
     
     // Determine which stream is active based on scroll
     if (clientHeight > 0) {
@@ -109,6 +120,7 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
   const handleNormalScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
     setScrollPositions(prev => ({ ...prev, [activeTab]: scrollTop }));
+    onScroll?.(e);
   };
 
   // Restore scroll position
@@ -131,7 +143,7 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
       onTouchEnd={handleTouchEnd}
     >
       {/* Top Navigation */}
-      <header className={`absolute top-0 left-0 right-0 z-50 pt-12 pb-4 px-6 pointer-events-auto bg-gradient-to-b ${activeTab === 'live' ? 'from-black/60' : 'from-black/80'} via-black/40 to-transparent transition-colors duration-500`}>
+      <header className={`absolute top-0 left-0 right-0 z-50 pt-12 pb-4 px-6 pointer-events-auto bg-gradient-to-b ${activeTab === 'live' ? 'from-black/60' : 'from-black/80'} via-black/40 to-transparent transition-all duration-500 ${isNavVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}`}>
         <div className="relative flex items-center justify-center mb-4">
           <div className="flex items-center gap-5">
             {tabs.map((tab) => (
@@ -163,6 +175,12 @@ export default function MainFeedHub({ MOCK_HUSTLERS, bridgeIntent, onOpenBooking
           </div>
 
           <div className="absolute right-0 flex items-center gap-3">
+             <button 
+                onClick={onOpenSearch}
+                className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/20 cursor-pointer hover:bg-white/10 transition-colors shadow-lg"
+              >
+                <Search size={18} />
+              </button>
              <button 
                 onClick={onOpenBookings}
                 className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/20 cursor-pointer hover:bg-white/10 transition-colors relative shadow-lg"

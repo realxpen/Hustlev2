@@ -4,7 +4,7 @@ import {
   X, Video, Settings, Tag, Briefcase, Play, Users, MessageCircle, 
   TrendingUp, Star, DollarSign, Pin, Share2, MoreHorizontal, 
   CheckCircle2, BarChart3, Clock, ShoppingBag, Calendar, Radio,
-  Lock, Globe, MapPin, ChevronRight, Layout, Mic, Grid, Layers
+  Lock, Globe, MapPin, ChevronRight, Layout, Mic, Grid, Layers, Camera
 } from 'lucide-react';
 
 interface LiveCreatorStudioProps {

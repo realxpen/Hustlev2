@@ -1,5 +1,8 @@
 import { motion, AnimatePresence } from "motion/react";
-import { Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, Wallet, Bell, Phone } from "lucide-react";
+import { 
+  Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, 
+  Wallet, Bell, Phone, Play, ShoppingBag, Map as MapIcon, Home 
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import FeedCard from "./FeedCard";
 import ProfilePage from "./ProfilePage";
@@ -11,14 +14,18 @@ import BookingDetail from "./BookingDetail";
 import WalletHub from "./WalletHub";
 import ActivityCenter from "./ActivityCenter";
 import NearbyMap from "./NearbyMap";
+import DiscoveryView from "./DiscoveryView";
 import CreateMenu from "./CreateMenu";
 import UploadFlow from "./UploadFlow";
 import TrustCenter from "./TrustCenter";
 import JourneyTracker from "./JourneyTracker";
+import HustleFoundation from "./HustleFoundation";
 import JobEscrowManager from "./JobEscrowManager";
 import BookingFlow from "./BookingFlow";
 import MainFeedHub from "./MainFeedHub";
 import LiveCreatorStudio from "./LiveCreatorStudio";
+import CreatorStudioDashboard from "./CreatorStudioDashboard";
+import UnifiedCreatorFlow from "./UnifiedCreatorFlow";
 import CallScreen, { CallInfo } from "./CallScreen";
 import { MOCK_CHATS } from "../constants/mockData";
 
@@ -272,25 +279,29 @@ export default function MockHome() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedHustler, setSelectedHustler] = useState<any>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [activeNav, setActiveNav] = useState<"feed" | "profile" | "chat" | "bookings" | "search" | "wallet">("feed");
+  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "profile">("home");
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [isHustler, setIsHustler] = useState(false);
   const [selectedBookingForEscrow, setSelectedBookingForEscrow] = useState<any>(null);
   
-  // Journey Lifecycle State
-  const [activeMission, setActiveMission] = useState<{
-    id: string;
-    step: "DISCOVERY" | "TRUST" | "INTENT" | "TRANSACTION" | "OUTCOME";
-    context: any;
-  } | null>(null);
+  // Tab Memory - preserve scroll/state
+  const [tabStore, setTabStore] = useState<Record<string, any>>({});
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUploadFlowOpen, setIsUploadFlowOpen] = useState(false);
   const [isLiveStudioOpen, setIsLiveStudioOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isTrustOpen, setIsTrustOpen] = useState(false);
+  const [isFoundationOpen, setIsFoundationOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCreatorStudioOpen, setIsCreatorStudioOpen] = useState(false);
+  const [isCreatorFlowOpen, setIsCreatorFlowOpen] = useState(false);
+  const [initialFlowType, setInitialFlowType] = useState<string | undefined>(undefined);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  // Mission State (Smart Contextual Persistence)
+  const [activeMission, setActiveMission] = useState<any>(null);
   
   // Call State
   const [activeCall, setActiveCall] = useState<CallInfo | null>(null);
@@ -380,23 +391,37 @@ export default function MockHome() {
   useEffect(() => {
     // Reset nav visibility when switching tabs
     setIsNavVisible(true);
+    setLastScrollY(0);
   }, [activeNav]);
 
-  const handleFeedScroll = (e: any) => {
+  const handleGlobalScroll = (e: any) => {
     const scrollPos = (e.currentTarget as HTMLDivElement).scrollTop;
-    const height = (e.currentTarget as HTMLDivElement).offsetHeight;
-    const index = Math.round(scrollPos / height);
     
-    // Adaptive visibility: Hide nav bar when scrolling down, show when scrolling up
-    if (scrollPos > lastScrollY && scrollPos > 100) {
-      if (activeNav === "feed") setIsNavVisible(false);
-    } else {
-      setIsNavVisible(true);
+    // Smooth threshold for hiding/showing
+    if (scrollPos > lastScrollY && scrollPos > 80) {
+      if (isNavVisible) setIsNavVisible(false);
+    } else if (scrollPos < lastScrollY - 5) {
+      if (!isNavVisible) setIsNavVisible(true);
     }
     setLastScrollY(scrollPos);
 
-    setActiveIndex(index);
-    if (showHint && index > 0) setShowHint(false);
+    if (activeNav === "home") {
+      const height = (e.currentTarget as HTMLDivElement).offsetHeight;
+      const index = Math.round(scrollPos / height);
+      setActiveIndex(index);
+      if (showHint && index > 0) setShowHint(false);
+    }
+  };
+
+  // Tab Order for Gestures
+  const TABS = ["home", "live", "wallet", "profile"] as const;
+
+  const handleTabChange = (dir: "left" | "right") => {
+    const currentIndex = TABS.indexOf(activeNav);
+    let nextIndex = currentIndex + (dir === "left" ? 1 : -1);
+    if (nextIndex >= 0 && nextIndex < TABS.length) {
+      setActiveNav(TABS[nextIndex]);
+    }
   };
 
   return (
@@ -417,49 +442,36 @@ export default function MockHome() {
       </AnimatePresence>
       
       {/* Header Overlay - Minimal & Translucent */}
-      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-6 pt-12 pb-6 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-500 ${activeNav === "profile" || activeNav === "search" || activeNav === "feed" ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
-        <h2 className="text-xl font-display font-black tracking-[0.2em] pointer-events-auto">HUSTLE</h2>
-        <div className="flex gap-4 pointer-events-auto">
-          <button 
-            onClick={() => setActiveNav("bookings")}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors relative"
+      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-6 pt-12 pb-6 bg-gradient-to-b from-black/80 via-black/20 to-transparent transition-all duration-500 ${!isNavVisible || activeNav === "profile" ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full animate-pulse shadow-glow ${activeNav === 'home' ? 'bg-brand-primary' : activeNav === 'live' ? 'bg-red-500' : activeNav === 'wallet' ? 'bg-emerald-400' : 'bg-blue-400'}`} />
+          <h2 
+            onClick={() => setIsFoundationOpen(true)}
+            className="text-xl font-display font-black tracking-[0.2em] pointer-events-auto cursor-pointer hover:text-brand-primary transition-colors"
           >
-            {activeNav !== "bookings" && (
-               <div className="w-2 h-2 rounded-full bg-blue-500 absolute top-2 right-2" />
-            )}
-            <Calendar size={18} />
-          </button>
+            HUSTLE
+          </h2>
+        </div>
+        <div className="flex items-center gap-4 pointer-events-auto">
           <button 
             onClick={() => setIsActivityOpen(true)}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors relative"
+            className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
           >
-            <motion.div 
-               animate={{ scale: [1, 1.3, 1] }}
-               transition={{ duration: 2, repeat: Infinity }}
-               className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full" 
-            />
-            <Bell size={18} />
+            <Bell size={22} className="text-white/80" />
+            <div className={`absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-black ${activeNav === 'live' ? 'bg-red-500 animate-pulse' : 'bg-brand-primary'}`} />
           </button>
-          <button 
-            onClick={() => setActiveNav("chat")}
-            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl flex items-center justify-center border border-white/10 cursor-pointer hover:bg-white/10 transition-colors relative"
-          >
-            <motion.div 
-               animate={{ scale: [1, 1.3, 1] }}
-               transition={{ duration: 2, repeat: Infinity }}
-               className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" 
-            />
-            <MessageSquare size={18} />
-          </button>
+          <div className="w-10 h-10 rounded-full border-2 border-white/20 p-0.5 overflow-hidden active-scale cursor-pointer" onClick={() => setActiveNav("profile")}>
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Me" className="w-full h-full rounded-full" />
+          </div>
         </div>
       </header>
 
       {/* Main Content Areas */}
       <div className="h-full w-full">
         <AnimatePresence mode="wait">
-          {activeNav === "feed" && (
+          {activeNav === "home" && (
             <motion.div 
-               key="feed-view"
+               key="home-view"
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
@@ -468,27 +480,48 @@ export default function MockHome() {
               <MainFeedHub 
                 MOCK_HUSTLERS={MOCK_HUSTLERS} 
                 bridgeIntent={bridgeIntent} 
-                onOpenBookings={() => setActiveNav("bookings")}
+                onOpenBookings={() => setActiveNav("profile")} 
                 onOpenActivity={() => setIsActivityOpen(true)}
-                onOpenChat={() => setActiveNav("chat")}
+                onOpenChat={() => setActiveNav("profile")} 
+                onOpenSearch={() => setIsSearchOpen(true)}
+                onScroll={handleGlobalScroll}
+                isNavVisible={isNavVisible}
+                initialTab="for-you"
               />
             </motion.div>
           )}
 
-          {activeNav === "search" && (
+          {activeNav === "live" && (
             <motion.div 
-               key="search-view"
+               key="live-view"
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
-               className="h-full w-full relative z-20"
+               className="h-full w-full"
             >
-              <NearbyMap 
-                onProfileSelect={(hustler) => bridgeIntent(hustler)} 
-                onClose={() => setActiveNav("feed")}
+              <MainFeedHub 
+                MOCK_HUSTLERS={MOCK_HUSTLERS} 
+                bridgeIntent={bridgeIntent} 
+                onScroll={handleGlobalScroll}
+                isNavVisible={isNavVisible}
+                initialTab="live"
               />
             </motion.div>
-          )}          {activeNav === "profile" && (
+          )}
+
+          {activeNav === "wallet" && (
+            <motion.div 
+               key="wallet-view"
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.95 }}
+               className="h-full w-full"
+            >
+              <WalletHub onClose={() => setActiveNav("home")} />
+            </motion.div>
+          )}
+
+          {activeNav === "profile" && (
             <motion.div 
               key="profile-view"
               initial={{ opacity: 0, x: 20 }}
@@ -500,47 +533,9 @@ export default function MockHome() {
               <MyProfileHub 
                 isHustler={isHustler} 
                 onHustlerModeChange={setIsHustler} 
-                setActiveNav={setActiveNav} 
+                setActiveNav={(nav: any) => setActiveNav(nav)} 
+                onOpenCreatorStudio={() => setIsCreatorStudioOpen(true)}
               />
-            </motion.div>
-          )}
-
-          {activeNav === "chat" && (
-            <motion.div 
-               key="chat-view"
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               exit={{ opacity: 0 }}
-               className="h-full w-full"
-            >
-              <ChatList onChatSelect={(chat) => setSelectedChat(chat)} />
-            </motion.div>
-          )}
-
-          {activeNav === "bookings" && (
-            <motion.div 
-               key="bookings-view"
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: 20 }}
-               className="h-full w-full"
-            >
-              <BookingsHub 
-                onBookingSelect={(booking) => setSelectedBooking(booking)} 
-                onClose={() => setActiveNav("feed")}
-              />
-            </motion.div>
-          )}
-
-          {activeNav === "wallet" && (
-            <motion.div 
-               key="wallet-view"
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: 20 }}
-               className="h-full w-full"
-            >
-              <WalletHub onClose={() => setActiveNav("feed")} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -600,49 +595,76 @@ export default function MockHome() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Nav */}
+      {/* Bottom Nav System - Standard 5 Slot Pattern with FAB */}
       <motion.nav 
         initial={{ y: 0 }}
-        animate={{ y: isNavVisible ? 0 : 100 }}
-        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="fixed bottom-6 left-6 right-6 h-16 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl flex items-center justify-around px-4 z-50"
+        animate={{ y: isNavVisible ? 0 : 120 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
+        className="fixed bottom-6 left-6 right-6 h-20 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex items-center justify-around px-2 z-50 shadow-2xl overflow-hidden"
       >
+        {/* Dynamic Background Pulse */}
+        <div className={`absolute inset-0 opacity-10 transition-colors duration-700 pointer-events-none ${
+          activeNav === 'home' ? 'bg-brand-primary' : 
+          activeNav === 'live' ? 'bg-red-600' : 
+          activeNav === 'wallet' ? 'bg-emerald-500' : 
+          'bg-blue-500'
+        }`} />
+
         <button 
-          onClick={() => setActiveNav("feed")}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "feed" ? 'text-white' : 'text-white/40'}`}
+          onClick={() => setActiveNav("home")}
+          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "home" ? 'text-brand-primary scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
-          <Compass size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Home</span>
-        </button>
-        <button 
-          onClick={() => setActiveNav("search")}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "search" ? 'text-white' : 'text-white/40'}`}
-        >
-          <Search size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Search</span>
-        </button>
-        
-        <button 
-          onClick={() => setIsCreateOpen(true)}
-          className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center -mt-10 shadow-xl shadow-white/10 hover:scale-105 active:scale-95 transition-transform cursor-pointer relative z-10"
-        >
-          <PlusCircle size={24} />
+          <Home size={22} strokeWidth={activeNav === "home" ? 2.5 : 2} className={activeNav === "home" ? 'drop-shadow-glow-red' : ''} />
+          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "home" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Feed</span>
         </button>
 
         <button 
-          onClick={() => setActiveNav("wallet")}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "wallet" ? 'text-white' : 'text-white/40'}`}
+          onClick={() => setActiveNav("live")}
+          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "live" ? 'text-red-500 scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
-          <Wallet size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Wallet</span>
+          <div className="relative">
+            <Play size={22} strokeWidth={activeNav === "live" ? 2.5 : 2} className={activeNav === "live" ? 'drop-shadow-glow-red text-red-500' : ''} />
+            <div className={`absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-glow-red ${activeNav === 'live' ? 'opacity-100' : 'opacity-40'}`} />
+          </div>
+          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "live" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Live</span>
+        </button>
+
+        {/* Global Create Hub */}
+        <div className="relative w-20 flex justify-center -mt-10 mr-[-2px] z-10">
+          <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse opacity-20 transition-colors duration-700 ${
+            activeNav === 'home' ? 'bg-brand-primary' : 
+            activeNav === 'live' ? 'bg-red-500' : 
+            activeNav === 'wallet' ? 'bg-emerald-500' : 
+            'bg-blue-500'
+          }`} />
+          <motion.button 
+            whileHover={{ scale: 1.1, y: -4 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setIsCreateOpen(true)}
+            className={`w-16 h-16 rounded-[1.75rem] flex items-center justify-center shadow-premium-deep relative z-10 transition-all duration-500 bg-white group active-scale ${
+              activeNav === 'live' ? 'hover:bg-red-500 hover:text-white' : 
+              activeNav === 'wallet' ? 'hover:bg-emerald-500 hover:text-white' : 
+              'hover:bg-brand-primary hover:text-white'
+            } text-black`}
+          >
+            <PlusCircle size={32} />
+          </motion.button>
+        </div>
+
+        <button 
+          onClick={() => setActiveNav("wallet")}
+          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "wallet" ? 'text-emerald-400 scale-110' : 'text-white/20 hover:text-white/40'}`}
+        >
+          <Wallet size={22} strokeWidth={activeNav === "wallet" ? 2.5 : 2} className={activeNav === "wallet" ? 'drop-shadow-glow-emerald text-emerald-400' : ''} />
+          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "wallet" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Wallet</span>
         </button>
 
         <button 
           onClick={() => setActiveNav("profile")}
-          className={`flex flex-col items-center gap-1 transition-colors ${activeNav === "profile" ? 'text-white' : 'text-white/40'}`}
+          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "profile" ? 'text-blue-400 scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
-          <User size={20} />
-          <span className="text-[10px] uppercase tracking-widest font-bold">Profile</span>
+          <User size={22} strokeWidth={activeNav === "profile" ? 2.5 : 2} className={activeNav === "profile" ? 'drop-shadow-glow-blue text-blue-400' : ''} />
+          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "profile" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Profile</span>
         </button>
       </motion.nav>
 
@@ -652,13 +674,37 @@ export default function MockHome() {
         onClose={() => setIsCreateOpen(false)} 
         onOptionSelect={(type) => {
           setIsCreateOpen(false);
-          if (type === "live") {
-            setIsLiveStudioOpen(true);
-          } else {
-            setIsUploadFlowOpen(true);
-          }
+          setInitialFlowType(type);
+          setIsCreatorFlowOpen(true);
         }}
       />
+
+      {/* Creator Studio Dashboard Overlay */}
+      <AnimatePresence>
+        {isCreatorStudioOpen && (
+          <CreatorStudioDashboard 
+            onClose={() => setIsCreatorStudioOpen(false)} 
+            onLaunchCreator={(type) => {
+               setInitialFlowType(type);
+               setIsCreatorFlowOpen(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Unified Creator Flow */}
+      <AnimatePresence>
+        {isCreatorFlowOpen && (
+          <UnifiedCreatorFlow 
+            initialType={initialFlowType}
+            onClose={() => setIsCreatorFlowOpen(false)}
+            onPublish={(data) => {
+              console.log("Published:", data);
+              setIsCreatorFlowOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Live Creator Studio Overlay */}
       <AnimatePresence>
@@ -718,6 +764,25 @@ export default function MockHome() {
 
       {/* Profile Page Overlay */}
       <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            className="fixed inset-0 z-[100] bg-black"
+          >
+            <DiscoveryView 
+              onProfileSelect={(hustler) => { bridgeIntent(hustler); setIsSearchOpen(false); }} 
+              onOpenTrustCenter={() => setIsTrustOpen(true)}
+              onScroll={() => {}}
+              isNavVisible={true}
+              onClose={() => setIsSearchOpen(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {selectedHustler && (
           <ProfilePage 
             hustler={selectedHustler} 
@@ -763,6 +828,13 @@ export default function MockHome() {
       <AnimatePresence>
         {isTrustOpen && (
           <TrustCenter onClose={() => setIsTrustOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Brand Foundation Overlay */}
+      <AnimatePresence>
+        {isFoundationOpen && (
+          <HustleFoundation onClose={() => setIsFoundationOpen(false)} />
         )}
       </AnimatePresence>
 

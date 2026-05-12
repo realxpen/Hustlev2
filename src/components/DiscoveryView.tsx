@@ -1,15 +1,19 @@
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Search, MapPin, Star, ChevronRight, TrendingUp, Clock, History, X, 
   ShieldCheck, Sparkles, BrainCircuit, Filter, SlidersHorizontal, 
   ShoppingBag, GraduationCap, Play, Briefcase, Zap, Flame, MoveUpRight,
-  Bookmark, CheckCircle2, Navigation, Grid, User, ArrowRight
+  Bookmark, CheckCircle2, Navigation, Grid, User, ArrowRight, Map as MapIcon
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import NearbyMap from "./NearbyMap";
 
 interface DiscoveryViewProps {
   onProfileSelect: (hustler: any) => void;
   onOpenTrustCenter: () => void;
+  onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isNavVisible?: boolean;
+  onClose?: () => void;
 }
 
 type SearchIntent = 'any' | 'service' | 'product' | 'training' | 'inspiration' | 'hustler';
@@ -62,13 +66,14 @@ const RECOMMENDATIONS = [
   }
 ];
 
-export default function DiscoveryView({ onProfileSelect, onOpenTrustCenter }: DiscoveryViewProps) {
+export default function DiscoveryView({ onProfileSelect, onOpenTrustCenter, onScroll, isNavVisible = true, onClose }: DiscoveryViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [activeIntent, setActiveIntent] = useState<SearchIntent>('any');
   const [showFilters, setShowFilters] = useState(false);
   const [momentGreeting, setMomentGreeting] = useState("Good Vibes");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,17 +109,31 @@ export default function DiscoveryView({ onProfileSelect, onOpenTrustCenter }: Di
   };
 
   return (
-    <div className="h-full bg-transparent text-white p-6 pb-24 overflow-y-auto no-scrollbar relative" id="discovery-view">
+    <div 
+      className="h-full bg-transparent text-white p-6 pb-24 overflow-y-auto no-scrollbar relative" 
+      id="discovery-view" 
+      onScroll={onScroll}
+    >
       <div className="grain-overlay pointer-events-none" />
 
       {/* Global Search Interface */}
-      <header className="pt-4 mb-8 sticky top-0 z-[60] bg-[#050505]/80 backdrop-blur-xl -mx-6 px-6 pb-4">
-        <div className="flex flex-col gap-1 mb-6">
-           <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-blue-400 animate-pulse" />
-              <h2 className="text-xl font-display font-black tracking-[0.2em] uppercase">{momentGreeting}</h2>
-           </div>
-           <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest italic">Matching intent with opportunity</p>
+      <header className={`pt-4 mb-8 sticky top-0 z-[60] bg-[#050505]/80 backdrop-blur-xl -mx-6 px-6 pb-4 transition-all duration-500 ${isNavVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex flex-col gap-1">
+             <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-blue-400 animate-pulse" />
+                <h2 className="text-xl font-display font-black tracking-[0.2em] uppercase">{momentGreeting}</h2>
+             </div>
+             <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest italic">Matching intent with opportunity</p>
+          </div>
+          {onClose && (
+            <button 
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <div className="relative group">
@@ -266,7 +285,12 @@ export default function DiscoveryView({ onProfileSelect, onOpenTrustCenter }: Di
                   <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 flex items-center gap-2">
                     <Grid size={12} /> Explore Services
                   </h4>
-                  <button className="text-[10px] font-black text-blue-500 uppercase tracking-widest">View Map</button>
+                  <button 
+                    onClick={() => setIsMapOpen(true)}
+                    className="flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-400 p-1"
+                  >
+                    <MapPin size={12} className="text-blue-500" /> View Map
+                  </button>
                </div>
                <div className="grid grid-cols-3 gap-4">
                   {CATEGORIES.map((cat) => (
@@ -457,6 +481,15 @@ export default function DiscoveryView({ onProfileSelect, onOpenTrustCenter }: Di
 
       {/* Advanced Filter Overlay */}
       <AnimatePresence>
+        {isMapOpen && (
+          <NearbyMap 
+            onProfileSelect={(hustler) => {
+              onProfileSelect(hustler);
+              setIsMapOpen(false);
+            }} 
+            onClose={() => setIsMapOpen(false)} 
+          />
+        )}
         {showFilters && (
           <div className="fixed inset-0 z-[1000] flex items-end justify-center">
             <motion.div 

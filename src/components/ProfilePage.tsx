@@ -112,11 +112,17 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 50 }}
+      initial={{ opacity: 0, x: "100%" }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 50 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-0 z-[60] bg-[#050505] flex flex-col w-full h-full pb-safe"
+      exit={{ opacity: 0, x: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      drag="x"
+      dragDirectionLock
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={(_, info) => {
+        if (info.offset.x > 100) onBack();
+      }}
+      className="fixed inset-0 z-[60] bg-[#050505] flex flex-col w-full h-full pb-safe touch-none"
     >
       {/* Sticky Top Navigation - Guarantees users never feel trapped */}
       <header className="sticky top-0 z-[100] flex justify-between items-center px-4 py-3 bg-[#050505]/95 backdrop-blur-2xl border-b border-white/5 safe-top shadow-xl">

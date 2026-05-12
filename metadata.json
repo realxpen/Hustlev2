@@ -1,6 +1,6 @@
 {
   "name": "Hustle",
-  "description": "Hustle: The Economy of You. A production-ready social marketplace ecosystem uniting discovery, identity evolution, secure transactions, and personalized recommendations.",
+  "description": "Hustle: The Economy of You. A premium creator-first marketplace ecosystem where social discovery meets cinematic commerce. Built on a foundation of trust, high-street authenticity, and visual excellence.",
   "requestFramePermissions": ["microphone", "camera"],
   "majorCapabilities": []
 }

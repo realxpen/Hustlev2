@@ -17,9 +17,10 @@ interface MyProfileHubProps {
   isHustler?: boolean;
   onHustlerModeChange?: (isHustler: boolean) => void;
   setActiveNav?: (nav: any) => void;
+  onOpenCreatorStudio?: () => void;
 }
 
-export default function MyProfileHub({ isHustler = false, onHustlerModeChange, setActiveNav }: MyProfileHubProps) {
+export default function MyProfileHub({ isHustler = false, onHustlerModeChange, setActiveNav, onOpenCreatorStudio }: MyProfileHubProps) {
   const [activeTab, setActiveTab] = useState("posts");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showCreateOffering, setShowCreateOffering] = useState<boolean>(false);
@@ -533,7 +534,9 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
               animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-2 gap-3"
             >
-              <div className="p-6 rounded-[2rem] bg-blue-600 shadow-[0_20px_40px_rgba(37,99,235,0.2)] flex flex-col justify-between h-40 relative overflow-hidden group">
+              <div className="p-6 rounded-[2rem] bg-blue-600 shadow-[0_20px_40px_rgba(37,99,235,0.2)] flex flex-col justify-between h-40 relative overflow-hidden group cursor-pointer"
+            onClick={onOpenCreatorStudio}
+          >
                 <div className="relative z-10">
                   <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Available Balance</span>
                   <div className="text-3xl font-black text-white tracking-tighter mt-1">${earningsData.total.toLocaleString()}</div>
@@ -542,9 +545,12 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                   <div className="flex flex-col">
                     <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Payout: {earningsData.payoutDate}</span>
                   </div>
-                  <button className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white backdrop-blur-md">
-                    <ArrowRight size={14} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white/60">Studio</span>
+                    <button className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
                 </div>
                 <TrendingUp size={80} className="absolute -bottom-4 -right-4 text-white/10 -rotate-12 group-hover:scale-110 transition-transform" />
               </div>
