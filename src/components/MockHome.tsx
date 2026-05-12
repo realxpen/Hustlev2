@@ -595,15 +595,15 @@ export default function MockHome() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Nav System - Standard 5 Slot Pattern with FAB */}
+      {/* Bottom Nav System - Dynamic & Alive */}
       <motion.nav 
         initial={{ y: 0 }}
         animate={{ y: isNavVisible ? 0 : 120 }}
         transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
         className="fixed bottom-6 left-6 right-6 h-20 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex items-center justify-around px-2 z-50 shadow-2xl overflow-hidden"
       >
-        {/* Dynamic Background Pulse */}
-        <div className={`absolute inset-0 opacity-10 transition-colors duration-700 pointer-events-none ${
+        {/* Deep Pulsing Background - Changes based on state */}
+        <div className={`absolute inset-0 opacity-20 transition-colors duration-1000 blur-3xl scale-150 pointer-events-none ${
           activeNav === 'home' ? 'bg-brand-primary' : 
           activeNav === 'live' ? 'bg-red-600' : 
           activeNav === 'wallet' ? 'bg-emerald-500' : 
@@ -615,7 +615,7 @@ export default function MockHome() {
           className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "home" ? 'text-brand-primary scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
           <Home size={22} strokeWidth={activeNav === "home" ? 2.5 : 2} className={activeNav === "home" ? 'drop-shadow-glow-red' : ''} />
-          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "home" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Feed</span>
+          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "home" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>Live Feed</span>
         </button>
 
         <button 
@@ -626,12 +626,12 @@ export default function MockHome() {
             <Play size={22} strokeWidth={activeNav === "live" ? 2.5 : 2} className={activeNav === "live" ? 'drop-shadow-glow-red text-red-500' : ''} />
             <div className={`absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-glow-red ${activeNav === 'live' ? 'opacity-100' : 'opacity-40'}`} />
           </div>
-          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "live" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Live</span>
+          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "live" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>Go Live</span>
         </button>
 
-        {/* Global Create Hub */}
+        {/* Dynamic Global Create Hub - The "Smart" Centerpiece */}
         <div className="relative w-20 flex justify-center -mt-10 mr-[-2px] z-10">
-          <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse opacity-20 transition-colors duration-700 ${
+          <div className={`absolute inset-0 blur-2xl rounded-full scale-150 animate-pulse opacity-40 transition-colors duration-1000 ${
             activeNav === 'home' ? 'bg-brand-primary' : 
             activeNav === 'live' ? 'bg-red-500' : 
             activeNav === 'wallet' ? 'bg-emerald-500' : 
@@ -641,13 +641,24 @@ export default function MockHome() {
             whileHover={{ scale: 1.1, y: -4 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsCreateOpen(true)}
-            className={`w-16 h-16 rounded-[1.75rem] flex items-center justify-center shadow-premium-deep relative z-10 transition-all duration-500 bg-white group active-scale ${
+            className={`w-16 h-16 rounded-[1.75rem] flex flex-col items-center justify-center shadow-premium-deep relative z-10 transition-all duration-500 bg-white group active-scale ${
               activeNav === 'live' ? 'hover:bg-red-500 hover:text-white' : 
               activeNav === 'wallet' ? 'hover:bg-emerald-500 hover:text-white' : 
               'hover:bg-brand-primary hover:text-white'
             } text-black`}
           >
-            <PlusCircle size={32} />
+            <PlusCircle size={24} className="group-hover:scale-110 transition-transform mb-0.5" />
+            <motion.span 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              key={activeNav}
+              className="text-[7px] font-black uppercase tracking-tighter"
+            >
+              {activeNav === 'home' ? 'Post' : 
+               activeNav === 'live' ? 'Studio' :
+               activeNav === 'wallet' ? 'Add' :
+               'Hustle'}
+            </motion.span>
           </motion.button>
         </div>
 
@@ -656,7 +667,7 @@ export default function MockHome() {
           className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "wallet" ? 'text-emerald-400 scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
           <Wallet size={22} strokeWidth={activeNav === "wallet" ? 2.5 : 2} className={activeNav === "wallet" ? 'drop-shadow-glow-emerald text-emerald-400' : ''} />
-          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "wallet" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Wallet</span>
+          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "wallet" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>Wallet</span>
         </button>
 
         <button 
@@ -664,8 +675,35 @@ export default function MockHome() {
           className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 ${activeNav === "profile" ? 'text-blue-400 scale-110' : 'text-white/20 hover:text-white/40'}`}
         >
           <User size={22} strokeWidth={activeNav === "profile" ? 2.5 : 2} className={activeNav === "profile" ? 'drop-shadow-glow-blue text-blue-400' : ''} />
-          <span className={`text-[8px] uppercase tracking-widest font-black transition-all duration-300 ${activeNav === "profile" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>Profile</span>
+          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "profile" ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>Profile</span>
         </button>
+
+        {/* Floating Contextual Bubbles - Reintroducing the "Unrequested" but appreciated feel */}
+        {activeNav === "home" && isNavVisible && (
+          <>
+            <motion.button
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              onClick={() => setIsSearchOpen(true)}
+              className="absolute right-4 bottom-24 p-3 rounded-2xl glass-light border border-white/10 shadow-premium flex items-center gap-2 group hover:bg-brand-primary transition-all active-scale"
+            >
+              <MapIcon size={14} className="text-brand-primary group-hover:text-white" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-white/60 group-hover:text-white">Nearby Map</span>
+            </motion.button>
+
+            <motion.button
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              onClick={() => setIsSearchOpen(true)}
+              className="absolute left-4 bottom-24 p-3 rounded-2xl glass-light border border-white/10 shadow-premium flex items-center gap-2 group hover:bg-emerald-500 transition-all active-scale"
+            >
+              <ShoppingBag size={14} className="text-emerald-500 group-hover:text-white" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-white/60 group-hover:text-white">Marketings</span>
+            </motion.button>
+          </>
+        )}
       </motion.nav>
 
       {/* Create Menu Overlay */}
