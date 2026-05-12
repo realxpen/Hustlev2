@@ -1,8 +1,9 @@
 import { motion } from "motion/react";
-import { Calendar, Clock, ChevronRight, CheckCircle2, AlertCircle, MessageSquare } from "lucide-react";
+import { Calendar, Clock, ChevronRight, CheckCircle2, AlertCircle, MessageSquare, X } from "lucide-react";
 
 interface BookingsHubProps {
   onBookingSelect: (booking: any) => void;
+  onClose?: () => void;
 }
 
 const MOCK_BOOKINGS = [
@@ -54,15 +55,24 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   pending: { label: "Pending", color: "text-yellow-400", icon: <AlertCircle size={12} /> },
 };
 
-export default function BookingsHub({ onBookingSelect }: BookingsHubProps) {
+export default function BookingsHub({ onBookingSelect, onClose }: BookingsHubProps) {
   return (
     <div className="min-h-screen bg-transparent text-white p-6 pb-24 overflow-y-auto no-scrollbar" id="bookings-hub">
       <div className="grain-overlay pointer-events-none" />
 
       {/* Header */}
-      <header className="pt-4 mb-10">
-        <h2 className="text-xl font-display font-black tracking-[0.2em] uppercase mb-1">My Bookings</h2>
-        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Track your active services and history</p>
+      <header className="flex justify-between items-center mb-10 pt-4">
+        <div className="flex items-center gap-4">
+          {onClose && (
+            <button onClick={onClose} className="p-2 -ml-2 text-white/40 hover:text-white transition-colors">
+              <X size={24} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-display font-black tracking-[0.2em] uppercase mb-1">My Bookings</h2>
+            <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Track your active services and history</p>
+          </div>
+        </div>
       </header>
 
       {/* Stats Quick View */}

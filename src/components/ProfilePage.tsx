@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
 import ReportSheet from "./ReportSheet";
 import ImageEditorModal from "./ImageEditorModal";
+import TrustBadge from "./TrustBadge";
 
 interface ProfilePageProps {
   hustler: any;
@@ -211,11 +212,19 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             <motion.h1 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-display font-black tracking-tight flex items-center gap-2 text-white"
+              className="text-3xl font-display font-black tracking-tight flex justify-center flex-wrap items-center gap-2 text-white"
             >
               {hustler.creator.name}
-              {hustler.creator.verified && <CheckCircle2 size={24} className="text-blue-400" />}
             </motion.h1>
+            
+            <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               className="flex flex-wrap items-center justify-center gap-2 mt-3"
+            >
+              {hustler.creator.verified && <TrustBadge type="verified" size="sm" />}
+              {trustMetrics.rating >= 4.5 && <TrustBadge type="trusted_hustler" size="sm" />}
+            </motion.div>
 
             {/* Trust Meter */}
             <motion.div 

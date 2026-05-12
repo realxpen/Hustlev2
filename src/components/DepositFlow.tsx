@@ -14,9 +14,14 @@ import {
   Clock,
   Loader2,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Lock,
+  ShieldQuestion,
+  Fingerprint
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import PaymentConfirmationModal from "./PaymentConfirmationModal";
+import TrustBadge from "./TrustBadge";
 
 interface DepositFlowProps {
   isOpen: boolean;
@@ -27,7 +32,6 @@ type DepositStep =
   | "selection" 
   | "fiat_amount" 
   | "fiat_method" 
-  | "fiat_confirm" 
   | "fiat_status" 
   | "crypto_select" 
   | "crypto_address" 
@@ -42,6 +46,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
   const [fiatCurrency, setFiatCurrency] = useState("USD");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "bank">("card");
   const [cryptoType, setCryptoType] = useState<"BTC" | "ETH" | "USDT">("BTC");
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   
   const [txStatus, setTxStatus] = useState<StatusState>("pending");
   const [copied, setCopied] = useState(false);
@@ -68,6 +73,11 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
   const handleCopy = () => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleConfirmFiat = () => {
+    setIsConfirmModalOpen(false);
+    simulateFiatDeposit();
   };
 
   const simulateFiatDeposit = () => {
@@ -116,7 +126,6 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 onClick={() => {
                    if (step === "fiat_amount") goBackTo("selection");
                    if (step === "fiat_method") goBackTo("fiat_amount");
-                   if (step === "fiat_confirm") goBackTo("fiat_method");
                    if (step === "crypto_select") goBackTo("selection");
                    if (step === "crypto_address") goBackTo("crypto_select");
                 }}
@@ -289,10 +298,11 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 </div>
 
                 <button 
-                  onClick={() => navigateTo("fiat_confirm")}
-                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto"
+                  onClick={() => setIsConfirmModalOpen(true)}
+                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto flex items-center justify-center gap-3 active:scale-95 transition-all"
                 >
-                  Continue to Summary
+                  <Fingerprint size={18} />
+                  Review & Secure Deposit
                 </button>
               </motion.div>
             )}
@@ -563,6 +573,20 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
             )}
           </AnimatePresence>
         </div>
+
+        {/* DEPOSIT CONFIRMATION MODAL */}
+        <PaymentConfirmationModal 
+          isOpen={isConfirmModalOpen && ["fiat_amount", "fiat_method"].includes(step)}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={handleConfirmFiat}
+          title="Deposit Review"
+          amount={Number(fiatAmount)}
+          recipient="Hustle Secured Wallet"
+          fees={paymentMethod === "card" ? 1.5 : 0}
+          estimatedArrival={paymentMethod === "card" ? "Instant" : "1-3 Business Days"}
+          actionType="deposit"
+          description={`Adding funds via ${paymentMethod === "card" ? "Credit Card" : "Bank Transfer"}. All deposits are protected by Hustle Shield.`}
+        />
       </motion.div>
     </AnimatePresence>
   );

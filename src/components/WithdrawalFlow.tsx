@@ -22,9 +22,13 @@ import {
   Info,
   Calendar,
   Hash,
-  ExternalLink
+  ExternalLink,
+  ShieldQuestion,
+  Fingerprint
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import PaymentConfirmationModal from "./PaymentConfirmationModal";
+import TrustBadge from "./TrustBadge";
 
 interface WithdrawalFlowProps {
   isOpen: boolean;
@@ -35,11 +39,9 @@ type WithdrawalStep =
   | "selection" 
   | "fiat_amount" 
   | "fiat_method" 
-  | "fiat_confirm" 
   | "fiat_status" 
   | "crypto_select" 
   | "crypto_address" 
-  | "crypto_confirm"
   | "crypto_status";
 
 type StatusState = "pending" | "processing" | "approved" | "completed" | "failed";
@@ -64,6 +66,18 @@ export default function WithdrawalFlow({ isOpen, onClose }: WithdrawalFlowProps)
   const [cryptoAddress, setCryptoAddress] = useState("");
   const [txStatus, setTxStatus] = useState<StatusState>("pending");
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+  // Simulation handlers
+  const handleFiatSimulate = () => {
+    setIsConfirmModalOpen(false);
+    simulateWithdrawal('fiat');
+  };
+
+  const handleCryptoSimulate = () => {
+    setIsConfirmModalOpen(false);
+    simulateWithdrawal('crypto');
+  };
 
   // Reset flow when opened
   useEffect(() => {
@@ -126,9 +140,7 @@ export default function WithdrawalFlow({ isOpen, onClose }: WithdrawalFlowProps)
                 onClick={() => {
                    if (step === "fiat_amount" || step === "crypto_select") goBackTo("selection");
                    if (step === "fiat_method") goBackTo("fiat_amount");
-                   if (step === "fiat_confirm") goBackTo("fiat_method");
                    if (step === "crypto_address") goBackTo("crypto_select");
-                   if (step === "crypto_confirm") goBackTo("crypto_address");
                 }}
                 className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white"
               >
@@ -348,10 +360,11 @@ export default function WithdrawalFlow({ isOpen, onClose }: WithdrawalFlowProps)
                 </div>
 
                 <button 
-                  onClick={() => navigateTo("fiat_confirm")}
-                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto font-display"
+                  onClick={() => setIsConfirmModalOpen(true)}
+                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto font-display flex items-center justify-center gap-3 active:scale-95 transition-all"
                 >
-                  Review Payout
+                  <Fingerprint size={18} />
+                  Review & Secure Transfer
                 </button>
               </motion.div>
             )}
@@ -605,10 +618,11 @@ export default function WithdrawalFlow({ isOpen, onClose }: WithdrawalFlowProps)
 
                 <button 
                   disabled={!cryptoAddress || cryptoAddress.length < 10}
-                  onClick={() => navigateTo("crypto_confirm")}
-                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto disabled:opacity-20 font-display transition-all"
+                  onClick={() => setIsConfirmModalOpen(true)}
+                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl mt-auto disabled:opacity-20 font-display transition-all flex items-center justify-center gap-3 active:scale-95"
                 >
-                  Continue to Review
+                  <Fingerprint size={18} />
+                  Confirm Dest. & Transmit
                 </button>
               </motion.div>
             )}
@@ -742,6 +756,34 @@ export default function WithdrawalFlow({ isOpen, onClose }: WithdrawalFlowProps)
 
           </AnimatePresence>
         </div>
+
+        {/* FIAT CONFIRMATION MODAL */}
+        <PaymentConfirmationModal 
+          isOpen={isConfirmModalOpen && ["fiat_amount", "fiat_method"].includes(step)}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={handleFiatSimulate}
+          title="Bank Withdrawal Review"
+          amount={Number(amount)}
+          recipient={SAVED_BANKS.find(b => b.id === selectedBank)?.name}
+          fees={0}
+          estimatedArrival="1 - 24 Hours"
+          actionType="withdrawal"
+          description={`Your payout to ${SAVED_BANKS.find(b => b.id === selectedBank)?.name} will be processed via secured bank channels.`}
+        />
+
+        {/* CRYPTO CONFIRMATION MODAL */}
+        <PaymentConfirmationModal 
+          isOpen={isConfirmModalOpen && ["crypto_select", "crypto_address"].includes(step)}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={handleCryptoSimulate}
+          title="Crypto Transfer Review"
+          amount={Number(amount) || 0.024}
+          recipient={`${cryptoType} Network: ${cryptoAddress.substring(0, 10)}...`}
+          fees={0.0001}
+          estimatedArrival="10 - 30 Mins"
+          actionType="withdrawal"
+          description="Blockchain transactions are irreversible. Verification of recipient address is required."
+        />
       </motion.div>
     </AnimatePresence>
   );

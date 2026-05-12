@@ -15,6 +15,7 @@ import CreateMenu from "./CreateMenu";
 import UploadFlow from "./UploadFlow";
 import TrustCenter from "./TrustCenter";
 import JourneyTracker from "./JourneyTracker";
+import JobEscrowManager from "./JobEscrowManager";
 
 const MOCK_HUSTLERS = [
   {
@@ -268,6 +269,7 @@ export default function MockHome() {
   const [activeNav, setActiveNav] = useState<"feed" | "profile" | "chat" | "bookings" | "search" | "wallet">("feed");
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [isHustler, setIsHustler] = useState(false);
+  const [selectedBookingForEscrow, setSelectedBookingForEscrow] = useState<any>(null);
   
   // Journey Lifecycle State
   const [activeMission, setActiveMission] = useState<{
@@ -486,7 +488,10 @@ export default function MockHome() {
                exit={{ opacity: 0, y: 20 }}
                className="h-full w-full"
             >
-              <BookingsHub onBookingSelect={(booking) => setSelectedBooking(booking)} />
+              <BookingsHub 
+                onBookingSelect={(booking) => setSelectedBooking(booking)} 
+                onClose={() => setActiveNav("feed")}
+              />
             </motion.div>
           )}
 
@@ -498,7 +503,7 @@ export default function MockHome() {
                exit={{ opacity: 0, y: 20 }}
                className="h-full w-full"
             >
-              <WalletHub />
+              <WalletHub onClose={() => setActiveNav("feed")} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -520,6 +525,7 @@ export default function MockHome() {
                 // For now, opening the profile is the first step.
               }
             }}
+            onOpenEscrow={(booking) => setSelectedBookingForEscrow(booking)}
           />
         )}
       </AnimatePresence>
@@ -644,6 +650,16 @@ export default function MockHome() {
       <AnimatePresence>
         {isTrustOpen && (
           <TrustCenter onClose={() => setIsTrustOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Escrow Manager Overlay */}
+      <AnimatePresence>
+        {selectedBookingForEscrow && (
+          <JobEscrowManager 
+            booking={selectedBookingForEscrow} 
+            onClose={() => setSelectedBookingForEscrow(null)} 
+          />
         )}
       </AnimatePresence>
     </div>

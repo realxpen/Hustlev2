@@ -190,10 +190,7 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
       {/* Persistent Bottom Action (if active) */}
       <footer className="px-6 pt-4 pb-12 bg-gradient-to-t from-black to-transparent relative z-[200]">
          <button 
-            onClick={() => {
-                alert("Clicked");
-                setShowEscrow(true);
-            }}
+            onClick={() => setShowEscrow(true)}
             className="w-full h-14 bg-blue-500 rounded-2xl flex items-center justify-center gap-3 active:scale-[0.98] transition-transform"
          >
             <ShieldCheck size={16} />

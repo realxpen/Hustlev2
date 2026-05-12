@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { Camera, Upload, X } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, ChangeEvent } from "react";
 
 interface ImageEditorModalProps {
   isOpen: boolean;
@@ -51,7 +51,7 @@ export default function ImageEditorModal({ isOpen, onClose, onSave, title }: Ima
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();

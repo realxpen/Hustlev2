@@ -21,8 +21,10 @@ export enum BookingStatus {
 export enum EscrowStatus {
   PENDING = "pending",
   FUNDED = "funded",
+  PARTIALLY_RELEASED = "partially_released",
   RELEASED = "released",
-  REFUNDED = "refunded"
+  REFUNDED = "refunded",
+  DISPUTED = "disputed"
 }
 
 export enum MilestoneStatus {
@@ -110,7 +112,8 @@ export enum TransactionType {
   WITHDRAWAL = "withdrawal",
   DEPOSIT = "deposit",
   REFUND = "refund",
-  PURCHASE = "purchase"
+  PURCHASE = "purchase",
+  TRANSFER = "transfer"
 }
 
 export enum TransactionStatus {
@@ -118,7 +121,8 @@ export enum TransactionStatus {
   PROCESSING = "processing",
   COMPLETED = "completed",
   FAILED = "failed",
-  DISPUTED = "disputed"
+  DISPUTED = "disputed",
+  REFUNDED = "refunded"
 }
 
 export interface Transaction {
@@ -127,9 +131,13 @@ export interface Transaction {
   bookingId?: string;
   milestoneId?: string;
   amount: number;
+  currency?: "fiat" | "crypto";
+  fee?: number;
   type: TransactionType;
   status: TransactionStatus;
   title: string;
+  sender?: string;
+  receiver?: string;
   meta?: Record<string, any>;
   timestamp: string;
 }

@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Milestone, MilestoneStatus } from "../types";
-import { Check, Clock, AlertCircle } from "lucide-react";
+import { Check, Clock, AlertCircle, CircleDashed } from "lucide-react";
 
 interface MilestoneTimelineProps {
   milestones: Milestone[];
@@ -8,36 +8,61 @@ interface MilestoneTimelineProps {
 
 export default function MilestoneTimeline({ milestones }: MilestoneTimelineProps) {
   return (
-    <div className="space-y-4">
-      {milestones.map((milestone, index) => (
-        <motion.div 
-            key={milestone.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={`p-4 rounded-2xl border flex items-center gap-4 ${
-                milestone.status === "released" ? "bg-green-500/10 border-green-500/20" :
-                milestone.status === "disputed" ? "bg-red-500/10 border-red-500/20" :
-                "bg-white/[0.03] border-white/5"
-            }`}
-        >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                milestone.status === "released" ? "bg-green-500 text-white" :
-                milestone.status === "disputed" ? "bg-red-500 text-white" :
-                "bg-white/10 text-white/50"
-            }`}>
-              {milestone.status === "released" ? <Check size={14} /> : 
-               milestone.status === "disputed" ? <AlertCircle size={14} /> :
-               <Clock size={14} />}
-            </div>
-            <div className="flex-1">
-                <h5 className="font-bold text-xs">{milestone.title}</h5>
-                <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
-                    ${milestone.amount.toLocaleString()} • {milestone.status.replace("_", " ")}
-                </p>
-            </div>
-        </motion.div>
-      ))}
+    <div className="space-y-6 relative">
+      <div className="absolute left-[20px] top-4 bottom-4 w-px bg-white/10 -z-10" />
+      {milestones.map((milestone, index) => {
+          const isPending = milestone.status === MilestoneStatus.PENDING;
+          const isReleased = milestone.status === MilestoneStatus.RELEASED;
+          const isDisputed = milestone.status === MilestoneStatus.DISPUTED;
+          const isAwaiting = milestone.status === MilestoneStatus.AWAITING_APPROVAL;
+          const isInProgress = milestone.status === MilestoneStatus.IN_PROGRESS;
+
+          return (
+            <motion.div 
+                key={milestone.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="relative z-10"
+            >
+                <div className={`p-5 rounded-[24px] border border-white/[0.05] flex gap-4 ${
+                    isReleased ? "bg-[#0A0A0A]" :
+                    isDisputed ? "bg-red-500/5 border-red-500/20" :
+                    isAwaiting ? "bg-blue-500/5 border-blue-500/20" :
+                    isInProgress ? "bg-white/[0.03]" :
+                    "bg-[#0A0A0A] opacity-50"
+                }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                        isReleased ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                        isDisputed ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                        isAwaiting ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                        isInProgress ? "bg-white/10 text-white border-white/20" :
+                        "bg-white/5 text-white/30 border-white/10"
+                    }`}>
+                      {isReleased ? <Check size={16} /> : 
+                       isDisputed ? <AlertCircle size={16} /> :
+                       (isAwaiting || isInProgress) ? <Clock size={16} /> :
+                       <CircleDashed size={16} />}
+                    </div>
+                    <div className="flex-1 pt-1">
+                        <div className="flex justify-between items-start mb-1">
+                            <h5 className={`font-bold text-sm ${isReleased ? 'text-white' : 'text-white'}`}>{milestone.title}</h5>
+                            <span className="font-display font-black">₦{milestone.amount.toLocaleString()}</span>
+                        </div>
+                        <p className={`text-[10px] uppercase tracking-widest font-bold ${
+                            isReleased ? 'text-green-400' :
+                            isDisputed ? 'text-red-400' :
+                            isAwaiting ? 'text-blue-400' :
+                            'text-white/40'
+                        }`}>
+                            {milestone.status.replace("_", " ")}
+                            {!isReleased && !isDisputed && ` • Due ${new Date(milestone.deadline).toLocaleDateString()}`}
+                        </p>
+                    </div>
+                </div>
+            </motion.div>
+          );
+      })}
     </div>
   );
 }
