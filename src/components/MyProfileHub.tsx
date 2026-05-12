@@ -1,14 +1,16 @@
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Star, MapPin, CheckCircle2, MessageSquare, MoreHorizontal, Grid, 
-  Briefcase, Info, Calendar, Edit2, ChevronLeft,
+  Briefcase, Info, Calendar, Edit2, ChevronLeft, X, ArrowRight,
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, Plus, Play, Link as LinkIcon,
-  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap
+  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap, ChevronRight
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
 import ReportSheet from "./ReportSheet";
-import HustlerUpgradeFlow from "./HustlerUpgradeFlow";
+import HustlerUpgradeFlow, { UpgradeStep } from "./HustlerUpgradeFlow";
+import CreateOfferingFlow from "./CreateOfferingFlow";
+import ServiceDetailModal from "./ServiceDetailModal";
 import ImageEditorModal from "./ImageEditorModal";
 
 interface MyProfileHubProps {
@@ -20,6 +22,9 @@ interface MyProfileHubProps {
 export default function MyProfileHub({ isHustler = false, onHustlerModeChange, setActiveNav }: MyProfileHubProps) {
   const [activeTab, setActiveTab] = useState("posts");
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showCreateOffering, setShowCreateOffering] = useState<boolean>(false);
+  const [selectedService, setSelectedService] = useState<any>(null);
+  const [upgradeInitialStep, setUpgradeInitialStep] = useState<UpgradeStep>("intro");
   const [hustlerMode, setHustlerMode] = useState(isHustler);
   const [isEditing, setIsEditing] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
@@ -29,6 +34,19 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
   const [statusMessage, setStatusMessage] = useState("Open for Bookings");
   const [reviewFilter, setReviewFilter] = useState<"received" | "given">("received");
   const [imageEditorState, setImageEditorState] = useState<{isOpen: boolean, type: 'avatar' | 'cover' | null}>({ isOpen: false, type: null });
+
+  // 7. EARNINGS + ACTIVITY SECTION (Hustler Mode)
+  const earningsData = {
+    total: 12450.00,
+    escrow: 1350.00,
+    monthly: 4200.00,
+    payoutDate: "May 15",
+    txns: [
+      { id: 'tx-1', amount: 499, client: 'Elena R.', date: 'Today', status: 'In Escrow' },
+      { id: 'tx-2', amount: 150, client: 'David M.', date: 'Yesterday', status: 'Cleared' },
+      { id: 'tx-3', amount: 850, client: 'Marcus L.', date: '2 days ago', status: 'Cleared' }
+    ]
+  };
 
   const [schedule, setSchedule] = useState([
     { day: "Mon", active: true, start: "09:00", end: "18:00" },
@@ -78,7 +96,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=60",
     cover: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1000&auto=format&fit=crop&q=60",
     primaryHustle: "Visual Artist",
-    secondaryHustles: ["Video Directing", "UI Design"],
+    secondaryHustles: [],
     location: "Los Angeles",
     rating: 4.9,
     jobs: 52,
@@ -99,23 +117,23 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
     { id: 'f2', name: "Product Design Sprint", price: 499, type: "service", image: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&auto=format&fit=crop&q=60", delivery: "5 days" },
   ];
 
-  const myServices = [
+  const [myServices, setMyServices] = useState([
     { id: 's1', name: "Full Product Design Sprint", price: 499, time: "5-7 days", desc: "End-to-end design from wireframes to high fidelity mockups and interactive prototypes.", features: ["3 Revision Cycles", "Source Files", "Developer Handoff"], popular: true },
     { id: 's2', name: "UI/UX Audit", price: 150, time: "2 days", desc: "Comprehensive actionable tear-down of your current product's user experience and visual design.", features: ["Loom Video Walkthrough", "PDF Report", "Quick Fixes List"] },
     { id: 's3', name: "Brand Identity System", price: 850, time: "2 weeks", desc: "Complete visual identity including logos, typography, color palettes, and brand guidelines.", features: ["3 Concepts", "Social Media Kit", "Print Ready Files"] }
-  ];
+  ]);
 
-  const myProducts = [
+  const [myProducts, setMyProducts] = useState([
     { id: 'p1', name: "Figma UI Kit 2026", price: 49, type: "Digital", image: "https://images.unsplash.com/photo-1541461985943-955a15064562?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.9, sales: 843 },
     { id: 'p2', name: "Creator Notion Template", price: 29, type: "Digital", image: "https://images.unsplash.com/photo-1517842645767-c639042777db?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 4.7, sales: 1205 },
     { id: 'p3', name: "Premium Font: Hustle Sans", price: 79, type: "Digital", image: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&auto=format&fit=crop&q=60", stock: "Unlimited", rating: 5.0, sales: 124 },
     { id: 'p4', name: "Physical Prints Collection", price: 120, type: "Physical", image: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&auto=format&fit=crop&q=60", stock: "12 Left", rating: 4.8, sales: 56 }
-  ];
+  ]);
 
-  const myTrainings = [
+  const [myTrainings, setMyTrainings] = useState([
     { id: 't1', name: "Advanced Figma Systems", price: 199, duration: "6 Hours", type: "Video Course", modules: 12, students: 450, rating: 4.9, image: "https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=400&auto=format&fit=crop&q=60" },
     { id: 't2', name: "Freelance Business 101", price: 99, duration: "3 Hours", type: "Digital Workshop", modules: 5, students: 890, rating: 4.8, image: "https://images.unsplash.com/photo-1454165833767-027ffea9e772?w=400&auto=format&fit=crop&q=60" }
-  ];
+  ]);
 
   const myApprenticeships = [
     { id: 'a1', name: "Visual Arts Apprenticeship", duration: "3 Months", slots: "2 Open", type: "1-on-1 Mentorship", stipend: "Paid Opportunity", image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&auto=format&fit=crop&q=60", level: "Intermediate" }
@@ -163,7 +181,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
          <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-600 rounded-full blur-[150px] opacity-10" />
       </div>
 
-      {/* Sticky Top Navigation - Enhanced with Back Button */}
+      {/* Sticky Top Navigation - Enhanced with Back Button and Mode Context */}
       <header className={`sticky top-0 z-[100] flex justify-between items-center px-4 py-3 ${hustlerMode ? 'bg-[#05060a]/90' : 'bg-[#050505]/90'} backdrop-blur-2xl border-b border-white/5 safe-top shadow-xl transition-colors duration-500`}>
         <div className="flex items-center gap-3">
           {setActiveNav && (
@@ -174,35 +192,29 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
               <ChevronLeft size={20} />
             </button>
           )}
-          <h2 className="text-lg font-display font-black tracking-[0.15em] uppercase text-white truncate max-w-[120px]">My Hub</h2>
+          <div className="flex flex-col">
+            <h2 className="text-[11px] font-black tracking-[0.2em] uppercase text-white/40">My Identity</h2>
+            <h1 className="text-sm font-display font-black tracking-widest uppercase text-white truncate max-w-[120px]">
+              {hustlerMode ? 'Hustler Hub' : 'Social Hub'}
+            </h1>
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Enhanced Mode Switcher with Explanatory Helper */}
-          <div className="relative group">
-            <div className={`p-0.5 ${hustlerMode ? 'bg-blue-500/20' : 'bg-white/5'} border border-white/10 rounded-full flex items-center shadow-inner relative z-10`}>
-              <button 
-                onClick={() => setHustlerMode(false)}
-                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!hustlerMode ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
-              >
-                Social
-              </button>
-              <button 
-                onClick={() => setHustlerMode(true)}
-                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${hustlerMode ? 'bg-blue-500 text-white shadow-lg' : 'text-white/30 hover:text-white'}`}
-              >
-                Hustle
-              </button>
-            </div>
-            
-            {/* Context Tooltip */}
-            <div className="absolute top-full mt-2 right-0 w-48 p-3 rounded-2xl bg-[#111] border border-white/10 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-               <p className="text-[10px] text-white/80 font-medium leading-relaxed">
-                 {hustlerMode 
-                   ? "Managing your business, jobs, and earnings." 
-                   : "Browsing, booking, and managing personal profile."}
-               </p>
-            </div>
+          {/* 2. DUAL ROLE SYSTEM (CLIENT ↔ HUSTLER) */}
+          <div className="p-0.5 bg-white/5 border border-white/10 rounded-full flex items-center shadow-inner">
+            <button 
+              onClick={() => setHustlerMode(false)}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${!hustlerMode ? 'bg-white text-black shadow-lg' : 'text-white/30 hover:text-white'}`}
+            >
+              <User size={10} /> Client
+            </button>
+            <button 
+              onClick={() => setHustlerMode(true)}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${hustlerMode ? 'bg-blue-600 text-white shadow-lg' : 'text-white/30 hover:text-white'}`}
+            >
+              <Zap size={10} /> Hustler
+            </button>
           </div>
 
           <button className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-colors">
@@ -249,7 +261,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
             <motion.img 
               initial={{ scale: 1.1 }}
               animate={{ scale: 1 }}
-              src={profile.cover} 
+              src={profile.cover || undefined} 
               className="w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity" 
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
@@ -285,7 +297,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                 className="w-36 h-36 rounded-[2.5rem] border-4 border-[#050505] overflow-hidden bg-white/5 relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] group-hover:rounded-[1.5rem] transition-all duration-500"
               >
                 <img 
-                  src={profile.avatar} 
+                  src={profile.avatar || undefined} 
                   alt={profile.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 />
@@ -401,34 +413,78 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
               </div>
 
               {/* Hustle & Identity Cards */}
-              <div className="grid grid-cols-2 gap-3 mt-8 w-full max-w-lg mx-auto">
-                <div className="p-4 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-left relative group cursor-pointer overflow-hidden active:scale-95 transition-all">
-                  <div className="absolute top-0 right-0 p-3 opacity-10">
-                    <Briefcase size={32} />
+              {isHustler ? (
+                <div className="grid grid-cols-2 gap-3 mt-8 w-full max-w-lg mx-auto">
+                  <div className="p-4 rounded-3xl bg-blue-500/10 border border-blue-500/20 text-left relative group cursor-pointer overflow-hidden active:scale-95 transition-all">
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                      <Briefcase size={32} />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400/80 mb-2 block">Primary Hustle</span>
+                    <div className="flex items-center gap-3">
+                       <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white">
+                          <Camera size={16} />
+                       </div>
+                       <span className="text-sm font-black text-white uppercase tracking-tight">{profile.primaryHustle}</span>
+                    </div>
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400/80 mb-2 block">Primary Hustle</span>
-                  <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white">
-                        <Camera size={16} />
+                  
+                  <div 
+                    onClick={() => {
+                      setUpgradeInitialStep("skill");
+                      setShowUpgrade(true);
+                    }}
+                    className="p-4 rounded-3xl bg-white/[0.03] border border-white/10 text-left relative group cursor-pointer overflow-hidden active:scale-95 transition-all hover:bg-white/[0.05] flex flex-col min-h-[5rem] justify-between"
+                  >
+                    <div className="absolute top-0 right-0 p-3 opacity-10">
+                      <Plus size={32} />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mb-2 block">Secondary Stack</span>
+                    
+                    {profile.secondaryHustles.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 mt-auto">
+                        {profile.secondaryHustles.map((h, i) => (
+                          <span key={i} className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] font-bold text-white/60 tracking-wider">
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-auto">
+                        <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-white/50 border border-white/10 border-dashed">
+                          <Plus size={12} />
+                        </div>
+                        <span className="text-[10px] font-medium text-white/40">Add secondary hustle</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-8 w-full max-w-sm mx-auto flex flex-col gap-3"
+                >
+                  <div className="p-5 rounded-[2rem] bg-gradient-to-br from-blue-900/40 to-purple-900/20 border border-blue-500/30 text-center shadow-2xl relative overflow-hidden group">
+                     <div className="relative z-10 flex flex-col items-center">
+                        <Zap size={24} className="text-blue-400 mb-2" />
+                        <h4 className="text-xl font-black text-white uppercase tracking-tight italic">Become a Hustler</h4>
+                        <p className="text-[10px] text-white/60 font-medium leading-relaxed mt-2 max-w-[200px] uppercase tracking-widest">
+                          Turn your skills into income. Join the earning economy.
+                        </p>
+                        <button 
+                          onClick={() => {
+                            setUpgradeInitialStep("intro");
+                            setShowUpgrade(true);
+                          }}
+                          className="mt-6 w-full h-12 bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl active:scale-95 shadow-xl transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                        >
+                          Start Earning
+                        </button>
                      </div>
-                     <span className="text-sm font-black text-white uppercase tracking-tight">{profile.primaryHustle}</span>
+                     <div className="absolute -inset-2 bg-gradient-to-tr from-blue-500/20 to-transparent opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-700" />
                   </div>
-                </div>
-                
-                <div className="p-4 rounded-3xl bg-white/[0.03] border border-white/10 text-left relative group cursor-pointer overflow-hidden active:scale-95 transition-all hover:bg-white/[0.05]">
-                  <div className="absolute top-0 right-0 p-3 opacity-10">
-                    <Plus size={32} />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 mb-2 block">Secondary Stack</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {profile.secondaryHustles.map((h, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md bg-white/5 text-[9px] font-bold text-white/60 tracking-wider">
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                </motion.div>
+              )}
             </div>
             
             {/* Rating + Reliability Metrics */}
@@ -468,63 +524,160 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
           </div>
         </section>
 
-        {/* Active Hustle Feed - Frictionless Work Status */}
+        {/* Active Hustle Feed - Frictionless Work Status & Earnings Summary */}
         {hustlerMode && (
+          <div className="px-6 mb-8 flex flex-col gap-6">
+            {/* 7. EARNINGS + ACTIVITY SECTION */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-2 gap-3"
+            >
+              <div className="p-6 rounded-[2rem] bg-blue-600 shadow-[0_20px_40px_rgba(37,99,235,0.2)] flex flex-col justify-between h-40 relative overflow-hidden group">
+                <div className="relative z-10">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Available Balance</span>
+                  <div className="text-3xl font-black text-white tracking-tighter mt-1">${earningsData.total.toLocaleString()}</div>
+                </div>
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Payout: {earningsData.payoutDate}</span>
+                  </div>
+                  <button className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center text-white backdrop-blur-md">
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+                <TrendingUp size={80} className="absolute -bottom-4 -right-4 text-white/10 -rotate-12 group-hover:scale-110 transition-transform" />
+              </div>
+
+              <div className="p-6 rounded-[2rem] bg-[#0c0c0c] border border-white/10 flex flex-col justify-between h-40">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/30">In Escrow</span>
+                  <div className="text-2xl font-black text-white tracking-tighter mt-1">${earningsData.escrow.toLocaleString()}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex -space-x-2">
+                    {earningsData.txns.map((t, i) => (
+                      <div key={i} className="w-6 h-6 rounded-full border-2 border-[#0c0c0c] bg-white/10 overflow-hidden">
+                        <img src={`https://i.pravatar.cc/100?img=${i+20}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">3 Active</span>
+                </div>
+              </div>
+            </motion.div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Active Project Flow</h3>
+                 <button 
+                   onClick={() => setActiveNav && setActiveNav("bookings")}
+                   className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
+                 >
+                   Open Workhub <ChevronLeft size={12} className="rotate-180" />
+                 </button>
+              </div>
+              <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
+                {hustlerJobs.filter(j => j.type === "Active").map((job) => (
+                  <div 
+                    key={job.id} 
+                    className="min-w-[240px] p-5 rounded-[2rem] bg-[#0c0c0c] border border-white/10 snap-start relative overflow-hidden group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl"
+                    onClick={() => setActiveNav && setActiveNav("bookings")}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/40 text-blue-400">
+                            {job.avatar}
+                         </div>
+                         <div className="flex-1">
+                            <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{job.service}</h4>
+                            <p className="text-[8px] text-white/30 uppercase tracking-widest font-black">Escrow ID: {job.id}</p>
+                         </div>
+                       </div>
+                       <div className="text-[9px] font-black text-green-400 p-1 bg-green-400/10 rounded-md border border-green-500/20">
+                         ${job.amount}
+                       </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end">
+                         <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{job.status}</span>
+                         <span className="text-[10px] font-black text-white">{job.progress}%</span>
+                      </div>
+                      <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                         <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${job.progress}%` }}
+                            className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                         />
+                      </div>
+                    </div>
+
+                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                       <Zap size={40} />
+                    </div>
+                  </div>
+                ))}
+                
+                <button 
+                  onClick={() => setShowCreateOffering(true)}
+                  className="min-w-[140px] rounded-[2rem] bg-white text-black flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-xl group border-2 border-transparent"
+                >
+                  <Plus size={24} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Post Service</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. BOOKINGS MANAGEMENT SECTION (Client Mode) */}
+        {!hustlerMode && (
           <div className="px-6 mb-8">
             <div className="flex items-center justify-between mb-4">
-               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Active Hustles</h3>
-               <button 
-                 onClick={() => setActiveNav && setActiveNav("bookings")}
-                 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
-               >
-                 Go to Work Hub <ChevronLeft size={12} className="rotate-180" />
-               </button>
+               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">My Active Orders</h3>
+               <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-green-400 bg-green-400/5 px-2 py-1 rounded-full border border-green-500/20">
+                 <ShieldCheck size={10} /> Escrow Protected
+               </div>
             </div>
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
-              {hustlerJobs.filter(j => j.type === "Active").map((job) => (
+              {myBookings.filter(b => b.type === "Active").map((booking) => (
                 <div 
-                  key={job.id} 
-                  className="min-w-[240px] p-5 rounded-[2rem] bg-white/[0.03] border border-white/10 snap-start relative overflow-hidden group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl"
-                  onClick={() => setActiveNav && setActiveNav("bookings")}
+                  key={booking.id} 
+                  className="min-w-[280px] p-6 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 snap-start relative overflow-hidden group hover:border-purple-500/30 transition-all cursor-pointer shadow-2xl"
                 >
-                  <div className="flex items-center gap-3 mb-4">
-                     <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/40">
-                        {job.avatar}
-                     </div>
-                     <div className="flex-1">
-                        <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{job.service}</h4>
-                        <p className="text-[9px] text-white/30 uppercase tracking-widest font-black">Client: {job.client}</p>
-                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-end">
-                       <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{job.status}</span>
-                       <span className="text-[10px] font-black text-white">{job.progress}%</span>
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                          <img src={`https://i.pravatar.cc/100?img=${booking.id.split('-')[1]}`} className="w-full h-full object-cover" />
+                       </div>
+                       <div>
+                          <h4 className="text-xs font-black text-white uppercase tracking-tight">{booking.hustler}</h4>
+                          <p className="text-[9px] text-white/30 uppercase tracking-widest font-black leading-none">{booking.service}</p>
+                       </div>
                     </div>
-                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                       <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${job.progress}%` }}
-                          className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                       />
-                    </div>
+                    <div className="text-lg font-black text-white tracking-widest">{booking.amount}</div>
                   </div>
 
-                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                     <TrendingUp size={40} />
+                  <div className="space-y-4">
+                     <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <History size={10} /> {booking.status}
+                        </span>
+                        <span className="text-[9px] text-white/40 font-black uppercase tracking-widest italic">Delivery: {booking.due}</span>
+                     </div>
+                     <div className="flex gap-1">
+                        <button className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Message</button>
+                        <button className="flex-1 py-3 rounded-xl bg-white text-black text-[9px] font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all shadow-xl">Details</button>
+                     </div>
                   </div>
                 </div>
               ))}
               
-              {/* Add New Job Ghost Card */}
-              <button 
-                onClick={() => setActiveNav && setActiveNav("bookings")}
-                className="min-w-[120px] rounded-[2rem] border border-white/5 border-dashed flex flex-col items-center justify-center gap-2 text-white/20 hover:text-white/40 hover:bg-white/[0.01] transition-all group"
-              >
-                <Plus size={24} className="group-hover:scale-110 transition-transform" />
-                <span className="text-[8px] font-black uppercase tracking-widest">New Slot</span>
-              </button>
+              <div className="min-w-[140px] rounded-[2.5rem] border border-white/5 border-dashed flex flex-col items-center justify-center gap-2 text-white/20 hover:bg-white/[0.01] transition-all cursor-pointer">
+                 <History size={20} />
+                 <span className="text-[8px] font-black uppercase tracking-widest">Order History</span>
+              </div>
             </div>
           </div>
         )}
@@ -606,7 +759,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                       {featuredOfferings.map((item) => (
                         <div key={item.id} className="min-w-[280px] h-40 bg-[#0c0c0c] border border-white/10 rounded-[2rem] overflow-hidden flex snap-start relative group transition-all hover:border-blue-500/50">
                           <div className="w-1/2 h-full relative overflow-hidden">
-                            <img src={item.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60" alt={item.name} />
+                            <img src={item.image || undefined} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-60" alt={item.name} />
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#0c0c0c]" />
                           </div>
                           <div className="w-1/2 p-5 flex flex-col justify-center gap-1 z-10">
@@ -632,7 +785,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                       key={post.id} 
                       className="aspect-[3/4] relative rounded-xl overflow-hidden group cursor-pointer bg-white/5 hover:scale-[0.98] transition-all shadow-lg active:ring-2 active:ring-blue-500/50"
                     >
-                      <img src={post.thumb} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300" />
+                      <img src={post.thumb || undefined} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300" />
                       
                       {/* Media Context Indicators */}
                       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
@@ -666,7 +819,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                   ) : (
                     <div key={post.id} className="flex gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors group">
                        <div className="w-24 h-32 rounded-xl overflow-hidden shadow-lg shrink-0">
-                          <img src={post.thumb} className="w-full h-full object-cover" />
+                          <img src={post.thumb || undefined} className="w-full h-full object-cover" />
                        </div>
                        <div className="flex-1 py-1 flex flex-col justify-between">
                           <div>
@@ -703,7 +856,10 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                   <>
                     <div className="flex items-center justify-between px-2">
                       <h3 className="text-lg font-black text-white uppercase tracking-tighter">My Service Deck</h3>
-                      <button className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2">
+                      <button 
+                        onClick={() => setShowCreateOffering(true)}
+                        className="px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                      >
                         <Plus size={14} /> New Service
                       </button>
                     </div>
@@ -746,7 +902,13 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                                </div>
                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">24 Hires</span>
                             </div>
-                            <button className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedService(item);
+                              }}
+                              className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 hover:text-white transition-all shadow-xl"
+                            >
                               Manage Listing
                             </button>
                           </div>
@@ -794,7 +956,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                       {myProducts.map((prod, i) => (
                         <div key={i} className="flex flex-col gap-4 group">
                           <div className="aspect-[4/5] bg-[#0c0c0c] rounded-[2.5rem] border border-white/10 overflow-hidden relative group cursor-pointer shadow-2xl transition-all hover:border-blue-500/50">
-                             <img src={prod.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={prod.name} />
+                             <img src={prod.image || undefined} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={prod.name} />
                              
                              <div className="absolute top-4 right-4 z-20">
                                <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-xl flex items-center justify-center text-white border border-white/10 group-hover:bg-blue-500 group-hover:border-blue-400 transition-all shadow-xl">
@@ -880,7 +1042,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                                  </div>
                               </div>
                               <div className="w-16 h-16 rounded-[2rem] bg-white/5 border border-white/10 p-0.5 overflow-hidden">
-                                 <img src={app.image} className="w-full h-full object-cover rounded-[1.8rem]" alt={app.name} />
+                                 <img src={app.image || undefined} className="w-full h-full object-cover rounded-[1.8rem]" alt={app.name} />
                               </div>
                            </div>
                            
@@ -903,7 +1065,7 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                          <div key={training.id} className="p-1 rounded-[2.5rem] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all group cursor-pointer active:scale-[0.98]">
                            <div className="bg-[#0c0c0c] p-6 rounded-[2.3rem] flex gap-5">
                               <div className="w-32 h-32 rounded-3xl overflow-hidden shrink-0 shadow-2xl relative">
-                                 <img src={training.image} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={training.name} />
+                                 <img src={training.image || undefined} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" alt={training.name} />
                                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Play size={24} className="text-white fill-white/20" />
                                  </div>
@@ -1057,6 +1219,28 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                   </p>
                 </div>
 
+                {/* 11. MERIT & TRUST BADGES (Proof of Work) */}
+                <div>
+                   <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-6 flex items-center gap-3">
+                     <ShieldCheck size={12} className="text-purple-500/50" /> Identity verification
+                   </h3>
+                   <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { title: "Verified Identity", icon: <CheckCircle2 className="text-blue-500" /> },
+                        { title: "Escrow Eligible", icon: <ShieldCheck className="text-green-500" /> },
+                        { title: "Background Checked", icon: <ShieldCheck className="text-purple-500" /> },
+                        { title: "Fast Responder", icon: <Clock className="text-yellow-500" /> },
+                      ].map((badge, bi) => (
+                        <div key={bi} className="flex items-center gap-4 p-5 rounded-[1.5rem] bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-all">
+                           <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center shadow-inner">
+                              {badge.icon}
+                           </div>
+                           <span className="text-[9px] font-black uppercase tracking-widest text-white/60">{badge.title}</span>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-8 px-2">
                   <div>
                     <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-5">Languages</h3>
@@ -1094,6 +1278,24 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                       Account Settings
                     </button>
                 </div>
+
+                {/* Admin Platform Hub - Hidden Dev Link */}
+                <div className="mt-4 p-8 rounded-[2.5rem] bg-red-900/10 border border-red-500/20 text-center relative overflow-hidden shadow-2xl">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                       <ShieldAlert size={40} className="text-red-500" />
+                    </div>
+                    <h4 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2">Platform Governance</h4>
+                    <p className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest leading-relaxed mb-6 max-w-[280px] mx-auto">
+                      Admin access for moderation and trust operations.
+                    </p>
+                    <button 
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-admin-hub'))}
+                      className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all text-[10px] font-black uppercase tracking-widest border border-red-500/30 shadow-lg active:scale-95"
+                    >
+                      <ShieldAlert size={14} />
+                      Open Admin Hub
+                    </button>
+                </div>
               </motion.div>
             )}
 
@@ -1105,12 +1307,66 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
       <AnimatePresence>
         {showUpgrade && (
           <HustlerUpgradeFlow 
+            initialStep={upgradeInitialStep}
             onClose={() => setShowUpgrade(false)} 
-            onSuccess={() => {
+            onSuccess={(data) => {
               setShowUpgrade(false);
               setHustlerMode(true);
               if (onHustlerModeChange) onHustlerModeChange(true);
+              
+              if (data && data.skill) {
+                setProfile(prev => {
+                  // If they are already a hustler, add to secondary
+                  if (upgradeInitialStep === "skill") {
+                    if (prev.secondaryHustles.includes(data.skill)) return prev;
+                    return {
+                      ...prev,
+                      secondaryHustles: [...prev.secondaryHustles, data.skill]
+                    };
+                  } else {
+                    // Setting primary hustle
+                    return {
+                      ...prev,
+                      primaryHustle: data.skill
+                    };
+                  }
+                });
+              }
             }} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Create Offering Flow Overlay */}
+      <AnimatePresence>
+        {showCreateOffering && (
+          <CreateOfferingFlow
+            onClose={() => setShowCreateOffering(false)}
+            onSuccess={(listing) => {
+              setShowCreateOffering(false);
+              if (listing.type === "Service" || !listing.type) {
+                setMyServices([{
+                  id: "srv" + Date.now(),
+                  name: listing.title,
+                  price: listing.price || 0,
+                  time: "1 Day",
+                  desc: listing.desc,
+                  features: ["Consultation included"],
+                  popular: false
+                }, ...myServices]);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Service Detail Modal */}
+      <AnimatePresence>
+        {selectedService && (
+          <ServiceDetailModal 
+            listing={selectedService}
+            isOwner={true}
+            onClose={() => setSelectedService(null)}
           />
         )}
       </AnimatePresence>

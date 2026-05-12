@@ -10,6 +10,7 @@ import BookingFlow from "./BookingFlow";
 import ReportSheet from "./ReportSheet";
 import ImageEditorModal from "./ImageEditorModal";
 import TrustBadge from "./TrustBadge";
+import ServiceDetailModal from "./ServiceDetailModal";
 
 interface ProfilePageProps {
   hustler: any;
@@ -20,6 +21,7 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
   const [activeTab, setActiveTab] = useState("posts");
   const [showBooking, setShowBooking] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [selectedService, setSelectedService] = useState<any>(null);
   
   // Demonstration states
   const [isOwnerMode, setIsOwnerMode] = useState(false);
@@ -117,26 +119,31 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
       className="fixed inset-0 z-[60] bg-[#050505] flex flex-col w-full h-full pb-safe"
     >
       {/* Sticky Top Navigation - Guarantees users never feel trapped */}
-      <header className="sticky top-0 z-[100] flex justify-between items-center px-4 py-3 bg-[#050505]/90 backdrop-blur-2xl border-b border-white/5 safe-top shadow-xl">
-        <button 
-          onClick={onBack}
-          className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-all active:scale-90"
-        >
-          <ChevronLeft size={20} />
-        </button>
+      <header className="sticky top-0 z-[100] flex justify-between items-center px-4 py-3 bg-[#050505]/95 backdrop-blur-2xl border-b border-white/5 safe-top shadow-xl">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={onBack}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-all active:scale-90"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <div className="flex flex-col">
+            <h2 className="text-[10px] font-black tracking-[0.2em] uppercase text-white/40">Viewing Profile</h2>
+            <h1 className="text-sm font-display font-black tracking-widest uppercase text-white truncate max-w-[120px]">
+              {hustler.creator.name}
+            </h1>
+          </div>
+        </div>
         
         <div className="flex items-center gap-2">
-          {/* Demo toggle for Owner Mode */}
-          <button 
-            onClick={() => setIsOwnerMode(!isOwnerMode)}
-            className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors ${
-              isOwnerMode ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-white/5 border-white/10 text-white/50 hover:text-white'
-            }`}
-          >
-            {isOwnerMode ? 'Owner View' : 'Client View'}
+          <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black text-[9px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">
+            <MessageCircle size={14} /> Message
           </button>
 
-          <button className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-colors">
+          <button 
+            onClick={() => setShowReport(true)}
+            className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 text-white transition-colors"
+          >
             <MoreHorizontal size={20} />
           </button>
         </div>
@@ -148,11 +155,11 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
 
         {/* Cover & Identity Section */}
         <section className="relative flex flex-col items-center">
-          {/* Status Indicator Chip - Floats over Cover for Visitors */}
+          {/* Status Indicator Chip - Floats over Cover */}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-4 left-4 z-20"
+            className="absolute top-4 left-4 z-20 flex items-center gap-2"
           >
             <div 
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-2xl border transition-all shadow-2xl ${
@@ -161,8 +168,12 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             >
               <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                {isAvailable ? (statusMessage || "Online") : "Away"}
+                {isAvailable ? (statusMessage || "Online") : "Busy"}
               </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[9px] font-black text-white/80 uppercase tracking-widest">
+               <Clock size={10} /> Fast Responder
             </div>
           </motion.div>
 
@@ -212,35 +223,36 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
             <motion.h1 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-3xl font-display font-black tracking-tight flex justify-center flex-wrap items-center gap-2 text-white"
+              className="text-4xl font-display font-black tracking-tighter text-white uppercase flex items-center justify-center gap-3"
             >
               {hustler.creator.name}
+              {hustler.creator.verified && <CheckCircle2 size={24} className="text-blue-500 fill-blue-500/10" />}
             </motion.h1>
             
-            <motion.div 
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               className="flex flex-wrap items-center justify-center gap-2 mt-3"
-            >
-              {hustler.creator.verified && <TrustBadge type="verified" size="sm" />}
-              {trustMetrics.rating >= 4.5 && <TrustBadge type="trusted_hustler" size="sm" />}
-            </motion.div>
-
-            {/* Trust Meter */}
-            <motion.div 
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               className="mt-3 flex items-center gap-4"
-            >
-               <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} size={10} className={s <= Math.floor(trustMetrics.rating) ? "fill-yellow-500 text-yellow-500" : "text-white/10"} />
-                  ))}
-                  <span className="ml-1 text-[10px] font-black text-white">{trustMetrics.rating}</span>
+            <div className="mt-4 flex flex-col items-center">
+               <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-0.5">
+                     {[1, 2, 3, 4, 5].map((s) => (
+                       <Star key={s} size={10} className={s <= Math.floor(trustMetrics.rating) ? "fill-yellow-500 text-yellow-500" : "text-white/10"} />
+                     ))}
+                  </div>
+                  <div className="h-3 w-px bg-white/10" />
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">{hustler.creator.handle}</span>
                </div>
-               <div className="h-3 w-px bg-white/10" />
-               <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">{trustMetrics.totalJobs} Hustles</span>
-            </motion.div>
+
+               <div className="mt-8 grid grid-cols-3 gap-2 w-full max-w-sm">
+                  {[
+                    { label: "Successful Hustles", value: trustMetrics.totalJobs, color: "text-blue-400" },
+                    { label: "Completion Score", value: `${trustMetrics.completionScore}%`, color: "text-green-400" },
+                    { label: "Repeat Clients", value: `${trustMetrics.repeatClientRate}%`, color: "text-purple-400" },
+                  ].map((stat, i) => (
+                    <div key={i} className="p-4 rounded-[2rem] bg-white/[0.03] border border-white/5 flex flex-col items-center text-center group hover:bg-white/[0.05] transition-all">
+                       <span className={`text-xl font-black ${stat.color} tracking-tighter mb-0.5`}>{stat.value}</span>
+                       <span className="text-[6px] font-black text-white/30 uppercase tracking-[0.2em] leading-tight">{stat.label}</span>
+                    </div>
+                  ))}
+               </div>
+            </div>
             
             {/* Primary & Secondary Hustles */}
             <motion.div 
@@ -509,7 +521,11 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
 
                 <div className="flex flex-col gap-5">
                   {myServices.map((item, i) => (
-                    <div key={i} className="p-7 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 flex flex-col gap-6 group hover:border-blue-500/40 transition-all cursor-pointer shadow-2xl relative overflow-hidden active:scale-[0.98]">
+                    <div 
+                      key={i} 
+                      onClick={() => setSelectedService(item)}
+                      className="p-7 rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 flex flex-col gap-6 group hover:border-blue-500/40 transition-all cursor-pointer shadow-2xl relative overflow-hidden active:scale-[0.98]"
+                    >
                       {item.popular && (
                         <div className="absolute top-0 right-14 px-5 py-2 bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.3em] rounded-b-2xl shadow-xl z-20">
                           Elite Service
@@ -560,7 +576,13 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
                               <div className="w-8 h-8 rounded-full border-2 border-[#0c0c0c] bg-blue-900 flex items-center justify-center text-[8px] font-black">+12</div>
                            </div>
                         </div>
-                        <button className="px-8 py-4 rounded-[2rem] bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-2xl active:scale-95">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedService(item);
+                          }}
+                          className="px-8 py-4 rounded-[2rem] bg-white text-black text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-2xl active:scale-95"
+                        >
                           Book This Service
                         </button>
                       </div>
@@ -991,6 +1013,20 @@ export default function ProfilePage({ hustler, onBack }: ProfilePageProps) {
               </button>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedService && (
+          <ServiceDetailModal
+            listing={selectedService}
+            isOwner={isOwnerMode}
+            onClose={() => setSelectedService(null)}
+            onBook={(listing) => {
+              setSelectedService(null);
+              setShowBooking(true);
+            }}
+          />
         )}
       </AnimatePresence>
 

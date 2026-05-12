@@ -11,6 +11,7 @@ interface ChatRoomProps {
   onBack: () => void;
   onOpenBooking?: () => void;
   onOpenEscrow?: (booking: any) => void;
+  onStartCall?: (mode: "voice" | "video" | "conference") => void;
 }
 
 const QUICK_ACTIONS = [
@@ -57,7 +58,7 @@ function VoiceMessagePlayer({ msg }: { msg: any }) {
 
   return (
     <div className="flex items-center gap-3 w-48">
-      {msg.audioUrl && <audio ref={audioRef} src={msg.audioUrl} className="hidden" />}
+      {msg.audioUrl && <audio ref={audioRef} src={msg.audioUrl || undefined} className="hidden" />}
       <button 
         onClick={togglePlay}
         className="w-8 h-8 rounded-full bg-black/5 flex items-center justify-center shrink-0 hover:bg-black/10 transition-colors"
@@ -79,7 +80,7 @@ function VoiceMessagePlayer({ msg }: { msg: any }) {
   );
 }
 
-export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow }: ChatRoomProps) {
+export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow, onStartCall }: ChatRoomProps) {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
@@ -241,7 +242,7 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow }: 
                     <span className="text-white/40 text-xs text-center leading-none">GRP</span>
                  </div>
                ) : chat.avatar?.toString().startsWith('http') ? (
-                 <img src={chat.avatar} alt={chat.name} className="w-full h-full object-cover" />
+                 <img src={chat.avatar || undefined} alt={chat.name} className="w-full h-full object-cover" />
                ) : (
                  <span className="text-white/20">{chat.avatar}</span>
                )}
@@ -270,10 +271,16 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow }: 
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+          <button 
+            onClick={() => onStartCall?.("voice")}
+            className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </button>
-          <button className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+          <button 
+            onClick={() => onStartCall?.("video")}
+            className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
           </button>
           <button className="w-9 h-9 rounded-full bg-transparent flex items-center justify-center text-white/40 hover:text-white transition-colors">
@@ -438,7 +445,7 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow }: 
                 {[
                   { icon: <ShieldCheck size={18} />, label: "Escrow", color: "text-blue-400", onClick: () => onOpenEscrow && onOpenEscrow(activeBooking) },
                   { icon: <Calendar size={18} />, label: "Book", color: "text-white", onClick: onOpenBooking },
-                  { icon: <CheckCircle2 size={18} />, label: "Send Tip", color: "text-green-400", onClick: () => {} },
+                  { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>, label: "Schedule", color: "text-indigo-400", onClick: () => onStartCall?.('video') },
                   { icon: <AlertCircle size={18} />, label: "Dispute", color: "text-red-400", onClick: () => onOpenEscrow && onOpenEscrow(activeBooking) },
                 ].map((action, i) => (
                   <button 

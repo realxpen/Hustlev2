@@ -5,7 +5,7 @@ import DetailScreen from "./DetailScreen";
 import { DetailData } from "../types";
 
 export interface EmbedCTA {
-  type: "book" | "buy" | "apply";
+  type: "book" | "buy" | "apply" | "ad";
   label: string;
   price?: number;
 }
@@ -344,6 +344,7 @@ export default function FeedCard({
                   className={`h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md
                     ${item.type === 'buy' ? 'bg-black/50 border-white/20 hover:bg-white/10' : 
                       item.type === 'apply' ? 'bg-purple-500/20 border-purple-500/30 text-purple-100 hover:bg-purple-500/30' : 
+                      item.type === 'ad' ? 'bg-blue-600/20 border-blue-500/30 text-blue-100 hover:bg-blue-600/30' :
                       'bg-white text-black hover:bg-white/90 border-transparent'}
                   `}
                 >
@@ -351,6 +352,7 @@ export default function FeedCard({
                      {item.type === 'book' && <CheckCircle2 size={16} />}
                      {item.type === 'buy' && <ShoppingBag size={16} />}
                      {item.type === 'apply' && <ArrowRight size={16} />}
+                     {item.type === 'ad' && <Link size={16} className="text-blue-400" />}
                      <span>{item.label}</span>
                    </div>
                    {item.price && (
@@ -827,20 +829,33 @@ export default function FeedCard({
                    </div>
                  )}
                  
+                 {selectedCta?.type === 'ad' && (
+                   <div className="flex flex-col gap-3">
+                     <h5 className="font-bold text-sm text-white/80">External Promotion</h5>
+                     <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2 relative overflow-hidden">
+                       <span className="text-sm font-semibold text-white/90 relative z-10">You are about to leave the app ecosystem.</span>
+                       <span className="text-xs text-white/50 relative z-10">This link is sponsored by {creator.name}.</span>
+                       <div className="absolute inset-0 bg-gradient-to-t from-blue-900/20 to-transparent pointer-events-none" />
+                     </div>
+                   </div>
+                 )}
+                 
                  <div className="mt-auto pt-6 flex flex-col gap-3">
                    <div className="flex justify-between items-center px-1">
-                     <span className="text-white/60 font-medium">Total Price</span>
-                     <span className="text-2xl font-black">${selectedCta?.price || 'Free'}</span>
+                     <span className="text-white/60 font-medium">Pricing</span>
+                     <span className="text-2xl font-black">{selectedCta?.price ? `$${selectedCta.price}` : 'Variable'}</span>
                    </div>
                    <button 
                      onClick={() => {
                         setShowCtaFlow(false);
                      }}
                      className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 text-base transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 ${
-                       selectedCta?.type === 'apply' ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-white text-black hover:bg-white/90'
+                       selectedCta?.type === 'apply' ? 'bg-purple-600 text-white hover:bg-purple-500' : 
+                       selectedCta?.type === 'ad' ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' :
+                       'bg-white text-black hover:bg-white/90'
                      }`}
                    >
-                     {selectedCta?.type === 'book' ? 'Select Date & Time' : selectedCta?.type === 'buy' ? 'Add to Cart' : 'Submit Application'}
+                     {selectedCta?.type === 'book' ? 'Select Date & Time' : selectedCta?.type === 'buy' ? 'Add to Cart' : selectedCta?.type === 'ad' ? 'Go to Website' : 'Submit Application'}
                    </button>
                  </div>
                </div>

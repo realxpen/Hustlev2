@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, Wallet, Bell } from "lucide-react";
+import { Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, Wallet, Bell, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import FeedCard from "./FeedCard";
 import ProfilePage from "./ProfilePage";
@@ -10,12 +10,17 @@ import BookingsHub from "./BookingsHub";
 import BookingDetail from "./BookingDetail";
 import WalletHub from "./WalletHub";
 import ActivityCenter from "./ActivityCenter";
-import DiscoveryView from "./DiscoveryView";
+import NearbyMap from "./NearbyMap";
 import CreateMenu from "./CreateMenu";
 import UploadFlow from "./UploadFlow";
 import TrustCenter from "./TrustCenter";
 import JourneyTracker from "./JourneyTracker";
 import JobEscrowManager from "./JobEscrowManager";
+import BookingFlow from "./BookingFlow";
+import MainFeedHub from "./MainFeedHub";
+import LiveCreatorStudio from "./LiveCreatorStudio";
+import CallScreen, { CallInfo } from "./CallScreen";
+import { MOCK_CHATS } from "../constants/mockData";
 
 const MOCK_HUSTLERS = [
   {
@@ -240,23 +245,24 @@ const MOCK_HUSTLERS = [
     id: 4,
     creator: {
       id: 4,
-      name: "Solace Academy",
+      name: "AudioEngine Inc.",
       avatar: "",
-      category: "Bootcamp",
-      location: "Online",
+      category: "Software",
+      location: "San Francisco",
       rating: 0,
       jobs: 0,
       verified: true,
       active: false,
     },
     content: {
-      type: "image" as const,
+      type: "video" as const,
       thumbnail: "",
-      caption: "Learn how to build full-stack marketplaces in 4 weeks. Next cohort starts Monday.",
-      hasMusic: false,
+      caption: "The new paradigm in mastering software. Get studio-grade mixes using AI. Try it free for 14 days.",
+      hasMusic: true,
+      musicTrack: "AudioEngine Promo Track"
     },
     isAd: true,
-    embedCTA: { type: "apply" as const, label: "Enroll Now" },
+    embedCTA: { type: "ad" as const, label: "Learn More" },
   }
 ];
 
@@ -280,10 +286,44 @@ export default function MockHome() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUploadFlowOpen, setIsUploadFlowOpen] = useState(false);
+  const [isLiveStudioOpen, setIsLiveStudioOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [isTrustOpen, setIsTrustOpen] = useState(false);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  
+  // Call State
+  const [activeCall, setActiveCall] = useState<CallInfo | null>(null);
+  const [isCallMinimized, setIsCallMinimized] = useState(false);
+  const [showIncomingBanner, setShowIncomingBanner] = useState(false);
+
+  // Simulated Incoming Call after initial mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!activeCall) setShowIncomingBanner(true);
+    }, 15000); // 15 seconds into the session
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleAcceptCall = () => {
+    setShowIncomingBanner(false);
+    setActiveCall({
+      id: "inc-1",
+      name: "Alex J.",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&h=100&auto=format&fit=crop",
+      mode: "video",
+      context: {
+        title: "Brand Collaboration",
+        stage: "Discovery",
+        price: "TBD"
+      }
+    });
+    setIsCallMinimized(false);
+  };
+
+  // Booking Flow State
+  const [isBookingFlowOpen, setIsBookingFlowOpen] = useState(false);
+  const [bookingHustler, setBookingHustler] = useState<any>(null);
 
   // Intent Bridge: Connect Discovery to Action
   const bridgeIntent = (hustler: any) => {
@@ -377,7 +417,7 @@ export default function MockHome() {
       </AnimatePresence>
       
       {/* Header Overlay - Minimal & Translucent */}
-      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-6 pt-12 pb-6 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-500 ${activeNav === "profile" || activeNav === "search" ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
+      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-6 pt-12 pb-6 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-500 ${activeNav === "profile" || activeNav === "search" || activeNav === "feed" ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
         <h2 className="text-xl font-display font-black tracking-[0.2em] pointer-events-auto">HUSTLE</h2>
         <div className="flex gap-4 pointer-events-auto">
           <button 
@@ -425,20 +465,13 @@ export default function MockHome() {
                exit={{ opacity: 0 }}
                className="h-full w-full"
             >
-              {/* Vertical Feed Container */}
-              <div 
-                className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar"
-                onScroll={handleFeedScroll}
-              >
-                {MOCK_HUSTLERS.map((hustler, idx) => (
-                  <div key={idx} className="h-full w-full snap-start snap-always">
-                    <FeedCard 
-                      {...hustler} 
-                      onProfileClick={() => bridgeIntent(hustler)}
-                    />
-                  </div>
-                ))}
-              </div>
+              <MainFeedHub 
+                MOCK_HUSTLERS={MOCK_HUSTLERS} 
+                bridgeIntent={bridgeIntent} 
+                onOpenBookings={() => setActiveNav("bookings")}
+                onOpenActivity={() => setIsActivityOpen(true)}
+                onOpenChat={() => setActiveNav("chat")}
+              />
             </motion.div>
           )}
 
@@ -448,11 +481,11 @@ export default function MockHome() {
                initial={{ opacity: 0 }}
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
-               className="h-full w-full"
+               className="h-full w-full relative z-20"
             >
-              <DiscoveryView 
+              <NearbyMap 
                 onProfileSelect={(hustler) => bridgeIntent(hustler)} 
-                onOpenTrustCenter={() => setIsTrustOpen(true)}
+                onClose={() => setActiveNav("feed")}
               />
             </motion.div>
           )}          {activeNav === "profile" && (
@@ -464,7 +497,11 @@ export default function MockHome() {
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="h-full w-full"
             >
-               <MyProfileHub isHustler={isHustler} setActiveNav={setActiveNav} />
+              <MyProfileHub 
+                isHustler={isHustler} 
+                onHustlerModeChange={setIsHustler} 
+                setActiveNav={setActiveNav} 
+              />
             </motion.div>
           )}
 
@@ -516,16 +553,29 @@ export default function MockHome() {
             chat={selectedChat} 
             onBack={() => setSelectedChat(null)} 
             onOpenBooking={() => {
-              const hustler = MOCK_HUSTLERS.find(h => h.id === selectedChat.id);
+              const hustlerId = selectedChat?.id;
+              const hustler = hustlerId ? MOCK_HUSTLERS.find(h => h.id === hustlerId) : undefined;
               if (hustler) {
-                setSelectedHustler(hustler);
-                setSelectedChat(null);
-                // We'll need to trigger the booking flow in the profile page
-                // or move booking flow to a more global state.
-                // For now, opening the profile is the first step.
+                setBookingHustler(hustler);
+                setIsBookingFlowOpen(true);
               }
             }}
             onOpenEscrow={(booking) => setSelectedBookingForEscrow(booking)}
+            onStartCall={(mode) => {
+              setActiveCall({
+                id: selectedChat.id.toString(),
+                name: selectedChat.name,
+                avatar: selectedChat.avatar,
+                isGroup: selectedChat.isGroup,
+                mode: mode,
+                context: {
+                  title: "Active Booking Discussion",
+                  stage: "Milestone 2",
+                  price: "$2,400"
+                }
+              });
+              setIsCallMinimized(false);
+            }}
           />
         )}
       </AnimatePresence>
@@ -602,9 +652,20 @@ export default function MockHome() {
         onClose={() => setIsCreateOpen(false)} 
         onOptionSelect={(type) => {
           setIsCreateOpen(false);
-          setIsUploadFlowOpen(true);
+          if (type === "live") {
+            setIsLiveStudioOpen(true);
+          } else {
+            setIsUploadFlowOpen(true);
+          }
         }}
       />
+
+      {/* Live Creator Studio Overlay */}
+      <AnimatePresence>
+        {isLiveStudioOpen && (
+          <LiveCreatorStudio onClose={() => setIsLiveStudioOpen(false)} />
+        )}
+      </AnimatePresence>
 
       {/* Upload Flow Overlay */}
       <AnimatePresence>
@@ -616,6 +677,42 @@ export default function MockHome() {
               // In a real app, we'd refresh feed or show the post
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Global Real-time Call Banner */}
+      <AnimatePresence>
+        {showIncomingBanner && !activeCall && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -100 }}
+            className="fixed top-6 left-4 right-4 z-[120] bg-blue-500 text-white p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between border border-white/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                 <Phone size={18} className="animate-pulse" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-0.5">Incoming Collaboration</p>
+                <p className="text-sm font-bold">Alex J. (Brand Strategist)</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowIncomingBanner(false)}
+                className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center hover:bg-black/40"
+              >
+                <X size={16} />
+              </button>
+              <button 
+                onClick={handleAcceptCall}
+                className="w-10 h-10 rounded-full bg-white text-blue-500 flex items-center justify-center hover:bg-white/90 shadow-xl"
+              >
+                <Phone size={16} />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -642,7 +739,23 @@ export default function MockHome() {
       {/* Activity / Notification Center Overlay */}
       <AnimatePresence>
         {isActivityOpen && (
-          <ActivityCenter onClose={() => setIsActivityOpen(false)} />
+          <ActivityCenter 
+            onClose={() => setIsActivityOpen(false)} 
+            onAction={(action, payload) => {
+              if (action === 'wallet') setActiveNav('wallet');
+              if (action === 'bookings') setActiveNav('bookings');
+              if (action === 'chat') {
+                setActiveNav('chat');
+                if (payload?.chatId) {
+                  const targetChat = MOCK_CHATS.find(c => c.id === payload.chatId);
+                  if (targetChat) setSelectedChat(targetChat);
+                }
+              }
+              if (action === 'call_incoming') {
+                handleAcceptCall();
+              }
+            }}
+          />
         )}
       </AnimatePresence>
 
@@ -659,6 +772,32 @@ export default function MockHome() {
           <JobEscrowManager 
             booking={selectedBookingForEscrow} 
             onClose={() => setSelectedBookingForEscrow(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Global Call Overlay */}
+      <AnimatePresence>
+        {activeCall && (
+          <CallScreen 
+            call={activeCall} 
+            isMinimized={isCallMinimized}
+            onMinimize={() => setIsCallMinimized(true)}
+            onRestore={() => setIsCallMinimized(false)}
+            onEndCall={() => {
+              setActiveCall(null);
+              setIsCallMinimized(false);
+            }} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Booking Flow Overlay */}
+      <AnimatePresence>
+        {isBookingFlowOpen && bookingHustler && (
+          <BookingFlow 
+            hustler={bookingHustler} 
+            onClose={() => setIsBookingFlowOpen(false)} 
           />
         )}
       </AnimatePresence>

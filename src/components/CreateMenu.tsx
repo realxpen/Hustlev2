@@ -31,6 +31,14 @@ const CREATE_OPTIONS = [
     icon: <Camera className="text-emerald-400" />,
     color: "bg-emerald-500/10",
     borderColor: "border-emerald-500/20"
+  },
+  {
+    id: "live",
+    title: "Go Live",
+    description: "Sell, teach, or showcase in real-time",
+    icon: <Video className="text-red-400" />,
+    color: "bg-red-500/10",
+    borderColor: "border-red-500/20"
   }
 ];
 

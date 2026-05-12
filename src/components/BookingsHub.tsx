@@ -57,7 +57,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 export default function BookingsHub({ onBookingSelect, onClose }: BookingsHubProps) {
   return (
-    <div className="min-h-screen bg-transparent text-white p-6 pb-24 overflow-y-auto no-scrollbar" id="bookings-hub">
+    <div className="h-full bg-transparent text-white p-6 pb-24 overflow-y-auto no-scrollbar" id="bookings-hub">
       <div className="grain-overlay pointer-events-none" />
 
       {/* Header */}

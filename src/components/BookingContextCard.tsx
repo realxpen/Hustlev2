@@ -8,9 +8,11 @@ interface BookingContextCardProps {
 }
 
 export default function BookingContextCard({ booking, onOpenBooking }: BookingContextCardProps) {
-  const activeMilestone = booking.milestones.find(m => m.status === MilestoneStatus.IN_PROGRESS || m.status === MilestoneStatus.AWAITING_APPROVAL);
-  const completedMilestones = booking.milestones.filter(m => m.status === MilestoneStatus.RELEASED).length;
-  const totalMilestones = booking.milestones.length;
+  // Access active milestone if exists
+  const milestones = booking?.milestones || [];
+  const activeMilestone = milestones.find(m => m.status === MilestoneStatus.IN_PROGRESS || m.status === MilestoneStatus.AWAITING_APPROVAL);
+  const completedMilestones = milestones.filter(m => m.status === MilestoneStatus.RELEASED).length;
+  const totalMilestones = milestones.length;
 
   return (
     <motion.div 

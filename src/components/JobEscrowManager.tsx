@@ -19,10 +19,10 @@ export default function JobEscrowManager({ booking, onClose, isClient = true }: 
   const [isReleaseRequested, setIsReleaseRequested] = useState(false);
 
   // Find next milestone to release
-  const nextMilestone = booking.milestones.find(m => m.status === MilestoneStatus.AWAITING_APPROVAL || m.status === MilestoneStatus.PENDING);
+  const nextMilestone = booking?.milestones?.find(m => m.status === MilestoneStatus.AWAITING_APPROVAL || m.status === MilestoneStatus.PENDING);
   
   // Derive state based on if there's a disputed milestone
-  const hasDisputedMilestone = booking.milestones.some(m => m.status === MilestoneStatus.DISPUTED);
+  const hasDisputedMilestone = booking?.milestones?.some(m => m.status === MilestoneStatus.DISPUTED);
   
   return (
     <motion.div 
