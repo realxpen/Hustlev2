@@ -4,7 +4,8 @@ import {
   X, ArrowUpRight, ArrowDownLeft, ShieldCheck, History, 
   Wallet, DollarSign, CreditCard, Banknote, Landmark, 
   TrendingUp, Clock, CheckCircle2, AlertCircle, ChevronRight,
-  Info, Lock, Zap, PieChart, BadgeCheck, FileText, MoreHorizontal
+  Info, Lock, Zap, PieChart, BadgeCheck, FileText, MoreHorizontal,
+  Search, Plus
 } from "lucide-react";
 
 interface WalletHubProps {
@@ -29,6 +30,9 @@ export default function WalletHub({ onClose }: WalletHubProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'escrow' | 'history'>('overview');
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isSwapOpen, setIsSwapOpen] = useState(false);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isTransferSuccess, setIsTransferSuccess] = useState(false);
 
   const [isReceiptOpen, setIsReceiptOpen] = useState<Transaction | null>(null);
 
@@ -157,24 +161,33 @@ export default function WalletHub({ onClose }: WalletHubProps) {
               </section>
 
               {/* Quick Actions Flow */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <button 
                   onClick={() => setIsDepositOpen(true)}
-                  className="bg-emerald-500 py-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 active-scale group overflow-hidden"
+                  className="bg-emerald-500 py-6 rounded-[2rem] flex flex-col items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active-scale group overflow-hidden"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                     <ArrowDownLeft size={24} className="text-white" />
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                     <ArrowDownLeft size={20} className="text-white" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Add Funds</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest">Deposit</span>
+                </button>
+                <button 
+                  onClick={() => setIsSwapOpen(true)}
+                  className="bg-white/5 border border-white/10 py-6 rounded-[2rem] flex flex-col items-center justify-center gap-2 hover:bg-white/10 transition-all active-scale group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                     <Zap size={20} className="text-yellow-500" />
+                  </div>
+                  <span className="text-[8px] font-black uppercase tracking-widest">Swap</span>
                 </button>
                 <button 
                   onClick={() => setIsWithdrawOpen(true)}
-                  className="bg-white/5 border border-white/10 py-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all active-scale group"
+                  className="bg-white/5 border border-white/10 py-6 rounded-[2rem] flex flex-col items-center justify-center gap-2 hover:bg-white/10 transition-all active-scale group"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                     <ArrowUpRight size={24} className="text-white/60" />
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                     <ArrowUpRight size={20} className="text-white/60" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Withdraw</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest">Withdraw</span>
                 </button>
               </div>
 
@@ -372,7 +385,10 @@ export default function WalletHub({ onClose }: WalletHubProps) {
               </div>
            </div>
         </div>
-        <button className="px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest active-scale">
+        <button 
+           onClick={() => setIsTransferOpen(true)}
+           className="px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest active-scale"
+        >
            Transfer
         </button>
       </footer>
@@ -448,50 +464,225 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                 <p className="text-[8px] text-center text-black/30 leading-relaxed font-medium">
                    This receipt acts as a proof of transaction within the Hustle Financial Ecosystem. All funds are secured and audited per protocol.
                 </p>
-             </motion.div>
-          </motion.div>
+              </motion.div>
+           </motion.div>
         )}
 
-        {(isDepositOpen || isWithdrawOpen) && (
+        {isTransferOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-md flex items-end justify-center px-6 pb-12"
-            onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); }}
+            onClick={() => setIsTransferOpen(false)}
           >
              <motion.div 
                 initial={{ y: 100 }}
                 animate={{ y: 0 }}
                 exit={{ y: 100 }}
-                className="w-full bg-[#111] border border-white/10 rounded-[3rem] p-8 flex flex-col gap-8 shadow-2xl"
+                className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[3rem] p-8 flex flex-col gap-8 shadow-2xl relative overflow-hidden"
                 onClick={e => e.stopPropagation()}
              >
                 <div className="flex justify-between items-center">
-                   <h3 className="text-2xl font-black tracking-tighter italic uppercase">{isDepositOpen ? 'Add Funds' : 'Withdraw Funds'}</h3>
-                   <button onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                   <div className="flex flex-col">
+                      <h3 className="text-2xl font-black tracking-tighter italic uppercase">Instant Transfer</h3>
+                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">Peer-to-Peer Relay</span>
+                   </div>
+                   <button onClick={() => setIsTransferOpen(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                      <X size={20} />
+                   </button>
+                </div>
+
+                <div className="space-y-6">
+                    {/* Success View */}
+                    <AnimatePresence mode="wait">
+                       {isTransferSuccess ? (
+                          <motion.div 
+                             key="success"
+                             initial={{ opacity: 0, scale: 0.9 }}
+                             animate={{ opacity: 1, scale: 1 }}
+                             className="flex flex-col items-center gap-6 py-8"
+                          >
+                             <div className="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center relative">
+                                <motion.div 
+                                   initial={{ scale: 0 }}
+                                   animate={{ scale: 1.5, opacity: 0 }}
+                                   transition={{ duration: 1.5, repeat: Infinity }}
+                                   className="absolute inset-0 bg-emerald-500/30 rounded-full"
+                                />
+                                <CheckCircle2 size={48} className="text-emerald-500" />
+                             </div>
+                             <div className="text-center space-y-2">
+                                <h4 className="text-2xl font-black italic tracking-tighter uppercase">Transfer Sent!</h4>
+                                <p className="text-xs text-white/40 font-medium">Funds have been relayed successfully to the recipient.</p>
+                             </div>
+                             <button 
+                                onClick={() => { setIsTransferOpen(false); setIsTransferSuccess(false); }}
+                                className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors"
+                             >
+                                Done
+                             </button>
+                          </motion.div>
+                       ) : (
+                          <motion.div key="form" className="space-y-6">
+                             {/* Search Recipient */}
+                             <div className="relative">
+                                <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20" />
+                                <input 
+                                  type="text" 
+                                  placeholder="Search @hustler tag or Wallet ID..." 
+                                  className="w-full h-16 bg-white/5 border border-white/5 rounded-[1.75rem] pl-14 pr-6 text-sm font-medium focus:outline-none focus:border-brand-primary/40 transition-colors"
+                                />
+                             </div>
+
+                             {/* Quick Suggestions */}
+                             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                                {[
+                                  { name: 'Felix', tag: '@felix_ui', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix' },
+                                  { name: 'Sarah', tag: '@sarah_mkt', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah' },
+                                  { name: 'David', tag: '@david_codes', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David' },
+                                ].map((h, i) => (
+                                  <button key={i} className="flex flex-col items-center gap-2 group shrink-0">
+                                     <div className="w-14 h-14 rounded-2xl border border-white/10 p-0.5 group-hover:border-brand-primary transition-colors">
+                                        <img src={h.avatar} alt={h.name} className="w-full h-full rounded-2xl" />
+                                     </div>
+                                     <span className="text-[8px] font-black tracking-widest uppercase text-white/40">{h.name}</span>
+                                  </button>
+                                ))}
+                                <button className="w-14 h-14 rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center text-white/20 hover:text-white/40 transition-all">
+                                   <Plus size={20} />
+                                </button>
+                             </div>
+
+                             <div className="bg-white/5 border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-2 group transition-all focus-within:border-brand-primary/30">
+                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">Transfer Amount</span>
+                                <div className="flex items-center gap-3">
+                                   <span className="text-3xl font-black text-white/40">$</span>
+                                   <input 
+                                     type="number" 
+                                     placeholder="0.00"
+                                     className="bg-transparent border-none focus:outline-none text-5xl font-black italic tracking-tighter w-40 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                   />
+                                </div>
+                                <div className="mt-4 px-4 py-1.5 bg-black/40 rounded-full border border-white/5">
+                                   <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available: ${balances.fiat.toLocaleString()}</span>
+                                </div>
+                             </div>
+
+                             <button 
+                                onClick={() => setIsTransferSuccess(true)}
+                                className="w-full h-18 bg-brand-primary text-white rounded-[1.75rem] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-brand-primary/40 active-scale transition-all hover:brightness-110"
+                             >
+                                <span className="text-[11px] font-black uppercase tracking-[0.2em]">Send Funds Now</span>
+                                <span className="text-[8px] font-bold text-white/60 uppercase">Instant Settlement • Protected</span>
+                             </button>
+                          </motion.div>
+                       )}
+                    </AnimatePresence>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 py-4 border-t border-white/5">
+                   <ShieldCheck size={14} className="text-emerald-500" />
+                   <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/20 italic">Encrypted Marketplace Transaction</span>
+                </div>
+             </motion.div>
+          </motion.div>
+        )}
+
+        {(isDepositOpen || isWithdrawOpen || isSwapOpen) && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-md flex items-end justify-center px-6 pb-12"
+            onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); setIsSwapOpen(false); }}
+          >
+             <motion.div 
+                initial={{ y: 100 }}
+                animate={{ y: 0 }}
+                exit={{ y: 100 }}
+                className="w-full max-w-md bg-[#111] border border-white/10 rounded-[3rem] p-8 flex flex-col gap-8 shadow-2xl relative overflow-hidden"
+                onClick={e => e.stopPropagation()}
+             >
+                <div className="flex justify-between items-center">
+                   <h3 className="text-2xl font-black tracking-tighter italic uppercase">
+                     {isDepositOpen ? 'Deposit Funds' : isWithdrawOpen ? 'Withdraw' : 'Instant Swap'}
+                   </h3>
+                   <button onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); setIsSwapOpen(false); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
                       <X size={16} />
                    </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                   <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                      <Landmark size={24} className="text-blue-400" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Bank Transfer</span>
-                   </button>
-                   <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                      <CreditCard size={24} className="text-purple-400" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Debit Card</span>
-                   </button>
-                   <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                      <Zap size={24} className="text-emerald-400" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">Crypto (USDT)</span>
-                   </button>
-                   <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                      <Banknote size={24} className="text-yellow-500" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">USDC Direct</span>
-                   </button>
-                </div>
+                {isSwapOpen ? (
+                  <div className="space-y-4">
+                     <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
+                        <div className="flex justify-between items-center mb-2">
+                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">From Fiat</span>
+                           <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Balance: ₦12M</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                           <span className="text-2xl font-black italic tracking-tighter">₦ 450,000</span>
+                           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
+                              <span className="text-xs font-black">NGN</span>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="flex justify-center -my-6 relative z-10">
+                        <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 flex items-center justify-center backdrop-blur-xl hover:rotate-180 transition-transform duration-500 cursor-pointer">
+                           <TrendingUp size={16} className="text-emerald-500 rotate-90" />
+                        </div>
+                     </div>
+
+                     <div className="bg-white/5 border border-emerald-500/20 rounded-3xl p-6">
+                        <div className="flex justify-between items-center mb-2">
+                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">To Crypto</span>
+                           <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">Est. Outcome</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                           <span className="text-2xl font-black italic tracking-tighter">281.25</span>
+                           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 rounded-full border border-emerald-500/20">
+                              <DollarSign size={12} className="text-emerald-500" />
+                              <span className="text-xs font-black">USDT</span>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="flex items-center justify-between px-2 py-4 border-t border-white/5">
+                        <div className="flex flex-col">
+                           <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Live Rate</span>
+                           <span className="text-[10px] font-bold">1 USDT = ₦1,600.00</span>
+                        </div>
+                        <div className="flex flex-col text-right">
+                           <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Fee</span>
+                           <span className="text-[10px] font-bold text-emerald-400">ZERO</span>
+                        </div>
+                     </div>
+
+                     <button className="w-full h-16 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">
+                        Confirm Conversion
+                     </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
+                        <Landmark size={24} className="text-blue-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Bank Transfer</span>
+                    </button>
+                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
+                        <CreditCard size={24} className="text-purple-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Debit Card</span>
+                    </button>
+                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
+                        <Zap size={24} className="text-emerald-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Crypto (USDT)</span>
+                    </button>
+                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
+                        <Banknote size={24} className="text-yellow-500" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">USDC Direct</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-3xl flex items-center gap-3">
                    <Info size={16} className="text-emerald-500 shrink-0" />

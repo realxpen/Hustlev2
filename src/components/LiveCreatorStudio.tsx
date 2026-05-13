@@ -11,7 +11,7 @@ interface LiveCreatorStudioProps {
   onClose: () => void;
 }
 
-type StudioPhase = 'SETUP' | 'PREPARING' | 'LIVE' | 'SUMMARY';
+type StudioPhase = 'ENTRY' | 'SETUP' | 'PREPARING' | 'LIVE' | 'SUMMARY';
 
 const CATEGORIES = ["Skill Demo", "Product Launch", "Work Session", "Live Training", "Q&A", "Promo"];
 
@@ -22,10 +22,12 @@ const MOCK_ATTACHMENTS = [
 ];
 
 export default function LiveCreatorStudio({ onClose }: LiveCreatorStudioProps) {
-  const [phase, setPhase] = useState<StudioPhase>('SETUP');
+  const [phase, setPhase] = useState<StudioPhase>('ENTRY');
   const [streamTitle, setStreamTitle] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
+  const [selectedAudience, setSelectedAudience] = useState('Everyone');
   const [selectedAttachments, setSelectedAttachments] = useState<string[]>([]);
+  const [isAddonsOpen, setIsAddonsOpen] = useState(false);
   const [countdown, setCountdown] = useState(3);
   const [activeTab, setActiveTab] = useState<'chat' | 'monetize' | 'guests'>('chat');
   const [isMuted, setIsMuted] = useState(false);
@@ -51,65 +53,77 @@ export default function LiveCreatorStudio({ onClose }: LiveCreatorStudioProps) {
     );
   };
 
+  const renderEntry = () => (
+    <div className="flex flex-col h-full bg-[#050505] text-white relative overflow-hidden">
+       <div className="absolute inset-0 bg-red-600/10 blur-[120px] rounded-full top-[-50%] pointer-events-none" />
+       
+       <div className="relative z-10 p-6 flex justify-between">
+           <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+              <X size={20} />
+           </button>
+       </div>
+
+       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center z-10 space-y-6">
+           <div className="w-24 h-24 rounded-[2.5rem] bg-red-500/20 border border-red-500/30 flex items-center justify-center mb-4">
+               <Video size={40} className="text-red-500" />
+           </div>
+           
+           <div>
+              <h1 className="text-5xl font-black italic tracking-tighter uppercase leading-none">Ready To<br /> <span className="text-red-500">Earn.</span></h1>
+           </div>
+       </div>
+
+       <div className="p-8 pb-12 z-10 w-full mb-4 space-y-4">
+            <button 
+              onClick={() => setPhase('SETUP')}
+              className="w-full h-16 rounded-[2rem] bg-red-500 text-white font-black uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 shadow-[0_0_40px_rgba(239,68,68,0.4)] hover:bg-red-400 active:scale-95 transition-all"
+            >
+              GO LIVE
+            </button>
+            <p className="text-center text-[10px] uppercase font-black tracking-widest text-white/30">Start earning from your skills</p>
+       </div>
+    </div>
+  );
+
   const renderSetup = () => (
     <div className="flex flex-col h-full bg-[#050505] text-white">
       {/* Header */}
       <div className="p-6 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
-            <Radio size={20} className="text-red-500" />
-          </div>
-          <div>
-            <h2 className="text-lg font-black tracking-tight leading-none">Studio</h2>
-            <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest mt-1">Creator Central</p>
-          </div>
+          <button onClick={() => setPhase('ENTRY')} className="text-white/40 hover:text-white">
+            <X size={20} />
+          </button>
+          <span className="text-sm font-black tracking-tighter uppercase">Setup Stream</span>
         </div>
-        <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors">
-          <X size={20} />
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
         <div className="space-y-8 pb-24">
-          {/* Cover Preview (Placeholder) */}
-          <div className="relative aspect-video w-full rounded-[2.5rem] bg-zinc-900 border border-white/5 overflow-hidden group">
-            <img src="https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800&q=80" className="w-full h-full object-cover opacity-40 grayscale group-hover:scale-105 transition-transform duration-700" alt="Preview Background" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-xl group-hover:bg-white/10 transition-colors">
-                <Video size={24} className="text-white/40" />
-              </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Camera Preview Ready</p>
-            </div>
-            <button className="absolute bottom-6 right-6 px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-black uppercase tracking-widest">
-              Update Cover
-            </button>
-          </div>
-
+          
           {/* Title Input */}
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1">Stream Details</label>
+            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1">What's this about?</label>
             <input 
               type="text" 
-              placeholder="Give your stream a catchy title..."
+              placeholder="Enter Live Title..."
               value={streamTitle}
               onChange={(e) => setStreamTitle(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold placeholder:text-white/10 focus:outline-none focus:border-red-500/50 transition-colors"
+              className="w-full bg-transparent border-b-2 border-white/10 p-2 text-2xl font-black italic placeholder:text-white/20 focus:outline-none focus:border-red-500 transition-colors"
             />
           </div>
 
           {/* Categories */}
           <div className="space-y-3">
             <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1">Category</label>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map(cat => (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+              {['Service', 'Product', 'Training', 'Casual'].map(cat => (
                 <button 
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                  className={`flex-shrink-0 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest border transition-all ${
                     selectedCategory === cat 
-                    ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20' 
-                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                    ? 'bg-white text-black border-white' 
+                    : 'bg-white/5 border-white/10 text-white/40'
                   }`}
                 >
                   {cat}
@@ -118,56 +132,66 @@ export default function LiveCreatorStudio({ onClose }: LiveCreatorStudioProps) {
             </div>
           </div>
 
-          {/* Monetization Attachments */}
+          {/* Audience */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20">Monetize Your Live</label>
-              <span className="text-[10px] text-red-500 font-bold">{selectedAttachments.length} Selected</span>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {MOCK_ATTACHMENTS.map(item => (
+            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 px-1">Audience</label>
+            <div className="flex gap-2">
+              {['Everyone', 'Followers', 'Nearby'].map(aud => (
                 <button 
-                  key={item.id}
-                  onClick={() => toggleAttachment(item.id)}
-                  className={`p-4 rounded-3xl border transition-all flex items-center gap-4 text-left ${
-                    selectedAttachments.includes(item.id) 
-                    ? 'bg-red-500/10 border-red-500/30' 
-                    : 'bg-white/5 border-white/10 hover:border-white/20'
+                  key={aud}
+                  onClick={() => setSelectedAudience(aud)}
+                  className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                    selectedAudience === aud 
+                    ? 'bg-white/10 border-white text-white' 
+                    : 'bg-transparent border-white/10 text-white/40'
                   }`}
                 >
-                  <img src={item.image} className="w-12 h-12 rounded-xl object-cover" alt={item.name} />
-                  <div className="flex-1">
-                    <h4 className="font-bold text-sm leading-tight">{item.name}</h4>
-                    <p className="text-[10px] text-white/30 uppercase font-black tracking-widest mt-1">{item.type} • {item.price}</p>
-                  </div>
-                  <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
-                    selectedAttachments.includes(item.id) 
-                    ? 'bg-red-500 border-red-500 text-white' 
-                    : 'border-white/10 text-transparent'
-                  }`}>
-                    <CheckCircle2 size={14} />
-                  </div>
+                  {aud}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* More Settings */}
-          <div className="grid grid-cols-2 gap-3">
-            <button className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <Globe size={16} className="text-white/40" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Public</span>
-              </div>
-              <ChevronRight size={14} className="text-white/20" />
+          {/* Optional Add-ons */}
+          <div className="space-y-3 pt-4 border-t border-white/5">
+            <button 
+               onClick={() => setIsAddonsOpen(!isAddonsOpen)}
+               className="flex items-center justify-between w-full p-1"
+            >
+               <span className="text-[11px] font-black uppercase tracking-[0.2em]">Optional Add-ons</span>
+               <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
+                  {isAddonsOpen ? 'Hide' : 'Show'} 
+                  {selectedAttachments.length > 0 && ` (${selectedAttachments.length} Selected)`}
+               </span>
             </button>
-            <button className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-              <div className="flex items-center gap-3">
-                <MapPin size={16} className="text-white/40" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Visible</span>
+            
+            {isAddonsOpen && (
+              <div className="grid grid-cols-1 gap-2 pt-2">
+                {MOCK_ATTACHMENTS.map(item => (
+                  <button 
+                    key={item.id}
+                    onClick={() => toggleAttachment(item.id)}
+                    className={`p-3 rounded-2xl border transition-all flex items-center gap-4 text-left ${
+                      selectedAttachments.includes(item.id) 
+                      ? 'bg-red-500/10 border-red-500/30' 
+                      : 'bg-white/5 border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-bold text-sm">{item.name}</h4>
+                      <p className="text-[10px] text-white/40 uppercase font-black tracking-widest leading-none mt-1">{item.type} • {item.price}</p>
+                    </div>
+                    <div className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
+                      selectedAttachments.includes(item.id) 
+                      ? 'bg-red-500 border-red-500 text-white' 
+                      : 'border-white/10 text-transparent'
+                    }`}>
+                      <CheckCircle2 size={12} />
+                    </div>
+                  </button>
+                ))}
               </div>
-              <ChevronRight size={14} className="text-white/20" />
-            </button>
+            )}
           </div>
         </div>
       </div>
@@ -175,10 +199,11 @@ export default function LiveCreatorStudio({ onClose }: LiveCreatorStudioProps) {
       {/* Start Button Container */}
       <div className="p-6 bg-gradient-to-t from-black via-black/80 to-transparent absolute bottom-0 left-0 right-0">
         <button 
+          disabled={!streamTitle}
           onClick={() => setPhase('PREPARING')}
-          className="w-full h-16 rounded-2xl bg-red-500 text-white font-black uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 shadow-2xl shadow-red-500/40 hover:bg-red-400 active:scale-95 transition-all"
+          className="w-full h-16 rounded-2xl bg-red-500 text-white font-black uppercase tracking-[0.2em] text-sm flex items-center justify-center gap-3 shadow-2xl shadow-red-500/40 hover:bg-red-400 active:scale-95 disabled:opacity-50 disabled:shadow-none transition-all"
         >
-          <Radio size={20} className="animate-pulse" /> Go Live Now
+           Start Live
         </button>
       </div>
     </div>
@@ -503,6 +528,19 @@ export default function LiveCreatorStudio({ onClose }: LiveCreatorStudioProps) {
   return (
     <div className="fixed inset-0 z-[200] overflow-hidden">
       <AnimatePresence mode="wait">
+        {phase === 'ENTRY' && (
+          <motion.div 
+            key="entry"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '-100%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 150 }}
+            className="w-full h-full"
+          >
+            {renderEntry()}
+          </motion.div>
+        )}
+
         {phase === 'SETUP' && (
           <motion.div 
             key="setup"

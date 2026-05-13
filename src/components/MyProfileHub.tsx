@@ -3,7 +3,7 @@ import {
   Star, MapPin, CheckCircle2, MessageSquare, MoreHorizontal, Grid, 
   Briefcase, Info, Calendar, Edit2, ChevronLeft, X, ArrowRight,
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, Plus, Play, Link as LinkIcon,
-  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap, ChevronRight
+  ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap, ChevronRight, RefreshCcw
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
@@ -18,9 +18,16 @@ interface MyProfileHubProps {
   onHustlerModeChange?: (isHustler: boolean) => void;
   setActiveNav?: (nav: any) => void;
   onOpenCreatorStudio?: () => void;
+  onSignOut?: () => void;
 }
 
-export default function MyProfileHub({ isHustler = false, onHustlerModeChange, setActiveNav, onOpenCreatorStudio }: MyProfileHubProps) {
+export default function MyProfileHub({ 
+  isHustler = false, 
+  onHustlerModeChange, 
+  setActiveNav, 
+  onOpenCreatorStudio,
+  onSignOut 
+}: MyProfileHubProps) {
   const [activeTab, setActiveTab] = useState("posts");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showCreateOffering, setShowCreateOffering] = useState<boolean>(false);
@@ -1301,6 +1308,24 @@ export default function MyProfileHub({ isHustler = false, onHustlerModeChange, s
                       <ShieldAlert size={14} />
                       Open Admin Hub
                     </button>
+                </div>
+
+                <div className="mt-8 pt-8 border-t border-white/5 flex flex-col gap-2">
+                   <button 
+                     onClick={() => onSignOut?.()}
+                     className="w-full py-4 text-xs font-black uppercase tracking-[0.2em] text-white/20 hover:text-white transition-colors"
+                   >
+                     Sign Out
+                   </button>
+                   <button 
+                     onClick={() => {
+                        localStorage.clear();
+                        window.location.reload();
+                     }}
+                     className="w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/10 hover:text-red-500 transition-colors flex items-center justify-center gap-2"
+                   >
+                     <RefreshCcw size={12} /> Reset System (Demo Only)
+                   </button>
                 </div>
               </motion.div>
             )}
