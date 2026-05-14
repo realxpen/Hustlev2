@@ -34,12 +34,23 @@ This document outlines the end-to-end technical architecture for Hustle, integra
 
 ### 2. Frontend Structure Breakdown
 
-**Directory Organization:**
-- `/src/app`: Route-based views (Home, Discovery, Wallet, Profile, Chat, Bookings).
-- `/src/components`: Atomic and molecular UI components (Shared, UI-specific, Feature-specific).
-- `/src/services`: client-side abstraction for API/Back-end interactions.
-- `/src/state`: Global state persistence (Zustand/Redux) for cross-cut concerns like Auth and active Journey Missions.
-- `/src/hooks`: Reactive logic for location-aware discovery and moment-based adaptation.
+**Current Directory Organization:**
+- `/src/app`: App-stage flow, bootstrap composition, and top-level orchestration.
+- `/src/domain`: Pure entities, value objects, and contracts with no browser coupling.
+- `/src/infrastructure`: Adapters for browser concerns such as `localStorage`.
+- `/src/features/home`: Home module view, controller hook, and mock seed data.
+- `/src/features/chat`: Chat-specific seed data and feature-level seams.
+- `/src/components`: Reusable UI building blocks and legacy screens kept behind compatibility exports.
+
+**Implemented SOLID Mapping:**
+- `S` Single Responsibility: `src/features/home/MockHome.tsx` now renders the experience, while `src/features/home/hooks/useMockHomeController.ts` owns behavior and `src/infrastructure/session/localSessionRepository.ts` owns persistence.
+- `O` Open/Closed: new app stages can be added through `src/app/app-flow.ts` and `src/app/App.tsx` without rewriting the whole entry component.
+- `L` Liskov Substitution: the home flow depends on the `AppSessionRepository` contract, so another repository can replace the local one without changing feature code.
+- `I` Interface Segregation: the session contract exposes only `read`, `markLoggedIn`, `completeOnboarding`, and `reset` instead of leaking the full browser storage API into features.
+- `D` Dependency Inversion: high-level feature logic depends on domain contracts in `/src/domain/contracts`, while browser-specific storage lives in `/src/infrastructure`.
+
+**Migration Note:**
+- `src/App.tsx`, `src/types.ts`, `src/constants/mockData.ts`, and `src/components/MockHome.tsx` remain as thin compatibility facades so the new architecture can coexist with the existing prototype during refactors.
 
 ---
 
