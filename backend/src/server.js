@@ -10,6 +10,8 @@ import adminRoutes from "./routes/admin.routes.js";
 import mediaRoutes from "./routes/media.routes.js";
 import postRoutes from "./routes/post.routes.js";
 import feedRoutes from "./routes/feed.routes.js";
+import likeRoutes from "./routes/like.routes.js";
+import commentRoutes from "./routes/comment.routes.js";
 
 const app = express();
 
@@ -36,7 +38,8 @@ app.use("/admin", adminRoutes);
 app.use("/media", mediaRoutes);
 app.use("/posts", postRoutes);
 app.use("/feed", feedRoutes);
-
+app.use("/likes", likeRoutes);
+app.use("/comments", commentRoutes);
 // test route
 app.get("/", (req, res) => {
   res.json({ success: true, message: "Hustle backend running" });
