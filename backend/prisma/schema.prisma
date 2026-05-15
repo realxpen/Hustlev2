@@ -15,6 +15,7 @@ model User {
   role      Role     @default(CLIENT)
 
   roleRequests RoleRequest[]
+    posts    Post[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -43,4 +44,17 @@ enum RequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  mediaUrl  String
+  publicId  String?
+  caption   String?
+  type      String   // image | video
+
+  createdAt DateTime @default(now())
 }

@@ -7,6 +7,9 @@ import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import roleRoutes from "./routes/role.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import mediaRoutes from "./routes/media.routes.js";
+import postRoutes from "./routes/post.routes.js";
+import feedRoutes from "./routes/feed.routes.js";
 
 const app = express();
 
@@ -30,6 +33,9 @@ app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/roles", roleRoutes);
 app.use("/admin", adminRoutes);
+app.use("/media", mediaRoutes);
+app.use("/posts", postRoutes);
+app.use("/feed", feedRoutes);
 
 // test route
 app.get("/", (req, res) => {
