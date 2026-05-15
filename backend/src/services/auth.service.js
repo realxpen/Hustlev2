@@ -81,7 +81,8 @@ export const authService = {
     });
 
     return {
-      token: tokenService.generateAccessToken(user),
+      accessToken: tokenService.generateAccessToken(user),
+      refreshToken: tokenService.generateRefreshToken(user),
       user,
     };
   },
@@ -121,7 +122,8 @@ export const authService = {
     });
 
     return {
-      token: tokenService.generateAccessToken(updatedUser),
+      accessToken: tokenService.generateAccessToken(updatedUser),
+      refreshToken: tokenService.generateRefreshToken(updatedUser),
       user: updatedUser,
     };
   },
@@ -137,5 +139,115 @@ export const authService = {
     }
 
     return user;
+  },
+
+  async refreshAccessToken(refreshToken) {
+    const payload = tokenService.verifyRefreshToken(refreshToken);
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: publicUserSelect,
+    });
+
+    if (!user || !user.isActive) {
+      throw new ApiError(401, "User no longer exists or is inactive.");
+    }
+
+    return {
+      accessToken: tokenService.generateAccessToken(user),
+      user,
+    };
+  },
+
+  async forgotPassword(email) {
+    const user = await prisma.user.findUnique({
+      where: { email: normalizeEmail(email) },
+      select: { id: true, email: true },
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User with this email not found.");
+    }
+
+    const resetToken = tokenService.generatePasswordResetToken(user.id);
+
+    return {
+      resetToken,
+      message: "Password reset token generated. Use this token to reset your password.",
+    };
+  },
+
+  async resetPassword(resetToken, newPassword) {
+    const payload = tokenService.verifyPasswordResetToken(resetToken);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new ApiError(401, "User not found or is inactive.");
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, env.bcryptSaltRounds);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    return {
+      message: "Password reset successfully.",
+    };
+  },
+
+  async sendVerificationEmail(userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, isVerified: true },
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found.");
+    }
+
+    if (user.isVerified) {
+      throw new ApiError(400, "User is already verified.");
+    }
+
+    const verificationToken = tokenService.generateEmailVerificationToken(userId);
+
+    return {
+      verificationToken,
+      message: "Email verification token generated. Use this token to verify your email.",
+    };
+  },
+
+  async verifyEmail(verificationToken) {
+    const payload = tokenService.verifyEmailVerificationToken(verificationToken);
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, isVerified: true },
+    });
+
+    if (!user) {
+      throw new ApiError(404, "User not found.");
+    }
+
+    if (user.isVerified) {
+      throw new ApiError(400, "User is already verified.");
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isVerified: true,
+        verifiedAt: new Date(),
+      },
+    });
+
+    return {
+      message: "Email verified successfully.",
+    };
   },
 };

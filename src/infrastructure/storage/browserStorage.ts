@@ -1,28 +1,21 @@
-export interface KeyValueStore {
-  get(key: string): string | null;
-  set(key: string, value: string): void;
-  clear(): void;
-}
+export const browserStorage = {
+  set(key: string, value: unknown) {
+    localStorage.setItem(key, JSON.stringify(value));
+  },
 
-const noopStorage: KeyValueStore = {
-  get: () => null,
-  set: () => undefined,
-  clear: () => undefined,
+  get<T>(key: string): T | null {
+    const item = localStorage.getItem(key);
+
+    if (!item) return null;
+
+    try {
+      return JSON.parse(item) as T;
+    } catch {
+      return null;
+    }
+  },
+
+  remove(key: string) {
+    localStorage.removeItem(key);
+  },
 };
-
-export function createBrowserStorage(
-  storage?: Pick<Storage, "getItem" | "setItem" | "clear">,
-): KeyValueStore {
-  const source =
-    storage ?? (typeof window === "undefined" ? undefined : window.localStorage);
-
-  if (!source) {
-    return noopStorage;
-  }
-
-  return {
-    get: (key) => source.getItem(key),
-    set: (key, value) => source.setItem(key, value),
-    clear: () => source.clear(),
-  };
-}

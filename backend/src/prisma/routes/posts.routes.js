@@ -1,19 +1,19 @@
 import { Router } from "express";
-import { commentController } from "../controllers/comment.controller.js";
-import { postController } from "../controllers/post.controller.js";
-import { authenticate } from "../middleware/auth.middleware.js";
-import { uploadPostFiles } from "../middleware/upload.middleware.js";
-import { validateRequest } from "../middleware/validate.middleware.js";
-import { commentLimiter, engagementLimiter, postCreationLimiter } from "../config/security.js";
+import { commentController } from "../../controllers/comment.controller.js";
+import { postController } from "../../controllers/post.controller.js";
+import { authenticate } from "../../middleware/auth.middleware.js";
+import { uploadPostFiles } from "../../middleware/upload.middleware.js";
+import { validateRequest } from "../../middleware/validate.middleware.js";
+import { commentLimiter, engagementLimiter, postCreationLimiter } from "../../config/security.js";
 import {
   createPostSchema,
   postIdSchema,
   repostSchema,
   savePostSchema,
   unsavePostSchema,
-} from "../validators/post.validators.js";
-import { createCommentSchema, listCommentsSchema } from "../validators/comment.validators.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
+} from "../../validators/post.validators.js";
+import { createCommentSchema, listCommentsSchema } from "../../validators/comment.validators.js";
+import { asyncHandler } from "../../utils/asyncHandler.js";
 
 const router = Router();
 

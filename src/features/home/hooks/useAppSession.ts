@@ -1,29 +1,45 @@
-import { useState } from "react";
-import type { AppSessionRepository } from "../../../domain/contracts/session";
+import { useEffect, useState } from "react";
 import { localSessionRepository } from "../../../infrastructure/session/localSessionRepository";
 
-export function useAppSession(
-  repository: AppSessionRepository = localSessionRepository,
-) {
-  const [session, setSession] = useState(() => repository.read());
+export function useAppSession() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
-  const markLoggedIn = () => {
-    setSession(repository.markLoggedIn());
+  useEffect(() => {
+    const storedUser = localSessionRepository.getUser();
+    const onboardingDone = localSessionRepository.hasCompletedOnboarding();
+
+    if (storedUser) {
+      setUser(storedUser);
+    }
+
+    setHasCompletedOnboarding(onboardingDone);
+    setLoading(false);
+  }, []);
+
+  const login = (userData: any, token: string) => {
+    localSessionRepository.saveSession(userData, token);
+    setUser(userData);
   };
 
-  const markOnboardingComplete = () => {
-    setSession(repository.completeOnboarding());
+  const logout = () => {
+    localSessionRepository.clearSession();
+    setUser(null);
   };
 
-  const resetSession = () => {
-    repository.reset();
-    setSession(repository.read());
+  const completeOnboarding = () => {
+    localSessionRepository.completeOnboarding();
+    setHasCompletedOnboarding(true);
   };
 
   return {
-    ...session,
-    markLoggedIn,
-    markOnboardingComplete,
-    resetSession,
+    user,
+    loading,
+    login,
+    logout,
+    isAuthenticated: !!user,
+    hasCompletedOnboarding,
+    completeOnboarding,
   };
 }

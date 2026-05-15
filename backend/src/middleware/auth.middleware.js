@@ -1,52 +1,61 @@
-import { prisma } from "../prisma/client.js";
-import { tokenService } from "../services/token.service.js";
-import { ApiError } from "../utils/ApiError.js";
+import jwt from "jsonwebtoken";
 
-export async function authenticate(req, _res, next) {
+export const authorizeRoles = (...roles) => {
+  return async (req, res, next) => {
+    try {
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+      });
+
+      if (!user || !roles.includes(user.role)) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
+
+      req.user.role = user.role; // attach role for reuse
+
+      next();
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Role check failed",
+      });
+    }
+  };
+};
+
+export const authenticateUser = (req, res, next) => {
   try {
-    const authorizationHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-    if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) {
-      throw new ApiError(401, "Authentication token is required.");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
 
-    const token = authorizationHeader.split(" ")[1];
-    const payload = tokenService.verifyAccessToken(token);
+    const token = authHeader.split(" ")[1];
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        isActive: true,
-      },
-    });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (!user || !user.isActive) {
-      throw new ApiError(401, "Authenticated user no longer exists or is inactive.");
-    }
+    req.user = {
+      userId: decoded.userId,
+      role: decoded.role,
+      iat: decoded.iat,
+      exp: decoded.exp,
+    };
 
-    req.user = user;
     next();
   } catch (error) {
-    next(error);
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
   }
-}
-
-export function requireRoles(...allowedRoles) {
-  return (req, _res, next) => {
-    if (!req.user) {
-      next(new ApiError(401, "Authentication is required."));
-      return;
-    }
-
-    if (!allowedRoles.includes(req.user.role)) {
-      next(new ApiError(403, "You do not have permission to access this resource."));
-      return;
-    }
-
-    next();
-  };
-}
+};

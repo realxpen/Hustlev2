@@ -1,5 +1,5 @@
 import { Router } from "express";
-import authRoutes from "./auth.routes.js";
+import authRoutes from "../../routes/auth.routes.js";
 import commentsRoutes from "./comments.routes.js";
 import collectionsRoutes from "./collections.routes.js";
 import feedRoutes from "./feed.routes.js";

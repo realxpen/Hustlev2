@@ -1,51 +1,49 @@
-import http from "http";
-import { Server as SocketIOServer } from "socket.io";
-import { app } from "./app.js";
-import { env } from "./config/env.js";
-import { socketCorsOptions } from "./config/security.js";
-import { prisma } from "./prisma/client.js";
-import { registerSocketServer } from "./sockets/index.js";
-import { registerSocketPublisher } from "./sockets/publisher.js";
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
 
-const httpServer = http.createServer(app);
 
-const io = new SocketIOServer(httpServer, {
-  cors: socketCorsOptions,
+import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
+import roleRoutes from "./routes/role.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+
+const app = express();
+
+/**
+ * MUST BE BEFORE ROUTES
+ */
+app.use(cors());
+app.use(express.json()); // 🔥 REQUIRED
+app.use(express.urlencoded({ extended: true }));
+
+
+app.use((req, res, next) => {
+  console.log("🔥 CONTENT TYPE:", req.headers["content-type"]);
+  console.log("🔥 BODY:", req.body);
+  next();
 });
 
-// Socket namespaces are registered now so chat, live, and notifications can plug in later.
-registerSocketServer(io);
-registerSocketPublisher(io);
+app.use(morgan("dev"));
 
-async function startServer() {
-  try {
-    await prisma.$connect();
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
+app.use("/roles", roleRoutes);
+app.use("/admin", adminRoutes);
 
-    httpServer.listen(env.port, () => {
-      console.log(`Hustle backend listening on http://localhost:${env.port}`);
-    });
-  } catch (error) {
-    console.error("Failed to start Hustle backend:", error);
-    process.exit(1);
-  }
-}
+// test route
+app.get("/", (req, res) => {
+  res.json({ success: true, message: "Hustle backend running" });
+});
 
-async function shutdown(signal) {
-  console.log(`${signal} received. Shutting down Hustle backend...`);
-
-  await prisma.$disconnect();
-
-  httpServer.close(() => {
-    process.exit(0);
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
   });
-}
-
-process.on("SIGINT", () => {
-  void shutdown("SIGINT");
 });
 
-process.on("SIGTERM", () => {
-  void shutdown("SIGTERM");
+app.listen(5000, () => {
+  console.log("Hustle backend listening on http://localhost:5000");
 });
-
-void startServer();

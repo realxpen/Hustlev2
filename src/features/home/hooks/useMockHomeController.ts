@@ -42,37 +42,52 @@ export function useMockHomeController() {
   const [bookingHustler, setBookingHustler] = useState<any>(null);
 
   const {
-    isLoggedIn,
-    hasCompletedOnboarding,
-    markLoggedIn,
-    markOnboardingComplete,
-    resetSession,
-  } = useAppSession();
+  user,
+  login,
+  logout,
+  isAuthenticated,
+} = useAppSession();
 
-  const handleSignUp = () => {
-    setIsGlobalLoading(true);
-    setTimeout(() => {
-      markLoggedIn();
-      setIsGlobalLoading(false);
-    }, 1000);
-  };
+const isLoggedIn = isAuthenticated;
+const hasCompletedOnboarding = true;
 
-  const handleOnboardingComplete = (data: any) => {
-    console.log("Onboarding data:", data);
-    markOnboardingComplete();
-    setIsGlobalLoading(true);
-    setTimeout(() => setIsGlobalLoading(false), 2000);
-  };
+const handleSignUp = () => {
+  setIsGlobalLoading(true);
+
+  setTimeout(() => {
+    login(
+      {
+        id: "1",
+        name: "Ayomide",
+        email: "test@hustle.com",
+      },
+      "demo-token"
+    );
+
+    setIsGlobalLoading(false);
+  }, 1000);
+};
+
+ const handleOnboardingComplete = (data: any) => {
+  console.log("Onboarding data:", data);
+
+  setIsGlobalLoading(true);
+
+  setTimeout(() => {
+    setIsGlobalLoading(false);
+    setActiveNav("home");
+  }, 2000);
+};
 
   const handleResetApp = () => {
-    resetSession();
+    logout();
     if (typeof window !== "undefined") {
       window.location.reload();
     }
   };
 
   const signOut = () => {
-    resetSession();
+    logout();
     setActiveNav("home");
     setIsChatOpen(false);
     setActiveConversation(null);
@@ -218,6 +233,7 @@ export function useMockHomeController() {
   };
 
   return {
+    isLoggedIn: isAuthenticated,
     activeCall,
     activeConversation,
     activeFeedTab,
@@ -248,7 +264,6 @@ export function useMockHomeController() {
     isGlobalLoading,
     isHustler,
     isLiveStudioOpen,
-    isLoggedIn,
     isMapOpen,
     isNavVisible,
     isNotificationsOpen,

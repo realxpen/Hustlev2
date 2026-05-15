@@ -7,7 +7,13 @@ interface AuthScreenProps {
   key?: string;
 }
 
-type AuthView = "gate" | "login" | "signup" | "forgot" | "forgot-sent";
+type AuthView =
+  | "gate"
+  | "login"
+  | "signup"
+  | "forgot"
+  | "forgot-sent"
+  | "onboarding";
 
 export default function AuthScreen({ onLogin }: AuthScreenProps) {
   const [view, setView] = useState<AuthView>("gate");
@@ -51,7 +57,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
             <div className="w-full flex flex-col gap-3">
               <button 
-                onClick={onLogin}
+  onClick={() => setView("onboarding")}
                 className="w-full h-14 bg-white text-black rounded-xl font-medium flex items-center justify-center gap-3 hover:bg-white/90 transition-colors active:scale-[0.98] relative"
               >
                 <div className="absolute left-6">
@@ -130,7 +136,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
               </div>
 
               <button 
-                onClick={onLogin}
+  onClick={onLogin}
                 className="w-full h-14 bg-white text-black mt-2 rounded-xl font-medium hover:bg-white/90 transition-colors active:scale-[0.98]"
               >
                 Sign in
@@ -248,6 +254,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             </button>
           </motion.div>
         )}
+
       </AnimatePresence>
     </div>
   );

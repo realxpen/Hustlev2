@@ -5,6 +5,7 @@ import {
   Target, Zap, Rocket, Shield, Star, Globe,
   CheckCircle2, ArrowRight, ChevronLeft
 } from "lucide-react";
+import { localSessionRepository } from "../infrastructure/session/localSessionRepository";
 
 interface OnboardingFlowProps {
   onComplete: (data: any) => void;
@@ -20,13 +21,26 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
-    else onComplete({ role, interests });
-  };
+  if (step < 3) {
+    setStep(step + 1);
+  } else {
+
+    // Save onboarding completion
+    localSessionRepository.completeOnboarding();
+
+    // Continue app flow
+    onComplete({
+      role,
+      interests,
+    });
+  }
+};
 
   const handleBack = () => {
     if (step > 1) setStep(step - 1);
   };
+
+  
 
   return (
     <div className="fixed inset-0 z-[300] bg-black text-white flex flex-col font-sans overflow-hidden">

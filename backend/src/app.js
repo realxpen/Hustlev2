@@ -1,19 +1,24 @@
 import express from "express";
 import morgan from "morgan";
-import apiRoutes from "./routes/index.js";
+import passport from "passport";
+import apiRoutes from "./prisma/routes/index.js";
+import oauthRoutes from "./prisma/routes/oauth.routes.js";
 import { env } from "./config/env.js";
+import { setupPassport } from "./config/passport.js";
 import { authLimiter, corsMiddleware, helmetMiddleware, rateLimiter } from "./config/security.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware.js";
 
 export function createApp() {
   const app = express();
 
-  // Global middleware lives here so every future module inherits the same baseline.
+  setupPassport();
+
   app.use(helmetMiddleware);
   app.use(corsMiddleware);
   app.use(rateLimiter);
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
+  app.use(passport.initialize());
 
   if (env.nodeEnv !== "test") {
     app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
@@ -31,6 +36,7 @@ export function createApp() {
   });
 
   app.use("/api/auth", authLimiter);
+  app.use("/api/oauth", oauthRoutes);
   app.use("/api", apiRoutes);
 
   app.use(notFoundHandler);

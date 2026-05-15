@@ -7,251 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  client
-  hustler
-  agent
-  admin
-}
-
-enum AuthProvider {
-  local
-  google
-  apple
-}
-
-enum AuthTokenType {
-  refresh
-  password_reset
-  email_verification
-  oauth_handoff
-}
-
-enum PostType {
-  video
-  image
-  text
-  mixed
-}
-
-enum PostVisibility {
-  public
-  followers
-  private
-}
-
-enum PostMediaType {
-  image
-  video
-}
-
-enum PostAttachmentType {
-  service
-  product
-  training
-}
-
 model User {
-  id           String       @id @default(cuid())
-  username     String       @unique @db.VarChar(40)
-  email        String       @unique @db.VarChar(255)
-  phone        String?      @unique @db.VarChar(20)
-  provider     AuthProvider @default(local)
-  providerId   String?      @db.VarChar(255)
-  // Local accounts store a bcrypt hash. OAuth-only accounts can leave this null.
-  password     String?      @db.VarChar(255)
-  isVerified   Boolean      @default(false)
-  verifiedAt   DateTime?
-  profilePhoto String?      @db.Text
-  bio          String?      @db.VarChar(280)
-  role         UserRole     @default(client)
-  isActive     Boolean      @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  authTokens   AuthToken[]
-  posts        Post[]
-  likes        Like[]
-  comments     Comment[]
-  reposts      Repost[]
-  collections  Collection[]
-  savedPosts   SavedPost[]
-
-  @@unique([provider, providerId])
-  @@index([role])
-  @@index([provider, createdAt])
-  @@index([createdAt])
-}
-
-model AuthToken {
-  id         String        @id @default(cuid())
-  userId     String
-  type       AuthTokenType
-  tokenHash  String        @db.VarChar(128)
-  expiresAt  DateTime
-  consumedAt DateTime?
-  revokedAt  DateTime?
-  ipAddress  String?       @db.VarChar(64)
-  userAgent  String?       @db.VarChar(255)
-  metadata   Json?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([type, tokenHash])
-  @@index([userId, type, expiresAt])
-  @@index([type, expiresAt])
-}
-
-model Post {
-  id                   String              @id @default(cuid())
-  authorId             String
-  type                 PostType
-  visibility           PostVisibility      @default(public)
-  caption              String?             @db.Text
-  hashtags             String[]            @default([])
-  musicTitle           String?             @db.VarChar(160)
-  musicArtist          String?             @db.VarChar(160)
-  musicUrl             String?             @db.Text
-  allowComments        Boolean             @default(true)
-  attachmentType       PostAttachmentType?
-  attachmentId         String?             @db.VarChar(100)
-  attachmentTitle      String?             @db.VarChar(150)
-  attachmentSubtitle   String?             @db.VarChar(150)
-  attachmentThumbnailUrl String?           @db.Text
-  attachmentPriceMinor Int?
-  attachmentCurrency   String?             @db.VarChar(10)
-  attachmentMetadata   Json?
-  repostOfId           String?
-  likeCount            Int                 @default(0)
-  commentCount         Int                 @default(0)
-  repostCount          Int                 @default(0)
-  saveCount            Int                 @default(0)
-  mediaCount           Int                 @default(0)
-  rankingScore         Float               @default(0)
-  isArchived           Boolean             @default(false)
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-
-  author               User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  repostOf             Post?               @relation("PostReposts", fields: [repostOfId], references: [id], onDelete: SetNull)
-  repostChildren       Post[]              @relation("PostReposts")
-  media                PostMedia[]
-  likes                Like[]
-  comments             Comment[]
-  repostEntries        Repost[]            @relation("OriginalPostReposts")
-  repostRecord         Repost?             @relation("RepostPost")
-  savedPosts           SavedPost[]
-
-  @@index([visibility, isArchived, createdAt(sort: Desc)])
-  @@index([visibility, isArchived, rankingScore(sort: Desc), createdAt(sort: Desc)])
-  @@index([authorId, createdAt(sort: Desc)])
-  @@index([repostOfId, createdAt(sort: Desc)])
-}
-
-model PostMedia {
-  id              String        @id @default(cuid())
-  postId          String
-  mediaType       PostMediaType
-  url             String        @db.Text
-  publicId        String?       @db.VarChar(255)
-  mimeType        String?       @db.VarChar(120)
-  format          String?       @db.VarChar(50)
-  resourceType    String?       @db.VarChar(50)
-  width           Int?
-  height          Int?
-  durationSeconds Float?
-  bytes           Int?
-  thumbnailUrl    String?       @db.Text
-  altText         String?       @db.VarChar(160)
-  sortOrder       Int           @default(0)
-  createdAt       DateTime      @default(now())
-
-  post            Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@index([postId, sortOrder])
-}
-
-model Like {
   id        String   @id @default(cuid())
-  postId    String
+  email     String   @unique
+  password  String
+  fullName  String?
+  role      Role     @default(CLIENT)
+
+  roleRequests RoleRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+enum Role {
+  CLIENT
+  HUSTLER
+  AGENT
+  ADMIN
+}
+
+model RoleRequest {
+  id        String   @id @default(cuid())
   userId    String
+  requestedRole Role
+
+  status    RequestStatus @default(PENDING)
+
   createdAt DateTime @default(now())
 
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-  @@index([userId, createdAt(sort: Desc)])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
-model Comment {
-  id         String    @id @default(cuid())
-  postId     String
-  userId     String
-  parentId   String?
-  body       String    @db.Text
-  replyCount Int       @default(0)
-  isDeleted  Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent     Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies    Comment[] @relation("CommentReplies")
-
-  @@index([postId, parentId, createdAt(sort: Desc)])
-  @@index([userId, createdAt(sort: Desc)])
-}
-
-model Repost {
-  id             String   @id @default(cuid())
-  userId         String
-  originalPostId String
-  repostPostId   String   @unique
-  caption        String?  @db.Text
-  createdAt      DateTime @default(now())
-
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  originalPost   Post     @relation("OriginalPostReposts", fields: [originalPostId], references: [id], onDelete: Cascade)
-  repostPost     Post     @relation("RepostPost", fields: [repostPostId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, originalPostId])
-  @@index([originalPostId, createdAt(sort: Desc)])
-}
-
-model Collection {
-  id            String      @id @default(cuid())
-  userId        String
-  name          String      @db.VarChar(80)
-  description   String?     @db.VarChar(240)
-  coverImageUrl String?     @db.Text
-  isSystem      Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  savedPosts    SavedPost[]
-
-  @@unique([userId, name])
-  @@index([userId, createdAt(sort: Desc)])
-}
-
-model SavedPost {
-  id           String     @id @default(cuid())
-  userId       String
-  collectionId String
-  postId       String
-  createdAt    DateTime   @default(now())
-
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([collectionId, postId])
-  @@index([userId, postId])
-  @@index([collectionId, createdAt(sort: Desc)])
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

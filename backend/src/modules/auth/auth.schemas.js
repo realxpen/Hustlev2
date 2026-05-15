@@ -30,3 +30,39 @@ export const loginSchema = z.object({
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
+
+export const refreshTokenSchema = z.object({
+  body: z.object({
+    refreshToken: z.string().min(1, "Refresh token is required."),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().trim().email("Invalid email address."),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    resetToken: z.string().min(1, "Reset token is required."),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters long.")
+      .max(72, "Password must be 72 characters or less."),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const verifyEmailSchema = z.object({
+  body: z.object({
+    verificationToken: z.string().min(1, "Verification token is required."),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});

@@ -1,36 +1,68 @@
-import { authService } from "../services/auth.service.js";
-import { sendSuccess } from "../utils/apiResponse.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import prisma from "../config/prisma.js";
 
-export const authController = {
-  async register(req, res) {
-    const payload = req.validated?.body ?? req.body;
-    const result = await authService.register(payload);
+export const register = async (req, res) => {
+  try {
+    console.log("REGISTER BODY:", req.body);
 
-    sendSuccess(res, {
-      statusCode: 201,
-      message: "User registered successfully.",
-      data: result,
+    const { email, password, username } = req.body;
+
+    if (!email || !password || !username) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email,
+      },
     });
-  },
 
-  async login(req, res) {
-    const payload = req.validated?.body ?? req.body;
-    const result = await authService.login(payload);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
 
-    sendSuccess(res, {
-      statusCode: 200,
-      message: "Login successful.",
-      data: result,
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        username,
+        password: hashedPassword,
+      },
     });
-  },
 
-  async me(req, res) {
-    const user = await authService.getAuthenticatedUser(req.user.id);
+    const token = jwt.sign(
+      {
+        userId: user.id,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
 
-    sendSuccess(res, {
-      statusCode: 200,
-      message: "Authenticated user fetched successfully.",
-      data: user,
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      data: {
+        user,
+        token,
+      },
     });
-  },
+  } catch (error) {
+    console.log("REGISTER ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
 };
