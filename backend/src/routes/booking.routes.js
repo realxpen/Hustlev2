@@ -1,6 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticateUser } from "../middleware/auth.middleware.js";
+import { createNotification } from "../utils/notification.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -10,7 +11,7 @@ const prisma = new PrismaClient();
  */
 router.post("/:gigId", authenticateUser, async (req, res) => {
   try {
-    const gigId = req.params.gigId;
+    const { gigId } = req.params;
     const { message } = req.body;
 
     // 1. Get user
@@ -19,13 +20,10 @@ router.post("/:gigId", authenticateUser, async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // 2. Only clients can book
+    // 2. Only CLIENTS can book
     if (!user.roles.includes("CLIENT")) {
       return res.status(403).json({
         success: false,
@@ -45,7 +43,7 @@ router.post("/:gigId", authenticateUser, async (req, res) => {
       });
     }
 
-    // 4. Prevent self-booking
+    // 4. Prevent self booking
     if (gig.userId === user.id) {
       return res.status(403).json({
         success: false,
@@ -65,7 +63,7 @@ router.post("/:gigId", authenticateUser, async (req, res) => {
       });
     }
 
-    // 6. Deduct money from client wallet (ESCROW LOCK)
+    // 6. Deduct wallet (ESCROW LOCK)
     await prisma.wallet.update({
       where: { userId: user.id },
       data: {
@@ -84,14 +82,20 @@ router.post("/:gigId", authenticateUser, async (req, res) => {
       },
     });
 
+    // 8. Notify hustler (CORRECT PLACE)
+    await createNotification({
+      userId: gig.userId,
+      type: "NEW_BOOKING",
+      message: "You have a new booking request",
+    });
+
     return res.json({
       success: true,
-      message: "Booking created with escrow",
+      message: "Booking created successfully",
       data: booking,
     });
   } catch (error) {
     console.error(error);
-
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -116,25 +120,14 @@ router.get("/my", authenticateUser, async (req, res) => {
     }
 
     const gigs = await prisma.gig.findMany({
-      where: {
-        userId: user.id,
-      },
-      include: {
-        bookings: true,
-      },
+      where: { userId: user.id },
+      include: { bookings: true },
     });
 
-    return res.json({
-      success: true,
-      data: gigs,
-    });
+    return res.json({ success: true, data: gigs });
   } catch (error) {
     console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
@@ -146,68 +139,6 @@ router.put("/:bookingId/accept", authenticateUser, async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
     });
-
-    if (!user.roles.includes("HUSTLER")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only hustlers can accept bookings",
-      });
-    }
-
-    const booking = await prisma.booking.findUnique({
-      where: { id: req.params.bookingId },
-      include: { gig: true },
-    });
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
-
-    if (booking.gig.userId !== user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Not your gig",
-      });
-    }
-
-    const updated = await prisma.booking.update({
-      where: { id: booking.id },
-      data: { status: "ACCEPTED" },
-    });
-
-    return res.json({
-      success: true,
-      message: "Booking accepted",
-      data: updated,
-    });
-  } catch (error) {
-    console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
-});
-
-/**
- * REJECT BOOKING
- */
-router.put("/:bookingId/reject", authenticateUser, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
-    });
-
-    if (!user.roles.includes("HUSTLER")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only hustlers can reject bookings",
-      });
-    }
 
     const booking = await prisma.booking.findUnique({
       where: { id: req.params.bookingId },
@@ -223,53 +154,37 @@ router.put("/:bookingId/reject", authenticateUser, async (req, res) => {
 
     const updated = await prisma.booking.update({
       where: { id: booking.id },
-      data: { status: "REJECTED" },
+      data: { status: "ACCEPTED" },
     });
 
     return res.json({
       success: true,
-      message: "Booking rejected",
+      message: "Booking accepted",
       data: updated,
     });
   } catch (error) {
     console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
 /**
- * COMPLETE BOOKING + RELEASE FUNDS + PLATFORM COMMISSION
+ * COMPLETE BOOKING + RELEASE FUNDS
  */
 router.post("/:bookingId/complete", authenticateUser, async (req, res) => {
   try {
+    const { bookingId } = req.params;
+
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
     });
 
-    if (!user.roles.includes("HUSTLER")) {
-      return res.status(403).json({
-        success: false,
-        message: "Only hustlers can complete jobs",
-      });
-    }
-
     const booking = await prisma.booking.findUnique({
-      where: { id: req.params.bookingId },
+      where: { id: bookingId },
       include: { gig: true },
     });
 
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found",
-      });
-    }
-
-    if (booking.gig.userId !== user.id) {
+    if (!booking || booking.gig.userId !== user.id) {
       return res.status(403).json({
         success: false,
         message: "Not allowed",
@@ -279,20 +194,17 @@ router.post("/:bookingId/complete", authenticateUser, async (req, res) => {
     if (booking.status === "COMPLETED") {
       return res.status(400).json({
         success: false,
-        message: "Booking already completed",
+        message: "Already completed",
       });
     }
 
-    // Hustler wallet
     const hustlerWallet = await prisma.wallet.findUnique({
       where: { userId: user.id },
     });
 
-    // Commission logic
     const platformFee = booking.amount * 0.1;
     const hustlerAmount = booking.amount * 0.9;
 
-    // Pay hustler
     await prisma.wallet.update({
       where: { userId: user.id },
       data: {
@@ -300,7 +212,6 @@ router.post("/:bookingId/complete", authenticateUser, async (req, res) => {
       },
     });
 
-    // Store platform revenue
     const platform = await prisma.platform.findFirst();
 
     if (platform) {
@@ -312,30 +223,19 @@ router.post("/:bookingId/complete", authenticateUser, async (req, res) => {
       });
     }
 
-    // Update booking
     const updated = await prisma.booking.update({
       where: { id: booking.id },
-      data: {
-        status: "COMPLETED",
-      },
+      data: { status: "COMPLETED" },
     });
 
     return res.json({
       success: true,
-      message: "Job completed and funds released",
-      data: {
-        booking: updated,
-        hustlerReceived: hustlerAmount,
-        platformFee,
-      },
+      message: "Job completed",
+      data: updated,
     });
   } catch (error) {
     console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 

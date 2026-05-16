@@ -72,3 +72,18 @@ app.use((req, res) => {
 app.listen(5000, () => {
   console.log("Hustle backend listening on http://localhost:5000");
 });
+
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
+
+async function initPlatform() {
+  const existing = await prisma.platform.findFirst();
+
+  if (!existing) {
+    await prisma.platform.create({
+      data: { revenue: 0 },
+    });
+  }
+}
+
+initPlatform();
