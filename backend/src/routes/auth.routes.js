@@ -47,6 +47,12 @@ router.post("/register", async (req, res) => {
       },
     });
 
+    await prisma.wallet.create({
+      data: {
+        userId: user.id,
+      },
+    });
+
     const token = jwt.sign(
       {
         userId: user.id,

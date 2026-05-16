@@ -12,12 +12,35 @@ model User {
   email     String   @unique
   password  String
   fullName  String?
-  role      Role     @default(CLIENT)
+  username    String?  @unique
+  bio         String?
+  avatar      String?
+  location    String?
+  profession  String?
+  skills      String[]
+  verified    Boolean  @default(false)
 
-  roleRequests RoleRequest[]
+  
+  
+  
+ 
+
+
+
+  roleRequests RoleRequest[] 
+  userRoles UserRole[]
   posts    Post[]
   likes         Like[]       // 👈 ADD THIS
   comments      Comment[]    // 👈 ADD THIS
+  notifications Notification[]
+  gigs Gig[]
+  bookings Booking[]
+  wallet Wallet?
+
+
+  roles String[] @default(["CLIENT"])
+  followers Follow[] @relation("Following")
+  following Follow[] @relation("Followers")
   
 
   createdAt DateTime @default(now())
@@ -33,14 +56,15 @@ enum Role {
 
 model RoleRequest {
   id        String   @id @default(cuid())
-  userId    String
-  requestedRole Role
 
-  status    RequestStatus @default(PENDING)
+  requestedRole String   // "HUSTLER" | "AGENT"
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
+  updatedAt DateTime @updatedAt
 }
 
 enum RequestStatus {
@@ -90,4 +114,107 @@ model Comment {
   post      Post     @relation(fields: [postId], references: [id])
 
   createdAt DateTime @default(now())
+}
+
+
+model Follow {
+  id           String   @id @default(cuid())
+
+  followerId   String
+  followingId  String
+
+  follower     User @relation("Followers", fields: [followerId], references: [id])
+  following    User @relation("Following", fields: [followingId], references: [id])
+
+  createdAt    DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+
+model Gig {
+  id          String   @id @default(cuid())
+
+  title       String
+  description String
+  price       Float
+  category    String
+
+  images      String[]
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  bookings Booking[]
+
+  createdAt   DateTime @default(now())
+}
+
+
+
+model UserRole {
+  id     String @id @default(cuid())
+
+  userId String
+  role   String // "CLIENT", "HUSTLER", "AGENT", "ADMIN"
+
+  user   User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  type      String
+  message   String
+
+  read      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+
+model Booking {
+  id          String   @id @default(cuid())
+
+  gigId       String
+  gig         Gig      @relation(fields: [gigId], references: [id])
+
+  clientId    String
+  client      User     @relation(fields: [clientId], references: [id])
+
+  status      String   @default("PENDING")
+  // PENDING | ACCEPTED | REJECTED | COMPLETED
+
+  message     String?
+
+  amount    Float    @default(0) 
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model Wallet {
+  id        String   @id @default(cuid())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+
+  balance   Float    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+model Platform {
+  id        String  @id @default(cuid())
+  revenue   Float   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

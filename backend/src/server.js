@@ -12,6 +12,14 @@ import postRoutes from "./routes/post.routes.js";
 import feedRoutes from "./routes/feed.routes.js";
 import likeRoutes from "./routes/like.routes.js";
 import commentRoutes from "./routes/comment.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+import discoveryRoutes from "./routes/discovery.routes.js";
+import followRoutes from "./routes/follow.routes.js";
+import gigRoutes from "./routes/gig.routes.js";
+import bookingRoutes from "./routes/booking.routes.js";
+import walletRoutes from "./routes/wallet.routes.js";
+
 
 const app = express();
 
@@ -40,6 +48,14 @@ app.use("/posts", postRoutes);
 app.use("/feed", feedRoutes);
 app.use("/likes", likeRoutes);
 app.use("/comments", commentRoutes);
+app.use("/profile", profileRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/discovery", discoveryRoutes);
+app.use("/follow", followRoutes);
+app.use("/gigs", gigRoutes);
+app.use("/bookings", bookingRoutes);
+app.use("/wallet", walletRoutes);
+
 // test route
 app.get("/", (req, res) => {
   res.json({ success: true, message: "Hustle backend running" });
