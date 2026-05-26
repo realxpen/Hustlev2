@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Milestone, MilestoneStatus } from "../types";
+import { Milestone, MilestoneStatus } from "../features/bookings/types";
 import { Check, Clock, AlertCircle, CircleDashed } from "lucide-react";
 
 interface MilestoneTimelineProps {

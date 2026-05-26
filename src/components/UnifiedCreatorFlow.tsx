@@ -7,6 +7,8 @@ import {
   Bookmark, CheckCircle2, DollarSign, Calendar, Clock,
   ArrowRight, Globe, Lock, Users, Zap, Eye, Save
 } from "lucide-react";
+import { useCreatePostStore } from '../features/feed/stores/useCreatePostStore';
+import { useAuthStore } from '../features/auth/stores/useAuthStore';
 
 interface UnifiedCreatorFlowProps {
   initialType?: string;
@@ -16,53 +18,75 @@ interface UnifiedCreatorFlowProps {
 
 type Step = 'type' | 'media' | 'details' | 'monetize' | 'publish';
 
+const TYPES = [
+  { id: 'post', label: 'Feed Post', icon: <Video />, desc: 'Share a story or video', color: 'bg-blue-500' },
+  { id: 'service', label: 'Service', icon: <Briefcase />, desc: 'List your professional help', color: 'bg-purple-500' },
+  { id: 'product', label: 'Product', icon: <ShoppingBag />, desc: 'Set up a physical item', color: 'bg-emerald-500' },
+  { id: 'training', label: 'Training', icon: <Play />, desc: 'Teach a new skill', color: 'bg-yellow-500' },
+  { id: 'live', label: 'Livestream', icon: <Radio />, desc: 'Go live and interact', color: 'bg-red-500' },
+];
+
 export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: UnifiedCreatorFlowProps) {
+  const { 
+    selectedType, setSelectedType, 
+    title, description, price, setDraftFields,
+    mediaDraft, addMedia, removeMedia, reorderMedia, attachMusic,
+    isUploading, submitPost, reset, error: storeError
+  } = useCreatePostStore();
+
   const [step, setStep] = useState<Step>(initialType ? 'media' : 'type');
-  const [selectedType, setSelectedType] = useState<string>(initialType || 'post');
-  const [media, setMedia] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
   const [selectedAudio, setSelectedAudio] = useState<string | null>(null);
   const [monetizationTag, setMonetizationTag] = useState<string | null>(null);
-  const [isLivePremise, setIsLivePremise] = useState(false);
   const [scheduleDate, setScheduleDate] = useState<string | null>(null);
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textContent, setTextContent] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const profile = useAuthStore(state => state.profile);
+  const isHustler = profile?.role === 'hustler';
 
-  const TYPES = [
-    { id: 'post', label: 'Feed Post', icon: <Video />, desc: 'Share a story or video', color: 'bg-blue-500' },
-    { id: 'service', label: 'Service', icon: <Briefcase />, desc: 'List your professional help', color: 'bg-purple-500' },
-    { id: 'product', label: 'Product', icon: <ShoppingBag />, desc: 'Set up a physical item', color: 'bg-emerald-500' },
-    { id: 'training', label: 'Training', icon: <Play />, desc: 'Teach a new skill', color: 'bg-yellow-500' },
-    { id: 'live', label: 'Livestream', icon: <Radio />, desc: 'Go live and interact', color: 'bg-red-500' },
-  ];
+  useEffect(() => {
+    if (initialType) {
+      setSelectedType(initialType);
+    }
+  }, [initialType, setSelectedType]);
 
   const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setMedia(URL.createObjectURL(file));
-      setStep('details');
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length > 0) {
+      files.forEach(file => {
+        let type: 'image' | 'video' | 'pdf' | 'document' | 'graphics' = 'document';
+        if (file.type.startsWith('video/')) type = 'video';
+        else if (file.type.startsWith('image/')) type = 'image';
+        else if (file.type === 'application/pdf') type = 'pdf';
+
+        addMedia({
+          file,
+          type,
+          name: file.name
+        });
+      });
     }
   };
 
-  const handlePublish = () => {
-    onPublish({
-      type: selectedType,
-      media,
-      title,
-      description,
-      price,
-      audio: selectedAudio,
-      tag: monetizationTag,
-      scheduleDate
-    });
+  const handlePublish = async () => {
+    const result = await submitPost(scheduleDate);
+    
+    if (result) {
+      onPublish(result);
+      reset();
+    } else {
+      if (storeError) alert("Upload Failed: " + storeError);
+    }
   };
 
   const nextStep = () => {
     if (step === 'type') setStep('media');
     else if (step === 'media') setStep('details');
-    else if (step === 'details') setStep('monetize');
+    else if (step === 'details') {
+      if (isHustler) setStep('monetize');
+      else setStep('publish');
+    }
     else if (step === 'monetize') setStep('publish');
   };
 
@@ -70,7 +94,10 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
     if (step === 'media') setStep('type');
     else if (step === 'details') setStep('media');
     else if (step === 'monetize') setStep('details');
-    else if (step === 'publish') setStep('monetize');
+    else if (step === 'publish') {
+      if (isHustler) setStep('monetize');
+      else setStep('details');
+    }
   };
 
   // Smart Template Logic
@@ -78,16 +105,20 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
     if (step === 'details' && !title) {
       // Simulation of AI Loading Template
       if (selectedType === 'service') {
-        setTitle("Professional Strategy Session");
-        setDescription("A focused 60-minute session to unlock your growth potential.");
-        setPrice("$150");
+        setDraftFields({
+          title: "Professional Strategy Session",
+          description: "A focused 60-minute session to unlock your growth potential.",
+          price: "150"
+        });
       } else if (selectedType === 'product') {
-        setTitle("Digital Asset Bundle");
-        setDescription("High-quality resources for your creative workflow.");
-        setPrice("$49");
+        setDraftFields({
+          title: "Digital Asset Bundle",
+          description: "High-quality resources for your creative workflow.",
+          price: "49"
+        });
       }
     }
-  }, [step, selectedType, title]);
+  }, [step, selectedType, title, setDraftFields]);
 
   return (
     <div className="fixed inset-0 z-[110] bg-black text-white flex flex-col font-sans overflow-hidden">
@@ -107,7 +138,7 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
             {step === 'type' ? <X size={20} /> : <ChevronLeft size={24} />}
           </button>
           <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 italic">Step {step === 'type' ? 1 : step === 'media' ? 2 : step === 'details' ? 3 : step === 'monetize' ? 4 : 5} of 5</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 italic">Step {step === 'type' ? 1 : step === 'media' ? 2 : step === 'details' ? 3 : step === 'monetize' ? 4 : (isHustler ? 5 : 4)} of {isHustler ? 5 : 4}</h2>
             <h1 className="text-sm font-black uppercase tracking-tight italic">
               {step === 'type' ? 'Define Intent' : step === 'media' ? 'Capture Media' : step === 'details' ? 'Refine Story' : step === 'monetize' ? 'Link Income' : 'Finalize Flow'}
             </h1>
@@ -125,9 +156,10 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
           {step === 'publish' && (
             <button 
               onClick={handlePublish}
-              className="px-8 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary hover:text-white transition-all shadow-premium"
+              disabled={isUploading}
+              className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-premium ${isUploading ? 'bg-white/20 text-white cursor-not-allowed' : 'bg-white text-black hover:bg-brand-primary hover:text-white'}`}
             >
-              Publish
+              {isUploading ? 'Publishing...' : 'Publish'}
             </button>
           )}
         </div>
@@ -180,17 +212,68 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
               exit={{ opacity: 0, x: -20 }}
               className="h-full flex flex-col gap-6"
             >
-              <div className="aspect-[3/4] rounded-[2.5rem] bg-white/5 border border-white/10 relative overflow-hidden flex flex-col items-center justify-center group">
-                {media ? (
-                  <>
-                    <img src={media} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-x-4 bottom-4 flex gap-2">
-                       <button onClick={() => setMedia(null)} className="flex-1 bg-black/60 backdrop-blur-xl py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10">Replace</button>
-                       <button className="flex-1 bg-white text-black py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-white/10 flex items-center justify-center gap-2">
-                         <Scissors size={14} /> Trim
+              <div className="aspect-[3/4] rounded-[2.5rem] bg-white/5 border border-white/10 relative overflow-hidden flex flex-col items-center justify-center group p-0">
+                {mediaDraft.length > 0 ? (
+                  <div className="w-full h-full relative">
+                    <div className="w-full h-full overflow-x-auto snap-x snap-mandatory flex flex-row no-scrollbar" style={{ scrollBehavior: 'smooth' }}>
+                      {mediaDraft.map((item, idx) => (
+                        <div key={item.id} className="relative w-full h-full shrink-0 snap-center p-2 flex items-center justify-center">
+                          <div className="w-full h-full rounded-[2rem] overflow-hidden shadow-2xl bg-black border border-white/10 relative">
+                            {item.type === 'image' && (
+                              <img src={URL.createObjectURL(item.file)} alt="Preview" className="w-full h-full object-cover" />
+                            )}
+                            {item.type === 'video' && (
+                              <video src={URL.createObjectURL(item.file)} className="w-full h-full object-cover" controls playsInline />
+                            )}
+                            {(item.type === 'pdf' || item.type === 'document') && (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 border-2 border-dashed border-gray-700">
+                                 <CheckCircle2 size={40} className="text-emerald-400 mb-2" />
+                                 <span className="text-xs font-bold text-white/50">{item.name}</span>
+                              </div>
+                            )}
+
+                            <div className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full text-white text-[10px] font-black z-10 shadow-lg">
+                              {idx + 1} / {mediaDraft.length}
+                            </div>
+
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); removeMedia(item.id); }}
+                              className="absolute top-4 right-4 w-8 h-8 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center text-white/60 hover:text-brand-primary z-10 shadow-lg transition-colors"
+                            >
+                              <X size={14} />
+                            </button>
+ 
+                            <div className="absolute bottom-4 left-4 flex gap-2 z-10">
+                              {idx > 0 && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); reorderMedia(idx, idx - 1); }}
+                                  className="w-10 h-10 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 shadow-lg transition-all"
+                                >
+                                  <ChevronLeft size={20} />
+                                </button>
+                              )}
+                              {idx < mediaDraft.length - 1 && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); reorderMedia(idx, idx + 1); }}
+                                  className="w-10 h-10 bg-black/60 backdrop-blur-xl border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 shadow-lg transition-all"
+                                >
+                                  <ChevronRight size={20} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="absolute bottom-6 right-6 z-10">
+                       <button 
+                         onClick={() => fileInputRef.current?.click()} 
+                         className="px-5 py-3 bg-brand-primary/90 backdrop-blur-xl text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-glow-red hover:scale-105 transition-transform border border-white/10 flex items-center gap-2"
+                       >
+                         <Plus size={14} /> Add Media
                        </button>
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <>
                     <div className="absolute inset-0 bg-gradient-to-tr from-brand-primary/10 to-blue-500/10 opacity-40" />
@@ -202,13 +285,6 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                         <p className="text-lg font-black italic tracking-tighter mb-2">Import from Library</p>
                         <p className="text-xs text-white/30 font-bold italic">Max 4K resolution supported</p>
                       </div>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleMediaUpload} 
-                        className="hidden" 
-                        accept="image/*,video/*"
-                      />
                       <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="px-10 py-4 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-premium"
@@ -218,15 +294,43 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                     </div>
                   </>
                 )}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleMediaUpload} 
+                  className="hidden" 
+                  accept="image/*,video/*,application/pdf,.doc,.docx"
+                  multiple
+                />
               </div>
 
               {selectedType === 'post' && (
                 <div className="flex gap-4">
-                  <button className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col items-center gap-2 group">
-                    <Music size={20} className="text-brand-primary" />
-                    <span className="text-[8px] font-black uppercase text-white/40">Add Audio</span>
-                  </button>
-                  <button className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col items-center gap-2 group">
+                  <div className="flex-1 relative">
+                    <input type="file" className="hidden" id="audio-upload" accept="audio/*" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        setSelectedAudio(url);
+                        attachMusic({
+                          music_url: url,
+                          title: file.name,
+                          artist: 'Upload',
+                          start_time: 0,
+                          duration: 30,
+                          file
+                        });
+                      }
+                    }} />
+                    <label 
+                      htmlFor="audio-upload"
+                      className={`h-full w-full p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 group transition-all cursor-pointer ${selectedAudio ? 'bg-brand-primary/20 border-brand-primary' : 'bg-white/5 border-white/5'}`}
+                    >
+                      <Music size={20} className={selectedAudio ? 'text-brand-primary animate-pulse' : 'text-brand-primary'} />
+                      <span className="text-[8px] font-black uppercase text-white/40 text-center">{selectedAudio ? 'Audio Added' : 'Add Audio'}</span>
+                    </label>
+                  </div>
+                  <button onClick={() => setShowTextInput(true)} className="flex-1 bg-white/5 p-4 rounded-2xl border border-white/5 flex flex-col items-center gap-2 group">
                     <Type size={20} className="text-blue-400" />
                     <span className="text-[8px] font-black uppercase text-white/40">Add Text</span>
                   </button>
@@ -256,13 +360,13 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 px-2 italic">Creator Captions</label>
                   <input 
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => setDraftFields({ title: e.target.value })}
                     placeholder="Enter a compelling title..."
                     className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-white focus:outline-none focus:border-brand-primary transition-colors"
                   />
                   <textarea 
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) => setDraftFields({ description: e.target.value })}
                     placeholder="Describe your hustle..."
                     className="w-full bg-white/5 border border-white/10 rounded-3xl px-6 py-6 text-sm font-medium text-white/60 h-32 resize-none focus:outline-none focus:border-brand-primary transition-colors"
                   />
@@ -275,7 +379,7 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                         <div className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 text-sm font-black">$</div>
                         <input 
                           value={price}
-                          onChange={(e) => setPrice(e.target.value.replace('$', ''))}
+                          onChange={(e) => setDraftFields({ price: e.target.value.replace('$', '') })}
                           placeholder="0.00"
                           className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-sm font-black text-white focus:outline-none focus:border-brand-primary transition-colors"
                         />
@@ -352,7 +456,19 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                     <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Ready to Launch</span>
                   </div>
                   <div className="relative aspect-[3/4] rounded-[2.5rem] bg-white/5 border border-white/10 overflow-hidden shadow-2xl">
-                     <img src={media || 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=600'} alt="Preview" className="w-full h-full object-cover opacity-80" />
+                     {mediaDraft.length > 0 ? (
+                       mediaDraft[0].type === 'image' ? (
+                         <img src={URL.createObjectURL(mediaDraft[0].file)} alt="Preview" className="w-full h-full object-cover opacity-80" />
+                       ) : mediaDraft[0].type === 'video' ? (
+                         <video src={URL.createObjectURL(mediaDraft[0].file)} className="w-full h-full object-cover opacity-80" />
+                       ) : (
+                         <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                           <CheckCircle2 size={48} className="text-emerald-400" />
+                         </div>
+                       )
+                     ) : (
+                       <img src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=600" alt="Fallback" className="w-full h-full object-cover opacity-80" />
+                     )}
                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
                      
                      <div className="absolute bottom-10 left-8 right-8">
@@ -395,13 +511,18 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
                         <Zap size={20} className={!scheduleDate ? 'text-brand-primary animate-pulse' : 'text-white/20'} />
                         <span className="text-[9px] font-black uppercase tracking-widest">Post Now</span>
                      </button>
-                     <button 
-                        onClick={() => setScheduleDate('tomorrow')}
-                        className={`p-5 rounded-3xl border flex flex-col items-center gap-3 transition-colors ${scheduleDate ? 'border-brand-primary bg-brand-primary/10' : 'bg-white/5 border-white/5'}`}
-                     >
-                        <Calendar size={20} className={scheduleDate ? 'text-brand-primary' : 'text-white/20'} />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Schedule</span>
-                     </button>
+                     <div className="relative">
+                        <input
+                           type="datetime-local"
+                           value={scheduleDate || ''}
+                           onChange={(e) => setScheduleDate(e.target.value)}
+                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className={`p-5 rounded-3xl border flex flex-col items-center gap-3 transition-colors h-full ${scheduleDate ? 'border-brand-primary bg-brand-primary/10' : 'bg-white/5 border-white/5'}`}>
+                           <Calendar size={20} className={scheduleDate ? 'text-brand-primary' : 'text-white/20'} />
+                           <span className="text-[9px] font-black uppercase tracking-widest">{scheduleDate ? new Date(scheduleDate).toLocaleDateString() : 'Schedule'}</span>
+                        </div>
+                     </div>
                   </div>
                </section>
 
@@ -419,6 +540,88 @@ export default function UnifiedCreatorFlow({ initialType, onClose, onPublish }: 
       <AnimatePresence>
         {/* We would handle success state here with a big celebration animation */}
       </AnimatePresence>
+
+      {showTextInput && (
+        <div className="absolute inset-0 bg-black/95 z-50 flex flex-col p-6 animate-in fade-in zoom-in duration-200">
+          <div className="flex items-center justify-between mb-8 mt-12">
+             <button onClick={() => setShowTextInput(false)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20">
+               <X size={20} />
+             </button>
+             <button onClick={() => {
+                if (!textContent.trim()) return;
+                const canvas = document.createElement('canvas');
+                canvas.width = 1080;
+                canvas.height = 1080;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  // Beautiful gradient background
+                  const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
+                  gradient.addColorStop(0, '#1a1a2e');
+                  gradient.addColorStop(1, '#000000');
+                  
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(0, 0, 1080, 1080);
+                  
+                  ctx.fillStyle = '#ffffff';
+                  ctx.font = 'bold 70px "Inter", sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'middle';
+                  
+                  const words = textContent.split(' ');
+                  let line = '';
+                  const lines = [];
+                  const maxWidth = 800;
+                  
+                  for (let n = 0; n < words.length; n++) {
+                    const testLine = line + words[n] + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    const testWidth = metrics.width;
+                    if (testWidth > maxWidth && n > 0) {
+                      lines.push(line);
+                      line = words[n] + ' ';
+                    } else {
+                      line = testLine;
+                    }
+                  }
+                  lines.push(line);
+                  
+                  const lineHeight = 100;
+                  let y = 540 - ((lines.length - 1) * lineHeight) / 2;
+                  
+                  for (let i = 0; i < lines.length; i++) {
+                    ctx.fillText(lines[i], 540, y);
+                    y += lineHeight;
+                  }
+
+                  canvas.toBlob((blob) => {
+                    if (blob) {
+                      const file = new File([blob], 'text-post.png', { type: 'image/png' });
+                      addMedia({
+                        file,
+                        type: 'image',
+                        name: 'Text Post'
+                      });
+                      setShowTextInput(false);
+                      setTextContent("");
+                    }
+                  }, 'image/png', 1.0);
+                }
+             }} className="px-6 py-2 rounded-full bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest shadow-premium active:scale-95 transition-transform">
+               Save Text
+             </button>
+          </div>
+          <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full">
+            <textarea
+              autoFocus
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              placeholder="What's on your mind?"
+              className="w-full bg-transparent text-4xl leading-tight font-black text-white text-center focus:outline-none resize-none placeholder:text-white/20 h-64"
+            />
+            <p className="text-center text-white/30 text-xs mt-4">We'll automatically generate a beautiful typographic image for your feed.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

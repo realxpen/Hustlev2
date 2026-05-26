@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, Calendar, Hash, ShieldCheck, User, ArrowRight, CircleDollarSign } from "lucide-react";
-import { Transaction, Booking, BookingStatus, EscrowStatus } from "../types";
+import { Transaction } from "../types";
+import { Booking, BookingStatus, EscrowStatus } from "../features/bookings/types";
 import { useState } from "react";
 import JobEscrowManager from "./JobEscrowManager";
 
@@ -10,22 +11,22 @@ interface TransactionDetailViewProps {
 }
 
 // Mock booking lookup
-const MOCK_BOOKING: Booking = {
+const MOCK_BOOKING: any = {
   id: "BK-123",
-  clientId: "c1",
-  hustlerId: "h1",
-  serviceId: "s1",
-  status: BookingStatus.IN_PROGRESS,
-  price: 120000,
-  escrowStatus: EscrowStatus.FUNDED,
+  buyer_id: "c1",
+  seller_id: "h1",
+  listing_id: "s1",
+  status: 'in_progress',
+  unit_price: 120000,
+  total_price: 120000,
+  escrow_status: 'held',
   milestones: [
     { id: "m1", title: "Setup", amount: 40000, status: "released" as any, deadline: "2026-05-10" },
     { id: "m2", title: "Draft", amount: 40000, status: "released" as any, deadline: "2026-05-11" },
     { id: "m3", title: "Final", amount: 40000, status: "in_progress" as any, deadline: "2026-05-12" },
   ],
-  scheduledAt: "2026-05-10",
-  createdAt: "2026-05-01",
-  updatedAt: "2026-05-01",
+  created_at: "2026-05-01",
+  updated_at: "2026-05-01",
 };
 
 export default function TransactionDetailView({ tx, onClose }: TransactionDetailViewProps) {

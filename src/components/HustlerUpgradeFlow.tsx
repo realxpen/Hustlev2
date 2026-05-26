@@ -16,6 +16,8 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
   const [experience, setExperience] = useState("");
   const [identityMethod, setIdentityMethod] = useState<"phone" | "email">("phone");
   const [reviewStatus, setReviewStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customSkill, setCustomSkill] = useState("");
 
   const progressSteps = ["skill", "experience", "media", "bio", "identity"];
   const currentStepIndex = progressSteps.indexOf(step as any);
@@ -111,31 +113,77 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
               className="flex flex-col gap-8 max-w-sm mx-auto h-full"
             >
               <div>
-                <button onClick={() => setStep("intro")} className="w-fit flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-white/40 mb-4 hover:text-white">
-                  <ChevronLeft size={14} /> Back
-                </button>
-                <h2 className="text-3xl font-display font-black tracking-tight mb-2">What's your craft?</h2>
-                <p className="text-white/40 font-medium text-sm">Select your primary offering.</p>
+                {initialStep === "skill" ? (
+                  <button onClick={onClose} className="w-fit flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-white/40 mb-4 hover:text-white">
+                    <ChevronLeft size={14} /> Cancel
+                  </button>
+                ) : (
+                  <button onClick={() => setStep("intro")} className="w-fit flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-white/40 mb-4 hover:text-white">
+                    <ChevronLeft size={14} /> Back
+                  </button>
+                )}
+                <h2 className="text-3xl font-display font-black tracking-tight mb-2">
+                  {initialStep === "skill" ? "Add to your Stack" : "What's your craft?"}
+                </h2>
+                <p className="text-white/40 font-medium text-sm">
+                  {initialStep === "skill" ? "Select a secondary hustle skill." : "Select your primary offering."}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 overflow-y-auto pb-4 no-scrollbar">
-                 {[ "Graphic Design", "Plumbing & Repairs", "Personal Training", "Software Engineering", "Photography", "Beauty & Styling", "Delivery & Moving" ].map((s) => (
+              {showCustomInput ? (
+                <div className="flex flex-col gap-4">
+                  <input
+                    type="text"
+                    value={customSkill}
+                    onChange={(e) => setCustomSkill(e.target.value)}
+                    placeholder="Type custom skill..."
+                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-white text-sm font-medium placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
                     <button
-                      key={s}
-                      onClick={() => {
-                        setSkill(s);
-                        setTimeout(() => setStep("experience"), 200);
-                      }}
-                      className={`h-16 px-6 rounded-2xl border text-left flex items-center justify-between transition-all group active:scale-[0.98] ${skill === s ? 'bg-blue-600/20 border-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+                      onClick={() => setShowCustomInput(false)}
+                      className="flex-1 h-12 rounded-xl bg-white/5 text-white text-[10px] font-black uppercase tracking-widest"
                     >
-                      <span className="font-black tracking-wide">{s}</span>
-                      <ChevronRight size={18} className={skill === s ? 'text-blue-400' : 'text-white/10'} />
+                      Cancel
                     </button>
-                 ))}
-                 <button className="h-16 px-6 rounded-2xl border border-dashed border-white/20 text-white/40 text-left font-black tracking-wide hover:border-white/40 transition-colors">
-                    Something else...
-                 </button>
-              </div>
+                    <button
+                      onClick={() => {
+                        if (customSkill.trim()) {
+                          const s = customSkill.trim();
+                          setSkill(s);
+                          setTimeout(() => setStep("experience"), 200);
+                        }
+                      }}
+                      className="flex-1 h-12 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-500"
+                    >
+                      Add Skill
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 overflow-y-auto pb-4 no-scrollbar">
+                   {[ "Graphic Design", "Plumbing & Repairs", "Personal Training", "Software Engineering", "Photography", "Beauty & Styling", "Delivery & Moving" ].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => {
+                          setSkill(s);
+                          setTimeout(() => setStep("experience"), 200);
+                        }}
+                        className={`h-16 px-6 rounded-2xl border text-left flex items-center justify-between transition-all group active:scale-[0.98] ${skill === s ? 'bg-blue-600/20 border-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+                      >
+                        <span className="font-black tracking-wide">{s}</span>
+                        <ChevronRight size={18} className={skill === s ? 'text-blue-400' : 'text-white/10'} />
+                      </button>
+                   ))}
+                   <button 
+                     onClick={() => setShowCustomInput(true)}
+                     className="h-16 px-6 rounded-2xl border border-dashed border-white/20 text-white/40 text-left font-black tracking-wide hover:border-white/40 transition-colors"
+                   >
+                      Something else...
+                   </button>
+                </div>
+              )}
             </motion.div>
           )}
 

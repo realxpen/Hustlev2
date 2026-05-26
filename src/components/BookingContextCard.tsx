@@ -1,6 +1,8 @@
 import { motion } from "motion/react";
-import { ShieldCheck, ChevronRight, Lock, CheckCircle2 } from "lucide-react";
-import { Booking, MilestoneStatus } from "../types";
+import { ShieldCheck, ChevronRight, Lock, CheckCircle2, ArrowUpRight, Zap } from "lucide-react";
+import { Booking, MilestoneStatus } from "../features/bookings/types";
+import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { useAuth } from "../features/auth";
 
 interface BookingContextCardProps {
   booking: Booking;
@@ -8,11 +10,28 @@ interface BookingContextCardProps {
 }
 
 export default function BookingContextCard({ booking, onOpenBooking }: BookingContextCardProps) {
+  const { releaseMilestone, requestMilestoneRelease, isLoading } = useBookingStore();
+  const { user } = useAuth();
+  
   // Access active milestone if exists
   const milestones = booking?.milestones || [];
   const activeMilestone = milestones.find(m => m.status === MilestoneStatus.IN_PROGRESS || m.status === MilestoneStatus.AWAITING_APPROVAL);
   const completedMilestones = milestones.filter(m => m.status === MilestoneStatus.RELEASED).length;
   const totalMilestones = milestones.length;
+
+  const isBuyer = user?.id === booking.buyer_id;
+  const isSeller = user?.id === booking.seller_id;
+
+  const handleAction = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeMilestone) return;
+
+    if (isBuyer && activeMilestone.status === MilestoneStatus.AWAITING_APPROVAL) {
+      await releaseMilestone(activeMilestone.id);
+    } else if (isSeller && activeMilestone.status === MilestoneStatus.IN_PROGRESS) {
+      await requestMilestoneRelease(activeMilestone.id);
+    }
+  };
 
   return (
     <motion.div 
@@ -31,11 +50,11 @@ export default function BookingContextCard({ booking, onOpenBooking }: BookingCo
             <h4 className="text-[11px] font-black uppercase tracking-widest text-blue-400 mb-1">Active Booking</h4>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold tracking-tight text-white truncate max-w-[120px]">
-                {booking.id}
+                {booking.id.split('-')[0]}
               </span>
               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/5 rounded-full border border-white/5">
                 <Lock size={8} className="text-blue-400" />
-                <span className="text-[8px] font-black text-white/60">₦{booking.price.toLocaleString()}</span>
+                <span className="text-[8px] font-black text-white/60">₦{booking.total_price?.toLocaleString() || booking.price?.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -47,13 +66,13 @@ export default function BookingContextCard({ booking, onOpenBooking }: BookingCo
         >
           <div className="text-right mr-2">
             <p className="text-[10px] font-black text-white/80 uppercase tracking-tighter">
-              {activeMilestone ? `Milestone ${booking.milestones.indexOf(activeMilestone) + 1}` : 'Reviewing'}
+              {activeMilestone ? `Milestone ${milestones.indexOf(activeMilestone) + 1}` : 'Reviewing'}
             </p>
             <div className="flex gap-0.5 mt-1">
-              {[...Array(totalMilestones)].map((_, i) => (
+              {[...Array(totalMilestones || 1)].map((_, i) => (
                 <div 
                   key={i} 
-                  className={`h-1 w-3 rounded-full ${i < completedMilestones ? 'bg-green-500' : i === completedMilestones ? 'bg-blue-500' : 'bg-white/10'}`} 
+                  className={`h-1 w-3 rounded-full ${i < completedMilestones ? 'bg-green-500' : (i === completedMilestones && activeMilestone) ? 'bg-blue-500' : 'bg-white/10'}`} 
                 />
               ))}
             </div>
@@ -64,17 +83,36 @@ export default function BookingContextCard({ booking, onOpenBooking }: BookingCo
         </button>
       </div>
 
-      {activeMilestone?.status === MilestoneStatus.AWAITING_APPROVAL && (
+      {activeMilestone && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="mt-4 pt-3 border-t border-blue-400/10 flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-             <span className="text-[9px] font-black uppercase tracking-widest text-blue-400/80">Action Required: Approve Release</span>
+             <div className={`w-1.5 h-1.5 rounded-full ${activeMilestone.status === MilestoneStatus.AWAITING_APPROVAL ? 'bg-blue-500 animate-pulse' : 'bg-white/20'}`} />
+             <span className="text-[9px] font-black uppercase tracking-widest text-blue-400/80">
+               {isBuyer 
+                ? (activeMilestone.status === MilestoneStatus.AWAITING_APPROVAL ? 'Action Required: Release Funds' : 'Work in Progress')
+                : (activeMilestone.status === MilestoneStatus.IN_PROGRESS ? 'Ready? Request Release' : 'Awaiting Approval')
+               }
+             </span>
           </div>
-          <div className="text-[9px] font-black text-white">₦{activeMilestone.amount.toLocaleString()}</div>
+
+          {( (isBuyer && activeMilestone.status === MilestoneStatus.AWAITING_APPROVAL) || (isSeller && activeMilestone.status === MilestoneStatus.IN_PROGRESS) ) && (
+            <button 
+              onClick={handleAction}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3 py-1 bg-white text-black rounded-lg text-[9px] font-black uppercase tracking-tight active:scale-95 transition-all"
+            >
+              <Zap size={10} fill="currentColor" />
+              {isBuyer ? 'Release now' : 'Request pay'}
+            </button>
+          )}
+          
+          {!(( (isBuyer && activeMilestone.status === MilestoneStatus.AWAITING_APPROVAL) || (isSeller && activeMilestone.status === MilestoneStatus.IN_PROGRESS) )) && (
+            <div className="text-[9px] font-black text-white/40 uppercase tracking-tighter">₦{activeMilestone.amount.toLocaleString()} Locked</div>
+          )}
         </motion.div>
       )}
     </motion.div>

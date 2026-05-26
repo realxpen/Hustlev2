@@ -19,6 +19,16 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
   const [activeTab, setActiveTab] = useState<"tracking" | "details">("tracking");
   const [showEscrow, setShowEscrow] = useState(false);
 
+  const steps = [
+    { id: "pending", label: "Requested", time: new Date(booking.created_at).toLocaleString(), completed: true },
+    { id: "accepted", label: "Confirmed", time: booking.status === 'accepted' ? 'Recently' : '', completed: ['accepted', 'in_progress', 'completed'].includes(booking.status) },
+    { id: "in_progress", label: "Hustle Mode", time: '', completed: ['in_progress', 'completed'].includes(booking.status) },
+    { id: "completed", label: "Finalized", time: '', completed: booking.status === 'completed' }
+  ];
+
+  const seller = booking.seller || {};
+  const buyer = booking.buyer || {};
+
   return (
     <motion.div
       initial={{ x: "100%" }}
@@ -27,7 +37,7 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="fixed inset-0 z-[70] bg-[#050505] flex flex-col pt-12 text-white overflow-hidden"
     >
-      <div className="grain-overlay pointer-events-none" />
+      <div className="noise-overlay pointer-events-none" />
 
       {/* Header */}
       <header className="px-6 pb-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-b from-black/40 to-transparent">
@@ -36,8 +46,8 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
               <ChevronLeft size={24} />
            </button>
            <div>
-              <h3 className="font-bold text-sm tracking-tight">{booking.id}</h3>
-              <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">{booking.service}</p>
+              <h3 className="font-bold text-sm tracking-tight">{booking.id.split('-')[0]}</h3>
+              <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">{booking.listing_type}</p>
            </div>
         </div>
         <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40">
@@ -73,10 +83,10 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
                {/* Timeline Section */}
                <section>
                   <div className="flex flex-col gap-8">
-                     {PROGRESS_STEPS.map((step, idx) => (
+                     {steps.map((step, idx) => (
                         <div key={step.id} className="flex gap-6 relative">
                            {/* Vertical Line */}
-                           {idx !== PROGRESS_STEPS.length - 1 && (
+                           {idx !== steps.length - 1 && (
                               <div className={`absolute left-[13px] top-[26px] w-[2px] h-[calc(100%+32px)] ${step.completed ? 'bg-blue-500' : 'bg-white/5'}`} />
                            )}
                            
@@ -101,7 +111,7 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
                               {step.id === booking.status && (
                                  <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/5">
                                     <p className="text-[11px] text-white/60 font-light leading-relaxed">
-                                       "{booking.lastUpdate}"
+                                       Status is currently {booking.status.replace('_', ' ')}
                                     </p>
                                  </div>
                               )}
@@ -115,14 +125,14 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
                <section className="p-6 rounded-[32px] bg-white/[0.03] border border-white/10">
                   <div className="flex items-center justify-between mb-6">
                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-black">
-                           {booking.avatar}
+                        <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+                           <img src={seller.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=hustler`} alt="Hustler" />
                         </div>
                         <div>
-                           <h4 className="font-bold text-sm tracking-tight">{booking.hustler}</h4>
+                           <h4 className="font-bold text-sm tracking-tight">{seller.hustle_name || seller.full_name || 'Hustler'}</h4>
                            <div className="flex items-center gap-1">
                               <Star size={10} className="text-yellow-500 fill-yellow-500" />
-                              <span className="text-[9px] font-black">{booking.rating || "4.9"}</span>
+                              <span className="text-[9px] font-black">4.9</span>
                            </div>
                         </div>
                      </div>
@@ -135,9 +145,9 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
                         </button>
                      </div>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                     <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest text-center">
-                        Typically responds in less than 5 mins
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center">
+                     <p className="text-[10px] text-white/20 font-bold uppercase tracking-widest leading-none">
+                        Payment Locked in Shield Escrow
                      </p>
                   </div>
                </section>
@@ -146,24 +156,24 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
             <div className="flex flex-col gap-8">
                <div className="flex flex-col gap-6">
                   <div className="flex flex-col gap-1">
-                     <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">Service Summary</h4>
-                     <p className="text-lg font-bold tracking-tight">{booking.service}</p>
+                     <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">Hustle Summary</h4>
+                     <p className="text-lg font-bold tracking-tight">{booking.listing_id}</p>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                      <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
                         <div className="flex items-center gap-2 mb-2 text-white/30">
                            <Calendar size={14} />
-                           <span className="text-[9px] font-black uppercase tracking-widest">Date</span>
+                           <span className="text-[9px] font-black uppercase tracking-widest">Date Booked</span>
                         </div>
-                        <p className="text-xs font-bold">{booking.date}</p>
+                        <p className="text-xs font-bold">{new Date(booking.created_at).toLocaleDateString()}</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/5">
                         <div className="flex items-center gap-2 mb-2 text-white/30">
                            <Clock size={14} />
-                           <span className="text-[9px] font-black uppercase tracking-widest">Time</span>
+                           <span className="text-[9px] font-black uppercase tracking-widest">Pricing Model</span>
                         </div>
-                        <p className="text-xs font-bold">{booking.time}</p>
+                        <p className="text-xs font-bold uppercase">{booking.listing_type}</p>
                      </div>
                   </div>
 
@@ -171,16 +181,16 @@ export default function BookingDetail({ booking, onBack }: BookingDetailProps) {
                      <div className="flex items-center gap-3">
                         <MapPin size={18} className="text-white/30" />
                         <div>
-                           <p className="text-[9px] font-black uppercase tracking-widest text-white/20">Location</p>
-                           <p className="text-xs font-bold">Lagos Studio A • Main Block</p>
+                           <p className="text-[9px] font-black uppercase tracking-widest text-white/20">Delivery Location</p>
+                           <p className="text-xs font-bold">{booking.location_address || "Remote / Digital"}</p>
                         </div>
                      </div>
                      <ChevronRight size={16} className="text-white/10" />
                   </div>
 
                   <div className="mt-4 p-8 rounded-[40px] bg-blue-500/5 border border-blue-500/10 text-center">
-                     <p className="text-[10px] text-blue-400/40 font-black uppercase tracking-widest mb-2">Payment Secured</p>
-                     <p className="text-2xl font-display font-black text-blue-400">{booking.price}</p>
+                     <p className="text-[10px] text-blue-400/40 font-black uppercase tracking-widest mb-2">Funded Balance</p>
+                     <p className="text-2xl font-display font-black text-blue-400">₦{(booking.total_price || 0).toLocaleString()}</p>
                   </div>
                </div>
             </div>

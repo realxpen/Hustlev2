@@ -1,29 +1,58 @@
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint } from "lucide-react";
-import { Booking, MilestoneStatus } from "../types";
+import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint, MessageSquare, Phone } from "lucide-react";
+import { Booking, MilestoneStatus } from "../features/bookings/types";
 import EscrowCard from "./EscrowCard";
 import MilestoneTimeline from "./MilestoneTimeline";
 import { useState } from "react";
 import TrustBadge from "./TrustBadge";
 import PaymentConfirmationModal from "./PaymentConfirmationModal";
+import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { useAuth } from "../features/auth";
 
 interface JobEscrowManagerProps {
   booking: Booking;
   onClose: () => void;
   isClient?: boolean;
+  onMessage?: (userId: string) => void;
+  onCall?: (userId: string) => void;
 }
 
-export default function JobEscrowManager({ booking, onClose, isClient = true }: JobEscrowManagerProps) {
+export default function JobEscrowManager({ 
+  booking, 
+  onClose, 
+  isClient = true,
+  onMessage,
+  onCall
+}: JobEscrowManagerProps) {
+  const { releaseMilestone, requestMilestoneRelease, isLoading } = useBookingStore();
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [isDisputed, setIsDisputed] = useState(false);
-  const [isReleaseRequested, setIsReleaseRequested] = useState(false);
+
+  const otherUserId = isClient ? booking.seller_id : booking.buyer_id;
 
   // Find next milestone to release
   const nextMilestone = booking?.milestones?.find(m => m.status === MilestoneStatus.AWAITING_APPROVAL || m.status === MilestoneStatus.PENDING);
-  
+  const activeMilestone = booking?.milestones?.find(m => m.status === MilestoneStatus.IN_PROGRESS || m.status === MilestoneStatus.AWAITING_APPROVAL);
+
   // Derive state based on if there's a disputed milestone
   const hasDisputedMilestone = booking?.milestones?.some(m => m.status === MilestoneStatus.DISPUTED);
   
+  const handleReleaseConfirm = async () => {
+    if (nextMilestone) {
+      await releaseMilestone(nextMilestone.id);
+      setShowReleaseModal(false);
+    }
+  };
+
+  const handleRequestRelease = async () => {
+    const inProgress = booking?.milestones?.find(m => m.status === MilestoneStatus.IN_PROGRESS);
+    if (inProgress) {
+      await requestMilestoneRelease(inProgress.id);
+    }
+  };
+
+  const isReleaseRequested = activeMilestone?.status === MilestoneStatus.AWAITING_APPROVAL;
+
   return (
     <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -85,19 +114,41 @@ export default function JobEscrowManager({ booking, onClose, isClient = true }: 
                         <ShieldCheck size={20} className="text-blue-400" />
                         Milestone Schedule
                     </h3>
-                    <MilestoneTimeline milestones={booking.milestones} />
+                    <MilestoneTimeline milestones={booking.milestones || []} />
+                </div>
+
+                {/* Communication Actions */}
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => onMessage?.(otherUserId)}
+                    className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
+                  >
+                    <MessageSquare size={16} /> Message {isClient ? "Hustler" : "Client"}
+                  </button>
+                  <button 
+                    onClick={() => onCall?.(otherUserId)}
+                    className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
+                  >
+                    <Phone size={16} /> Call {isClient ? "Hustler" : "Client"}
+                  </button>
                 </div>
 
                 <div className="pt-4 space-y-3">
                    {isClient ? (
                       <>
                         <button 
+                             disabled={!nextMilestone || nextMilestone.status !== MilestoneStatus.AWAITING_APPROVAL || isLoading}
                              onClick={() => setShowReleaseModal(true)}
-                             className="w-full h-16 bg-blue-500 hover:bg-blue-600 transition-colors text-white rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2"
+                             className={`w-full h-16 transition-all text-white rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 ${
+                                !nextMilestone || nextMilestone.status !== MilestoneStatus.AWAITING_APPROVAL 
+                                ? "bg-white/5 text-white/20 border border-white/10" 
+                                : "bg-blue-500 hover:bg-blue-600 shadow-xl shadow-blue-500/20"
+                             }`}
                         >
                              <Check size={18} /> Approve & Release Next
                         </button>
                         <button 
+                             disabled={isLoading}
                              onClick={() => setIsDisputed(true)}
                              className="w-full h-16 bg-white/5 hover:bg-white/10 transition-colors text-white rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 text-white/60"
                         >
@@ -107,10 +158,10 @@ export default function JobEscrowManager({ booking, onClose, isClient = true }: 
                    ) : (
                       <>
                          <button 
-                            disabled={isReleaseRequested}
-                            onClick={() => setIsReleaseRequested(true)}
+                            disabled={isReleaseRequested || !activeMilestone || isLoading}
+                            onClick={handleRequestRelease}
                             className={`w-full h-16 rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 transition-all ${
-                                isReleaseRequested 
+                                isReleaseRequested || !activeMilestone
                                 ? "bg-white/5 text-white/40 border border-white/10" 
                                 : "bg-white text-black hover:bg-white/90"
                             }`}
@@ -131,15 +182,12 @@ export default function JobEscrowManager({ booking, onClose, isClient = true }: 
                                 initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
                                 className="text-center text-[9px] text-blue-400 font-bold uppercase tracking-widest"
                              >
-                                Client notified. Funds usually released within 2-4 hours.
+                                Buyer notified. Funds usually released within 2-4 hours.
                              </motion.p>
                          )}
 
                          <button className="w-full h-16 bg-white/5 border border-white/5 hover:bg-white/10 transition-colors text-white rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 text-white/60">
                              Submit Work for Review
-                         </button>
-                         <button className="w-full h-12 text-white/20 text-[10px] font-bold uppercase tracking-widest hover:text-white/40 transition-colors">
-                             Open Project Chat
                          </button>
                       </>
                    )}
@@ -151,9 +199,7 @@ export default function JobEscrowManager({ booking, onClose, isClient = true }: 
         <PaymentConfirmationModal 
           isOpen={showReleaseModal}
           onClose={() => setShowReleaseModal(false)}
-          onConfirm={() => {
-            setShowReleaseModal(false);
-          }}
+          onConfirm={handleReleaseConfirm}
           title={`Release Milestone?`}
           amount={nextMilestone?.amount}
           recipient="The Hustler"

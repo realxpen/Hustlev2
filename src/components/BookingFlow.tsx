@@ -1,27 +1,71 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, ChevronRight, Calendar, Clock, CreditCard, CheckCircle2, ShieldCheck, ChevronLeft, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { supabase } from "../lib/supabase";
 
 interface BookingFlowProps {
   hustler: any;
+  initialListing?: any;
   onClose: () => void;
 }
 
 type BookingStep = "service" | "schedule" | "review" | "payment" | "success";
 
-const MOCK_SERVICES = [
-  { id: 1, name: "UI/UX Specialist Review", price: 99, time: "1 hour", description: "Deep dive into your product's usability and visual intent." },
-  { id: 2, name: "Full Product Design", price: 499, time: "5-7 days", description: "End-to-end design from wireframes to high-fidelity prototypes." },
-  { id: 3, name: "Brand Strategy Session", price: 150, time: "2 hours", description: "Defining your brand emotional arc and market positioning." }
-];
-
-export default function BookingFlow({ hustler, onClose }: BookingFlowProps) {
-  const [step, setStep] = useState<BookingStep>("service");
-  const [selectedService, setSelectedService] = useState<any>(null);
+export default function BookingFlow({ hustler, initialListing, onClose }: BookingFlowProps) {
+  const [step, setStep] = useState<BookingStep>(initialListing ? "schedule" : "service");
+  const [selectedService, setSelectedService] = useState<any>(initialListing || null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [realServices, setRealServices] = useState<any[]>([]);
+  const [isFetchingServices, setIsFetchingServices] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+
+  const { createBooking, isLoading: isBookingLoading } = useBookingStore();
+
+  useEffect(() => {
+    if (!initialListing && step === "service") {
+      fetchRealServices();
+    }
+  }, [step, initialListing]);
+
+  const fetchRealServices = async () => {
+    setIsFetchingServices(true);
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('owner_id', hustler.creator.id)
+        .eq('is_active', true);
+      
+      if (error) throw error;
+      setRealServices(data || []);
+    } catch (err: any) {
+      console.error("Error fetching services:", err);
+    } finally {
+      setIsFetchingServices(false);
+    }
+  };
 
   const nextStep = (next: BookingStep) => setStep(next);
+
+  const handleCreateBooking = async () => {
+    if (!selectedService) return;
+
+    setBookingError(null);
+    const result = await createBooking({
+      listingId: selectedService.id,
+      listingType: selectedService.listing_type || 'service', // default to service if not specified
+      quantity: 1,
+      notes: `Booked for ${selectedDate} at ${selectedTime}`
+    });
+
+    if (result) {
+      nextStep("success");
+    } else {
+      setBookingError("Failed to create booking. Please try again.");
+    }
+  };
 
   return (
     <motion.div
@@ -75,26 +119,39 @@ export default function BookingFlow({ hustler, onClose }: BookingFlowProps) {
                   <p className="text-white/40 text-sm font-light mt-1">Choose the workspace you want to enter.</p>
                 </div>
 
-                {MOCK_SERVICES.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setSelectedService(item);
-                      nextStep("schedule");
-                    }}
-                    className="w-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex justify-between items-center group hover:border-white/20 hover:bg-white/[0.05] transition-all text-left active:scale-[0.98]"
-                  >
-                    <div className="flex-1 pr-4">
-                      <h3 className="font-bold text-white mb-1">{item.name}</h3>
-                      <p className="text-xs text-white/40 font-light leading-relaxed line-clamp-1">{item.description}</p>
-                      <div className="flex gap-4 mt-3">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white/60">From ${item.price}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white/30">• {item.time}</span>
-                      </div>
+                {isFetchingServices ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-4">
+                    <div className="w-12 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <motion.div animate={{ x: ["-100%", "100%"] }} transition={{ repeat: Infinity, duration: 1 }} className="w-full h-full bg-blue-500" />
                     </div>
-                    <ChevronRight size={20} className="text-white/20 group-hover:text-white transition-colors" />
-                  </button>
-                ))}
+                    <p className="text-[10px] font-black uppercase tracking-widest text-white/20">Loading Services...</p>
+                  </div>
+                ) : realServices.length === 0 ? (
+                  <div className="py-20 text-center">
+                    <p className="text-white/40 text-sm">No services available for booking.</p>
+                  </div>
+                ) : (
+                  realServices.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedService(item);
+                        nextStep("schedule");
+                      }}
+                      className="w-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex justify-between items-center group hover:border-white/20 hover:bg-white/[0.05] transition-all text-left active:scale-[0.98]"
+                    >
+                      <div className="flex-1 pr-4">
+                        <h3 className="font-bold text-white mb-1">{item.title || item.name}</h3>
+                        <p className="text-xs text-white/40 font-light leading-relaxed line-clamp-1">{item.description}</p>
+                        <div className="flex gap-4 mt-3">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-white/60">From ${item.price || item.base_price}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-white/30">• {item.pricing_type || "Service"}</span>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} className="text-white/20 group-hover:text-white transition-colors" />
+                    </button>
+                  ))
+                )}
               </motion.div>
             )}
 
@@ -170,12 +227,12 @@ export default function BookingFlow({ hustler, onClose }: BookingFlowProps) {
                 <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
                    <div className="flex justify-between items-start">
                       <div>
-                         <h3 className="font-bold text-lg leading-none">{selectedService?.name}</h3>
+                         <h3 className="font-bold text-lg leading-none">{selectedService?.title || selectedService?.name}</h3>
                          <p className="text-xs text-white/40 mt-2 flex items-center gap-1">
                             <Calendar size={12} /> {selectedDate} • <Clock size={12} /> {selectedTime}
                          </p>
                       </div>
-                      <span className="text-xl font-display font-black">${selectedService?.price}</span>
+                      <span className="text-xl font-display font-black">${selectedService?.price || selectedService?.base_price}</span>
                    </div>
                    
                    <div className="h-[1px] bg-white/5 w-full" />
@@ -259,11 +316,17 @@ export default function BookingFlow({ hustler, onClose }: BookingFlowProps) {
                 </div>
 
                 <button 
-                  onClick={() => nextStep("success")}
-                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-2 active:scale-95 transition-transform"
+                  onClick={() => handleCreateBooking()}
+                  disabled={isBookingLoading}
+                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-2 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  Pay & Lock into Escrow
+                  {isBookingLoading ? (
+                    <div className="w-4 h-4 border-2 border-black/10 border-t-black rounded-full animate-spin" />
+                  ) : "Pay & Lock into Escrow"}
                 </button>
+                {bookingError && (
+                  <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center mt-2">{bookingError}</p>
+                )}
               </motion.div>
             )}
 

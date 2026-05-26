@@ -1,89 +1,128 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import { 
   X, Bell, BellOff, CheckCircle2, MessageSquare, 
   DollarSign, ShoppingBag, Radio, Shield, Star,
   Clock, ChevronRight, MoreVertical, Filter,
-  TrendingUp, Zap, Info, Briefcase
+  TrendingUp, Zap, Info, Briefcase, Heart, UserPlus, Repeat, ShieldCheck, Phone
 } from "lucide-react";
+import { useNotificationStore, NotificationType, NotificationGroup } from '../features/feed/stores/useNotificationStore';
+import { FollowButton } from "./social/FollowButton";
+import { useAuthStore } from '../features/auth/stores/useAuthStore';
 
 interface NotificationCenterProps {
   onClose: () => void;
+  onOpenEscrow: (bookingId: string) => void;
+  onOpenChat: (userId: string) => void;
 }
 
-type NotificationType = 'social' | 'marketplace' | 'wallet' | 'livestream' | 'system';
-
-interface NotificationItem {
-  id: string;
-  type: NotificationType;
-  title: string;
-  description: string;
-  time: string;
-  isUnread: boolean;
-  actionLabel?: string;
-  bundleCount?: number;
-}
-
-export default function NotificationCenter({ onClose }: NotificationCenterProps) {
+export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }: NotificationCenterProps) {
   const [activeFilter, setActiveFilter] = useState<'all' | NotificationType>('all');
+  const { groupedNotifications, markGroupRead, markAllRead, fetchNotifications } = useNotificationStore();
+  const { user } = useAuthStore();
 
-  const notifications: NotificationItem[] = [
-    {
-      id: '1',
-      type: 'marketplace',
-      title: 'New Booking Request',
-      description: 'Felix wants to book you for "UI Design" session.',
-      time: '2m ago',
-      isUnread: true,
-      actionLabel: 'Review Request'
-    },
-    {
-      id: '2',
-      type: 'wallet',
-      title: 'Escrow Released',
-      description: '₦450,000 has been released to your available balance.',
-      time: '1h ago',
-      isUnread: true,
-      actionLabel: 'View Balance'
-    },
-    {
-      id: '3',
-      type: 'social',
-      title: 'Post Performance',
-      description: 'Your latest reel got 15 likes + 4 others.',
-      time: '3h ago',
-      isUnread: false,
-      bundleCount: 19
-    },
-    {
-      id: '4',
-      type: 'livestream',
-      title: 'Live Discovery',
-      description: 'Sarah is live now: "Marketing Masterclass"',
-      time: '5h ago',
-      isUnread: false,
-      actionLabel: 'Join Live'
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: 'Security Sync',
-      description: 'Your identity verification is successfully completed.',
-      time: 'Yesterday',
-      isUnread: false
+  const handleNotificationClick = (group: NotificationGroup) => {
+    markGroupRead(group.items.map(item => item.id));
+
+    // If it's a booking-related notification, open the escrow manager
+    const bookingTypes: NotificationType[] = [
+      'booking', 'booking_new', 'booking_accepted', 'escrow', 
+      'milestone', 'milestone_delivered', 'milestone_released'
+    ];
+
+    if (bookingTypes.includes(group.type) && group.entity_id) {
+       onOpenEscrow(group.entity_id);
+    } else if (group.type === 'internal_share' && group.actors[0]?.id) {
+       onOpenChat(group.actors[0].id);
     }
-  ];
+  };
 
-  const filtered = notifications.filter(n => activeFilter === 'all' || n.type === activeFilter);
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const filtered = groupedNotifications.filter(n => activeFilter === 'all' || n.type === activeFilter);
 
   const getIcon = (type: NotificationType) => {
     switch (type) {
-      case 'social': return <MessageSquare size={16} className="text-blue-400" />;
-      case 'marketplace': return <ShoppingBag size={16} className="text-emerald-400" />;
+      case 'like': return <Heart size={16} className="text-pink-500" />;
+      case 'comment': return <MessageSquare size={16} className="text-blue-400" />;
+      case 'reply': return <MessageSquare size={16} className="text-blue-400" />;
+      case 'repost': return <Repeat size={16} className="text-green-500" />;
+      case 'follow': return <UserPlus size={16} className="text-purple-500" />;
+      case 'story_reaction': return <Star size={16} className="text-yellow-400" />;
+      case 'story_reply': return <MessageSquare size={16} className="text-yellow-400" />;
+      case 'internal_share': return <Radio size={16} className="text-brand-primary" />;
+      case 'booking': return <Briefcase size={16} className="text-orange-400" />;
       case 'wallet': return <DollarSign size={16} className="text-yellow-500" />;
-      case 'livestream': return <Radio size={16} className="text-red-500" />;
-      case 'system': return <Shield size={16} className="text-brand-primary" />;
+      case 'escrow': return <Shield size={16} className="text-emerald-500" />;
+      case 'work': return <Zap size={16} className="text-blue-500" />;
+      case 'milestone': return <TrendingUp size={16} className="text-purple-500" />;
+      case 'milestone_delivered': return <CheckCircle2 size={16} className="text-emerald-500" />;
+      case 'milestone_released': return <Zap size={16} className="text-yellow-400" />;
+      case 'booking_new': return <Briefcase size={16} className="text-brand-primary animate-pulse" />;
+      case 'booking_accepted': return <ShieldCheck size={16} className="text-blue-400" />;
+      case 'system': return <Shield size={16} className="text-slate-400" />;
+      default: return <Bell size={16} className="text-white/60" />;
     }
+  };
+
+  const getTitle = (type: NotificationType, count: number) => {
+      switch (type) {
+        case 'like': return count > 1 ? `${count} New Likes` : 'New Like';
+        case 'comment': return count > 1 ? `${count} New Comments` : 'New Comment';
+        case 'reply': return count > 1 ? `${count} New Replies` : 'New Reply';
+        case 'repost': return count > 1 ? `${count} New Reposts` : 'New Repost';
+        case 'follow': return count > 1 ? `${count} New Followers` : 'New Follower';
+        case 'story_reaction': return count > 1 ? `${count} Story Reactions` : 'Story Reaction';
+        case 'story_reply': return count > 1 ? `${count} Story Replies` : 'Story Reply';
+        case 'internal_share': return 'Shared Post';
+        case 'booking': return 'Booking Alert';
+        case 'wallet': return 'Wallet Update';
+        case 'escrow': return 'Escrow Update';
+        case 'work': return 'Work Update';
+        case 'milestone': return 'Milestone Alert';
+        case 'milestone_delivered': return 'Work Delivered';
+        case 'milestone_released': return 'Payment Released';
+        case 'booking_new': return 'New Booking Request';
+        case 'booking_accepted': return 'Booking Accepted';
+        case 'system': return 'System Alert';
+        default: return 'Notification';
+      }
+  };
+
+  const formatDistanceToNow = (dateString: string) => {
+      const diffInSeconds = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 1000);
+      if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
+      const diffInMinutes = Math.floor(diffInSeconds / 60);
+      if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      if (diffInHours < 24) return `${diffInHours}h ago`;
+      const diffInDays = Math.floor(diffInHours / 24);
+      return `${diffInDays}d ago`;
+  };
+
+  const getDescription = (group: any) => {
+      const firstActor = group.actors[0]?.full_name || 'Someone';
+      const others = group.count - 1;
+      
+      switch(group.type) {
+          case 'like': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} liked your post.`;
+          case 'comment': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} commented on your post.`;
+          case 'reply': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} replied to you.`;
+          case 'repost': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} reposted your content.`;
+          case 'follow': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} started following you.`;
+          case 'story_reaction': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} reacted to your story.`;
+          case 'story_reply': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} replied to your story.`;
+          case 'internal_share': return `${firstActor} shared a post with you.`;
+          case 'booking': return group.items[0]?.message || 'You have a new booking request.';
+          case 'wallet': return group.items[0]?.message || 'Wallet transaction update.';
+          case 'escrow': return group.items[0]?.message || 'Escrow status changed.';
+          case 'work': return group.items[0]?.message || 'Work update.';
+          case 'milestone': return group.items[0]?.message || 'Milestone achieved.';
+          case 'system': return group.items[0]?.message || 'System notification.';
+          default: return group.items[0]?.message || 'You have a new notification.';
+      }
   };
 
   return (
@@ -113,10 +152,17 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
            {[
              { id: 'all', label: 'All' },
-             { id: 'social', label: 'Social' },
-             { id: 'marketplace', label: 'Orders' },
+             { id: 'like', label: 'Likes' },
+             { id: 'comment', label: 'Comments' },
+             { id: 'follow', label: 'Follows' },
+             { id: 'repost', label: 'Reposts' },
+             { id: 'internal_share', label: 'Shares' },
+             { id: 'booking', label: 'Bookings' },
              { id: 'wallet', label: 'Finance' },
-             { id: 'livestream', label: 'Live' }
+             { id: 'escrow', label: 'Escrow' },
+             { id: 'work', label: 'Work' },
+             { id: 'milestone', label: 'Milestones' },
+             { id: 'system', label: 'System' }
            ].map(filter => (
              <button 
                key={filter.id}
@@ -126,6 +172,20 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
                {filter.label}
              </button>
            ))}
+        </div>
+        <div className="text-[9px] text-white/40 mt-2 italic px-1">
+           {activeFilter === 'all' && 'Viewing all of your recent activity.'}
+           {activeFilter === 'like' && 'Viewing likes and reactions on your posts.'}
+           {activeFilter === 'comment' && 'Viewing comments and replies on your posts.'}
+           {activeFilter === 'follow' && 'Viewing users who started following you.'}
+           {activeFilter === 'repost' && 'Viewing reposts of your content.'}
+           {activeFilter === 'internal_share' && 'Viewing content shared with you.'}
+           {activeFilter === 'booking' && 'Viewing booking requests and updates.'}
+           {activeFilter === 'wallet' && 'Viewing wallet transactions and balance updates.'}
+           {activeFilter === 'escrow' && 'Viewing escrow release and status updates.'}
+           {activeFilter === 'work' && 'Viewing hustle work related updates.'}
+           {activeFilter === 'milestone' && 'Viewing project milestone completion alerts.'}
+           {activeFilter === 'system' && 'Viewing important system and security alerts.'}
         </div>
       </header>
 
@@ -138,41 +198,66 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
                  initial={{ opacity: 0, y: 10 }}
                  animate={{ opacity: 1, y: 0 }}
                  transition={{ delay: i * 0.05 }}
-                 className={`p-5 rounded-[2rem] border transition-all ${n.isUnread ? 'bg-white/5 border-white/10 shadow-xl' : 'bg-transparent border-transparent opacity-60'}`}
+                 onClick={() => handleNotificationClick(n)}
+                 className={`p-5 rounded-[2rem] border transition-all cursor-pointer ${!n.is_read ? 'bg-white/5 border-white/10 shadow-xl' : 'bg-transparent border-transparent opacity-60'}`}
                >
                   <div className="flex gap-4">
-                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${n.isUnread ? 'bg-white/5 border border-white/10' : 'bg-transparent border border-white/5'}`}>
+                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${!n.is_read ? 'bg-white/5 border border-white/10' : 'bg-transparent border border-white/5'}`}>
                         {getIcon(n.type)}
                      </div>
                      <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1">
-                           <h3 className="text-[11px] font-black uppercase tracking-tight italic">{n.title}</h3>
-                           <span className="text-[8px] font-bold text-white/20 uppercase whitespace-nowrap">{n.time}</span>
+                           <h3 className="text-[11px] font-black uppercase tracking-tight italic">{getTitle(n.type, n.count)}</h3>
+                           <span className="text-[8px] font-bold text-white/20 uppercase whitespace-nowrap">{formatDistanceToNow(n.created_at)}</span>
                         </div>
-                        <p className="text-[12px] font-medium text-white/60 leading-tight">
-                           {n.description}
-                        </p>
-                        
-                        {n.actionLabel && (
-                          <button className="mt-4 px-4 py-2 bg-brand-primary/10 border border-brand-primary/20 rounded-xl text-[8px] font-black uppercase tracking-widest text-brand-primary hover:bg-brand-primary hover:text-white transition-all active-scale">
-                             {n.actionLabel}
-                          </button>
-                        )}
+                                <p className="text-[12px] font-medium text-white/60 leading-tight">
+                                   {getDescription(n)}
+                                </p>
 
-                        {n.bundleCount && (
+                                {n.type === 'follow' && user && (
+                                   <div className="mt-3">
+                                     <FollowButton 
+                                       targetUserId={n.actors[0].id} 
+                                       size="sm"
+                                     />
+                                   </div>
+                                )}
+
+                                 {(n.type === 'booking_new' || n.type === 'milestone_delivered') && (
+                                    <div className="mt-3 flex gap-2">
+                                       <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand-primary/20 hover:brightness-110 active:scale-95 transition-all">
+                                          {n.type === 'booking_new' ? 'Accept Booking' : 'Release Funds'}
+                                       </button>
+                                       <button className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 transition-all">
+                                          {n.type === 'booking_new' ? 'Decline' : 'Review Work'}
+                                       </button>
+                                    </div>
+                                 )}
+
+                                 {n.type === 'booking_accepted' && (
+                                    <div className="mt-3">
+                                       <button className="w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 hover:bg-blue-500/20 transition-all">
+                                          <MessageSquare size={12} /> Message Client
+                                       </button>
+                                    </div>
+                                 )}
+
+                                 {n.actors.length > 0 && n.type !== 'system' && (
                           <div className="mt-3 flex items-center gap-2">
                              <div className="flex -space-x-2">
-                                {[1, 2, 3].map(i => (
-                                  <div key={i} className="w-5 h-5 rounded-full border border-black bg-white/5 overflow-hidden">
-                                     <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=P${i}`} alt="user" />
+                                {n.actors.slice(0, 3).map((a, idx) => (
+                                  <div key={idx} className="w-5 h-5 rounded-full border border-black bg-white/5 overflow-hidden">
+                                     <img src={a.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${a.username}`} alt="user" />
                                   </div>
                                 ))}
                              </div>
-                             <span className="text-[8px] font-black uppercase tracking-widest text-white/20">+{n.bundleCount - 3} others</span>
+                             {n.actors.length > 3 && (
+                               <span className="text-[8px] font-black uppercase tracking-widest text-white/20">+{n.actors.length - 3} others</span>
+                             )}
                           </div>
                         )}
                      </div>
-                     {n.isUnread && (
+                     {!n.is_read && (
                        <div className="w-2 h-2 rounded-full bg-brand-primary mt-1" />
                      )}
                   </div>
@@ -188,7 +273,7 @@ export default function NotificationCenter({ onClose }: NotificationCenterProps)
       </main>
 
       <footer className="px-6 py-8 border-t border-white/5 bg-black/40 backdrop-blur-3xl safe-bottom">
-         <button className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-colors group">
+         <button onClick={() => markAllRead()} className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-colors group">
             <CheckCircle2 size={16} className="text-emerald-500" />
             <span className="text-[9px] font-black uppercase tracking-widest group-hover:tracking-[0.2em] transition-all">Mark all as processed</span>
          </button>

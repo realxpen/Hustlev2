@@ -1,0 +1,12 @@
+-- Ensure posts table is in the realtime publication
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' 
+        AND schemaname = 'public' 
+        AND tablename = 'posts'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
+    END IF;
+END $$;

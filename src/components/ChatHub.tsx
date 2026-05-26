@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Search, Plus, MoreVertical, Star, Clock, Filter, 
   MessageSquare, Circle, CheckCheck, Phone, Video, 
   Paperclip, Send, Shield, Info, ChevronRight, X,
   Briefcase, DollarSign, Image as ImageIcon, FileText,
-  Mic, Hash, Settings, BellOff
+  Mic, Hash, Settings, BellOff, Loader2
 } from "lucide-react";
+import { useChat } from '../features/chat/hooks/useChat';
+import { formatDistanceToNow } from 'date-fns';
+import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../features/auth/stores/useAuthStore';
+import { useChatStore } from '../features/chat/stores/useChatStore';
 
 interface ChatHubProps {
   onClose: () => void;
@@ -15,70 +20,80 @@ interface ChatHubProps {
 
 type ChatCategory = 'all' | 'projects' | 'training' | 'support';
 
-interface ChatPreview {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  online: boolean;
-  type: ChatCategory;
-  projectStatus?: string;
-  hasEscrow?: boolean;
-}
-
 export default function ChatHub({ onClose, onOpenConversation }: ChatHubProps) {
+  const { user } = useAuthStore();
   const [activeCategory, setActiveCategory] = useState<ChatCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
-  const chats: ChatPreview[] = [
-    { 
-      id: '1', 
-      name: 'Felix (UI Design)', 
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix', 
-      lastMessage: 'Ready to release the first milestone. Let me know...', 
-      time: '2m', 
-      unread: 2, 
-      online: true, 
-      type: 'projects',
-      projectStatus: 'In Progress',
-      hasEscrow: true
-    },
-    { 
-      id: '2', 
-      name: 'Sarah (Marketing)', 
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah', 
-      lastMessage: 'The report for last week is ready for your review.', 
-      time: '1h', 
-      unread: 0, 
-      online: false, 
-      type: 'projects',
-      projectStatus: 'Pending Review'
-    },
-    { 
-      id: '3', 
-      name: 'Training Cohort #4', 
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Cohort', 
-      lastMessage: 'David: Check out the new module on Hustle Analytics.', 
-      time: '3h', 
-      unread: 15, 
-      online: true, 
-      type: 'training'
-    },
-    { 
-      id: '4', 
-      name: 'Hustle Support', 
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Support', 
-      lastMessage: 'Your withdrawal to Zenith Bank was successful.', 
-      time: 'Yesterday', 
-      unread: 0, 
-      online: true, 
-      type: 'support'
-    }
-  ];
+  // Fetch profiles when New Chat modal is opened
+  useEffect(() => {
+    if (!isNewChatOpen || !user) return;
+    
+    const fetchProfiles = async () => {
+      setIsSearchingUsers(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .neq('id', user.id)
+          .limit(30);
 
-  const filteredChats = chats.filter(chat => {
+        if (!error && data) {
+          setAllProfiles(data);
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    };
+    
+    fetchProfiles();
+  }, [isNewChatOpen, user]);
+
+  const filteredProfiles = useMemo(() => {
+    if (!userSearchQuery.trim()) return allProfiles;
+    const cleanQuery = userSearchQuery.toLowerCase().trim();
+    return allProfiles.filter(p => 
+      (p.full_name || '').toLowerCase().includes(cleanQuery) || 
+      (p.username || '').toLowerCase().includes(cleanQuery)
+    );
+  }, [allProfiles, userSearchQuery]);
+
+  const onlineUsers = useChatStore(state => state.onlineUsers);
+  const { conversations, isLoading } = useChat();
+
+  const mappedChats = useMemo(() => {
+    const uniqueMap = new Map();
+    conversations.forEach(c => {
+      if (!uniqueMap.has(c.id)) {
+        uniqueMap.set(c.id, c);
+      }
+    });
+    return Array.from(uniqueMap.values()).map(c => {
+      const other = c.otherParticipant;
+      return {
+        id: c.id,
+        name: other?.full_name || other?.username || 'Unknown Hustler',
+        avatar: other?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${other?.username || c.id}`,
+        lastMessage: c.last_message || 'No messages yet',
+        time: c.last_message_at ? formatDistanceToNow(new Date(c.last_message_at), { addSuffix: false }).replace('about ', '') : '',
+        unread: c.unreadCount || 0,
+        online: other?.id ? Boolean(onlineUsers[other.id]) : false,
+        type: 'projects' as ChatCategory,
+        projectStatus: 'Active',
+        hasEscrow: true,
+        otherParticipant: other
+      };
+    });
+  }, [conversations, onlineUsers]);
+
+  const filteredChats = mappedChats.filter(chat => {
     const matchesCategory = activeCategory === 'all' || chat.type === activeCategory;
     const matchesSearch = chat.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          chat.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
@@ -213,7 +228,10 @@ export default function ChatHub({ onClose, onOpenConversation }: ChatHubProps) {
       </main>
 
       {/* Floating Action Button */}
-      <button className="absolute bottom-10 right-6 w-16 h-16 rounded-[2rem] bg-brand-primary text-white flex items-center justify-center shadow-2xl shadow-brand-primary/40 active-scale group z-50">
+      <button 
+        onClick={() => setIsNewChatOpen(true)}
+        className="absolute bottom-10 right-6 w-16 h-16 rounded-[2rem] bg-brand-primary text-white flex items-center justify-center shadow-2xl shadow-brand-primary/40 active-scale group z-50 animate-bounce"
+      >
          <Plus size={32} className="group-hover:rotate-90 transition-transform duration-500" />
       </button>
 
@@ -237,6 +255,122 @@ export default function ChatHub({ onClose, onOpenConversation }: ChatHubProps) {
             </button>
          </div>
       </footer>
+
+      {/* New Chat Modal Overlay */}
+      <AnimatePresence>
+         {isNewChatOpen && (
+            <>
+               <motion.div 
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 0.8 }}
+                 exit={{ opacity: 0 }}
+                 onClick={() => setIsNewChatOpen(false)}
+                 className="fixed inset-0 bg-black z-[120]"
+               />
+               <motion.div 
+                 initial={{ y: '100%' }}
+                 animate={{ y: 0 }}
+                 exit={{ y: '100%' }}
+                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                 className="fixed inset-x-0 bottom-0 z-[130] bg-[#0a0a0a] border-t border-white/10 rounded-t-[3rem] max-h-[85vh] flex flex-col overflow-hidden pb-safe"
+               >
+                  <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto my-4 shrink-0" />
+                  
+                  <div className="px-6 pb-4 flex justify-between items-center shrink-0">
+                     <div>
+                        <h2 className="text-xl font-black uppercase tracking-tight italic">New Message</h2>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Start Conversation</p>
+                     </div>
+                     <button 
+                       onClick={() => setIsNewChatOpen(false)}
+                       className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                     >
+                       <X size={18} />
+                     </button>
+                  </div>
+
+                  {/* Search Bar */}
+                  <div className="px-6 pb-4 shrink-0">
+                     <div className="relative group">
+                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-brand-primary transition-colors" size={18} />
+                       <input 
+                         type="text" 
+                         placeholder="Search user by name or @username..." 
+                         value={userSearchQuery}
+                         onChange={e => setUserSearchQuery(e.target.value)}
+                         className="w-full h-12 pl-12 pr-6 rounded-2xl bg-white/5 border border-white/5 group-focus-within:border-brand-primary/40 focus:outline-none text-xs font-medium transition-all"
+                       />
+                     </div>
+                  </div>
+
+                  {/* Users List */}
+                  <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-12">
+                     {isSearchingUsers ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-3 opacity-60">
+                           <Loader2 className="animate-spin text-brand-primary" size={24} />
+                           <span className="text-[9px] font-black uppercase tracking-[0.2em]">Searching creators...</span>
+                        </div>
+                     ) : filteredProfiles.length > 0 ? (
+                        <div className="space-y-1">
+                           {filteredProfiles.map((p) => (
+                              <button 
+                                key={p.id}
+                                onClick={async () => {
+                                   setIsSearchingUsers(true);
+                                   try {
+                                      if (!user) return;
+                                      const convId = await useChatStore.getState().getOrCreateConversation(user.id, p.id);
+                                      setIsNewChatOpen(false);
+                                      onClose();
+                                      onOpenConversation({
+                                         id: convId,
+                                         name: p.full_name || p.username || 'Unknown Hustler',
+                                         avatar: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username || p.id}`,
+                                         online: p.id ? Boolean(onlineUsers[p.id]) : false,
+                                         otherParticipant: p
+                                      });
+                                   } catch (err) {
+                                      console.error('Error starting conversation:', err);
+                                   } finally {
+                                      setIsSearchingUsers(false);
+                                   }
+                                }}
+                                className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-left transition-all active-scale"
+                              >
+                                 <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0">
+                                    <img 
+                                      src={p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username || p.id}`} 
+                                      alt={p.full_name || p.username}
+                                      className="w-full h-full object-cover"
+                                    />
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                    <h4 className="text-xs font-black uppercase tracking-tight italic truncate">
+                                       {p.full_name || 'Inactive Account'}
+                                    </h4>
+                                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-0.5 truncate">
+                                       @{p.username || 'user'}
+                                    </p>
+                                 </div>
+                                 <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-brand-primary">
+                                    <ChevronRight size={16} />
+                                 </div>
+                              </button>
+                           ))}
+                        </div>
+                     ) : (
+                        <div className="flex flex-col items-center justify-center py-16 opacity-30 gap-3">
+                           <MessageSquare size={48} />
+                           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-center">
+                              No accounts found matching search query
+                           </p>
+                        </div>
+                     )}
+                  </div>
+               </motion.div>
+            </>
+         )}
+      </AnimatePresence>
     </div>
   );
 }

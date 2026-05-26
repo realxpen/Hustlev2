@@ -17,8 +17,25 @@ import {
   MoreHorizontal,
   ChevronDown,
 } from "lucide-react";
-import { useState } from "react";
-import { MOCK_CHATS, Chat } from "../constants/mockData";
+import { useState, useMemo } from "react";
+import { useChat } from "../features/chat/hooks/useChat";
+
+export interface Chat {
+  id: number | string;
+  name: string;
+  avatar?: string;
+  isGroup?: boolean;
+  participants?: string[];
+  type: ChatType;
+  priority: ChatPriority;
+  lastMessage: string;
+  time: string;
+  unread: number;
+  active: boolean;
+  verified?: boolean;
+  pinned: boolean;
+  tags: string[];
+}
 
 interface ChatListProps {
   onChatSelect: (chat: any) => void;
@@ -49,6 +66,30 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
+  const { conversations } = useChat();
+  
+  const mappedChats = useMemo(() => {
+    return conversations.map(c => {
+      const otherPerson = c.otherParticipant?.[0]; // from profiles
+      return {
+        id: c.id,
+        name: otherPerson?.full_name || otherPerson?.username || 'Unknown User',
+        avatar: otherPerson?.avatar_url || (otherPerson?.full_name ? otherPerson.full_name[0] : 'U'),
+        isGroup: false,
+        participants: [],
+        type: "booking" as ChatType,
+        priority: "normal" as ChatPriority,
+        lastMessage: c.last_message || 'No messages yet',
+        time: c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        unread: c.unreadCount || 0,
+        active: false,
+        verified: false,
+        pinned: false,
+        tags: [],
+      };
+    });
+  }, [conversations]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -57,7 +98,7 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
   };
 
   const getFilteredChats = () => {
-    let filtered = [...MOCK_CHATS];
+    let filtered = [...mappedChats];
 
     // Filter by Category
     if (activeCategory === "Unread")

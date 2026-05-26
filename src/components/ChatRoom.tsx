@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import BookingContextCard from "./BookingContextCard";
 import TransactionMessage from "./TransactionMessage";
 import ChatAttachment from "./ChatAttachment";
-import { TransactionType, MilestoneStatus } from "../types";
+import { TransactionType } from "../types";
+import { MilestoneStatus } from "../features/bookings/types";
 
 interface ChatRoomProps {
   chat: any;
@@ -18,8 +19,37 @@ const QUICK_ACTIONS = [
   "Are you available?",
   "How much for this?",
   "Can you come today?",
-  "Send portfolio"
+  "Share my location"
 ];
+
+function LocationMessage({ msg }: { msg: any }) {
+  return (
+    <div className="flex flex-col gap-3 w-56">
+      <div className="aspect-video w-full rounded-xl bg-white/5 border border-white/10 overflow-hidden relative">
+        <img 
+          src={`https://images.unsplash.com/photo-1524661135-423995f22d0b?w=400&q=80`} 
+          className="w-full h-full object-cover opacity-50" 
+          alt="Map"
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/50">
+            <MapPin size={20} className="text-white" />
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Shared Location</span>
+          <span className="text-[9px] font-bold text-blue-400">Live</span>
+        </div>
+        <p className="text-[11px] font-bold text-white tracking-tight leading-tight">{msg.address || "Main Street, block 52, Lagos Studio"}</p>
+        <button className="w-full h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
+          <ArrowUpRight size={12} /> Get Directions
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function VoiceMessagePlayer({ msg }: { msg: any }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -398,6 +428,8 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow, on
             <div className="p-4 rounded-2xl bg-white text-black rounded-tr-none shadow-xl shadow-white/5">
               {msg.type === 'voice' ? (
                 <VoiceMessagePlayer msg={msg} />
+              ) : msg.type === 'location' ? (
+                <LocationMessage msg={msg} />
               ) : (
                 <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
               )}
@@ -489,13 +521,24 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow, on
             <button 
                key={action}
                onClick={() => {
-                 const newMessage = {
-                   id: Date.now(),
-                   text: action,
-                   sender: "me",
-                   time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                 };
-                 setMessages(prev => [...prev, newMessage]);
+                 if (action === "Share my location") {
+                   const newMessage = {
+                     id: Date.now(),
+                     type: 'location',
+                     address: "Lagos Studio A • Main Block, Victoria Island",
+                     sender: "me",
+                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                   };
+                   setMessages(prev => [...prev, newMessage]);
+                 } else {
+                   const newMessage = {
+                     id: Date.now(),
+                     text: action,
+                     sender: "me",
+                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                   };
+                   setMessages(prev => [...prev, newMessage]);
+                 }
                }}
                className="px-4 h-9 bg-white/5 border border-white/10 rounded-full whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-white/60 hover:bg-white/10 hover:text-white transition-colors"
             >

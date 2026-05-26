@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // caused by browser extensions like MetaMask intercepting fetch.
+      if (typeof window !== 'undefined') {
+        const originalFetch = window.fetch;
+        try {
+          Object.defineProperty(window, 'fetch', {
+            configurable: true,
+            enumerable: true,
+            get() { return originalFetch; },
+            set(v) { /* ignore polyfill overrides */ }
+          });
+        } catch (e) {
+          // Ignore if already non-configurable
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

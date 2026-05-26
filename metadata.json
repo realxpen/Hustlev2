@@ -2,5 +2,5 @@
   "name": "Hustle",
   "description": "Hustle: The Economy of You. A premium creator-first marketplace ecosystem where social discovery meets cinematic commerce. Built on a foundation of trust, high-street authenticity, and visual excellence.",
   "requestFramePermissions": ["microphone", "camera"],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Plus, Settings, TrendingUp, DollarSign, Eye, Users, 
   Video, Briefcase, ShoppingBag, Radio, Sparkles, 
   ChevronRight, Calendar, Clock, Edit3, Trash2, 
   ArrowUpRight, BarChart3, LayoutDashboard, Layers,
-  Play, MessageSquare, Heart, Share2, MoreVertical, X
+  Play, MessageSquare, Heart, Share2, MoreVertical, X,
+  CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Zap, ShieldCheck
 } from "lucide-react";
+import { useCreatorStore } from '../features/feed/stores/useCreatorStore';
+import { useAuth } from '../features/auth';
+import { useBookingStore } from '../features/bookings/stores/useBookingStore';
 
 interface CreatorStudioDashboardProps {
   onClose: () => void;
@@ -15,11 +19,42 @@ interface CreatorStudioDashboardProps {
 
 export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: CreatorStudioDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'monetization'>('overview');
+  const { fetchMyListings, myServices, myProducts, myTraining, myPosts, isLoading, toggleListingStatus, deleteListing, deletePost } = useCreatorStore();
+  const { fetchSellerOrders, sellerOrders, isLoading: isBookingsLoading } = useBookingStore();
+  const { profile } = useAuth();
+  const isHustler = !!profile?.is_hustler;
+
+  useEffect(() => {
+    if (isHustler) {
+      fetchMyListings();
+      fetchSellerOrders();
+    }
+  }, [fetchMyListings, fetchSellerOrders, isHustler]);
+
+  if (!isHustler) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-[#050505] text-white flex flex-col items-center justify-center p-8 text-center font-sans">
+        <div className="w-24 h-24 rounded-[2rem] bg-brand-primary/20 flex items-center justify-center text-brand-primary mb-8 animate-pulse">
+          <Zap size={48} className="fill-brand-primary" />
+        </div>
+        <h2 className="text-4xl font-display font-black tracking-tighter uppercase italic mb-4">Hustler Mode Required</h2>
+        <p className="text-white/40 font-medium leading-relaxed max-w-xs mb-10">
+          The Creator Studio is reserved for verified Hustlers. Apply now to start earning and managing your professional presence.
+        </p>
+        <button 
+          onClick={onClose}
+          className="w-full max-w-xs h-16 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] active:scale-95 shadow-xl transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+        >
+          Return to Profile
+        </button>
+      </div>
+    );
+  }
 
   const earnings = {
-    total: 12450.00,
-    pending: 840.50,
-    growth: 15.4
+    total: sellerOrders.reduce((sum, b) => sum + (b.total_price || 0), 0),
+    pending: sellerOrders.filter(b => b.status === 'pending').reduce((sum, b) => sum + (b.total_price || 0), 0),
+    growth: 12
   };
 
   const drafts = [
@@ -27,10 +62,11 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
     { id: 2, type: 'service', title: '1-on-1 Strategy Session', date: 'Yesterday', preview: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=200' },
   ];
 
-  const activeListings = [
-    { id: 101, type: 'service', name: 'UI/UX Mobile Design', price: '$80/hr', sales: 12, status: 'active' },
-    { id: 102, type: 'product', name: 'Hustle Icon Pack v2', price: '$25', sales: 45, status: 'popular' },
-  ];
+  const allListings = [
+    ...myServices.map(s => ({ ...s, type: 'service' })),
+    ...myProducts.map(p => ({ ...p, type: 'product' })),
+    ...myTraining.map(t => ({ ...t, type: 'training' }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#050505] text-white flex flex-col font-sans overflow-hidden">
@@ -125,9 +161,6 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
 
               {/* Quick Actions (Launchpad) */}
               <section>
-                <div className="flex justify-between items-center mb-4 px-2">
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 italic">Launch Center</h3>
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => onLaunchCreator('post')}
@@ -144,20 +177,69 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
                     <Radio size={24} className="text-red-500 group-hover:scale-110 transition-transform animate-pulse" />
                     <span className="text-[10px] font-black uppercase tracking-widest">Go Live</span>
                   </button>
-                  <button 
-                    onClick={() => onLaunchCreator('service')}
-                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"
-                  >
-                    <Briefcase size={24} className="text-blue-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">New Service</span>
-                  </button>
-                  <button 
-                    onClick={() => onLaunchCreator('product')}
-                    className="flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"
-                  >
-                    <ShoppingBag size={24} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">New Item</span>
-                  </button>
+                </div>
+              </section>
+
+              {/* Active Orders / New Bookings */}
+              <section>
+                <div className="flex justify-between items-center mb-4 px-2">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 italic">Active Hustles</h3>
+                  <div className="px-2 py-1 bg-blue-500/10 rounded-full">
+                    <span className="text-[8px] font-black uppercase text-blue-400">{sellerOrders.length} Orders</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-3">
+                  {sellerOrders.length === 0 && (
+                    <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8 text-center">
+                       <p className="text-[10px] text-white/20 font-black uppercase tracking-widest">No active bookings yet</p>
+                    </div>
+                  )}
+                  {sellerOrders.slice(0, 3).map((booking) => (
+                    <div key={booking.id} className="bg-white/5 border border-white/10 p-4 rounded-[2rem] flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden shrink-0">
+                            <img src={booking.buyer?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.buyer_id}`} alt="Buyer" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black uppercase tracking-tight">{booking.buyer?.hustle_name || booking.buyer?.full_name || 'Client'}</h4>
+                            <p className="text-[9px] font-bold text-white/40 italic truncate max-w-[120px]">{booking.listing_type} • ₦{booking.total_price.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
+                          booking.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 
+                          booking.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-500'
+                        }`}>
+                          {booking.status}
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                         <button className="flex-1 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
+                            <MessageSquare size={14} /> Message
+                         </button>
+                         {booking.status === 'pending' && (
+                           <button 
+                            onClick={() => useBookingStore.getState().updateBookingStatus(booking.id, 'accepted')}
+                            className="flex-1 h-10 bg-brand-primary text-white rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-brand-primary/20"
+                           >
+                              <CheckCircle2 size={14} /> Accept
+                           </button>
+                         )}
+                         {booking.status !== 'pending' && (
+                           <button className="flex-1 h-10 bg-white text-black rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest">
+                              <Zap size={14} fill="black" /> Manage
+                           </button>
+                         )}
+                      </div>
+                    </div>
+                  ))}
+                  {sellerOrders.length > 3 && (
+                    <button className="text-center py-2 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-colors">
+                      View all orders
+                    </button>
+                  )}
                 </div>
               </section>
 
@@ -169,8 +251,8 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: 'Views', value: '42.5K', icon: <Eye size={14} />, color: 'text-blue-400' },
-                    { label: 'Follows', value: '1,240', icon: <Users size={14} />, color: 'text-purple-400' },
+                    { label: 'Content', value: myPosts.length.toString(), icon: <Eye size={14} />, color: 'text-blue-400' },
+                    { label: 'Listings', value: (myServices.length + myProducts.length + myTraining.length).toString(), icon: <Briefcase size={14} />, color: 'text-purple-400' },
                     { label: 'Clicks', value: '890', icon: <ArrowUpRight size={14} />, color: 'text-brand-primary' },
                   ].map((stat, i) => (
                     <div key={i} className="bg-white/5 border border-white/5 p-4 rounded-3xl flex flex-col items-center gap-2">
@@ -191,6 +273,61 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
               exit={{ opacity: 0, x: -10 }}
               className="flex flex-col gap-6"
             >
+              {/* Drafts Section */}
+              <section>
+                <div className="flex justify-between items-center mb-4 px-2">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 italic">Active Content</h3>
+                  <div className="px-2 py-1 bg-brand-primary/10 rounded-full">
+                    <span className="text-[8px] font-black uppercase text-brand-primary">{myPosts.length} Live</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {myPosts.length === 0 && (
+                    <p className="text-center py-6 text-[10px] text-white/20 uppercase tracking-widest">No published content found</p>
+                  )}
+                  {myPosts.map((post) => (
+                    <div key={post.id} className="bg-white/5 border border-white/5 p-3 rounded-2xl flex items-center gap-4 group hover:bg-white/10 transition-colors">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 relative shrink-0 shadow-lg">
+                        {post.thumbnail_url || post.media_url || post.media?.[0]?.url ? (
+                          <img src={post.thumbnail_url || post.media_url || post.media?.[0]?.url} alt="" className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <MessageSquare size={20} className="text-white/10" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                           {post.media_type === 'video' && <Play size={20} className="text-white opacity-40 shadow-xl" />}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-black uppercase truncate mb-1 tracking-tight">{post.caption || "No Caption"}</h4>
+                        <div className="flex items-center gap-3 text-[9px] font-bold text-white/30 uppercase">
+                          <div className="flex items-center gap-1">
+                            <Heart size={10} /> {post.likes_count || 0}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MessageSquare size={10} /> {post.comments_count || 0}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Share2 size={10} /> {post.reposts_count || 0}
+                          </div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          if (confirm('Delete this post permanently?')) {
+                            deletePost(post.id);
+                          }
+                        }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white/20 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
               {/* Drafts Section */}
               <section>
                 <div className="flex justify-between items-center mb-4 px-2">
@@ -264,29 +401,65 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
               <section>
                 <div className="flex justify-between items-center mb-6 px-2">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 italic">Active Listings</h3>
-                  <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">
+                  <button 
+                    onClick={() => onLaunchCreator('service')}
+                    className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors"
+                  >
                     <Plus size={18} />
                   </button>
                 </div>
                 <div className="flex flex-col gap-3">
-                  {activeListings.map((listing) => (
-                    <div key={listing.id} className="bg-white/5 border border-white/5 p-4 rounded-[2rem] flex items-center justify-between group hover:border-white/20 transition-all">
+                  {isLoading && <p className="text-center text-xs text-white/40">Syncing Marketplace...</p>}
+                  {!isLoading && allListings.length === 0 && (
+                    <div className="text-center py-10 opacity-30">
+                      <Briefcase size={40} className="mx-auto mb-4" />
+                      <p className="text-xs uppercase font-black tracking-widest leading-loose">
+                        No listings found.<br />
+                        Start your hustle ecosystem.
+                      </p>
+                    </div>
+                  )}
+                  {allListings.map((listing: any) => (
+                    <div key={`${listing.type}-${listing.id}`} className={`bg-white/5 border p-4 rounded-[2rem] flex items-center justify-between group transition-all ${listing.is_active ? 'border-white/5 hover:border-white/20' : 'border-red-500/20 opacity-60'}`}>
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${listing.type === 'service' ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                          {listing.type === 'service' ? <Briefcase size={20} /> : <ShoppingBag size={20} />}
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${listing.type === 'service' ? 'bg-blue-500/10 text-blue-400' : listing.type === 'product' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                          {listing.type === 'service' ? <Briefcase size={20} /> : listing.type === 'product' ? <ShoppingBag size={20} /> : <Play size={20} />}
                         </div>
                         <div>
-                          <h4 className="text-xs font-black uppercase tracking-tight mb-1">{listing.name}</h4>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-xs font-black uppercase tracking-tight truncate max-w-[150px]">{listing.title || listing.name}</h4>
+                            {!listing.is_active && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-500 text-[7px] font-black uppercase">Inactive</span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold text-white/60">{listing.price}</span>
+                            <span className="text-[10px] font-bold text-white/60">${listing.base_price || listing.price || 0}</span>
                             <div className="w-1 h-1 bg-white/10 rounded-full" />
-                            <span className="text-[10px] font-black uppercase text-brand-primary">{listing.sales} Sales</span>
+                            <span className="text-[10px] font-black uppercase text-brand-primary">
+                              {listing.type === 'training' ? ' Academy' : listing.type === 'product' ? ' Stall' : ' Skill'}
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <button className="w-10 h-10 rounded-full flex items-center justify-center text-white/20 hover:text-white transition-colors">
-                        <MoreVertical size={18} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => toggleListingStatus(listing.type, listing.id, listing.is_active)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${listing.is_active ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-white/20 hover:bg-white/10'}`}
+                          title={listing.is_active ? "Deactivate" : "Activate"}
+                        >
+                          {listing.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                        </button>
+                        <button 
+                           onClick={() => {
+                             if (confirm(`Delete this ${listing.type}?`)) {
+                               deleteListing(listing.type, listing.id);
+                             }
+                           }}
+                           className="w-10 h-10 rounded-full flex items-center justify-center text-white/20 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, ShieldCheck, ChevronRight, Lock, CheckCircle2, User } from "lucide-react";
-import { Booking, BookingStatus, EscrowStatus } from "../types";
+import { Booking, BookingStatus, EscrowStatus } from "../features/bookings/types";
 import { useState } from "react";
 import JobEscrowManager from "./JobEscrowManager";
 
@@ -9,40 +9,40 @@ interface JobEscrowListProps {
   isClient?: boolean;
 }
 
-const MOCK_ESCROWS: Booking[] = [
+const MOCK_ESCROWS: any[] = [
   {
     id: "BK-123",
-    clientId: "c1",
-    hustlerId: "h1",
-    serviceId: "s1",
-    status: BookingStatus.IN_PROGRESS,
-    price: 120000,
-    escrowStatus: EscrowStatus.FUNDED,
+    buyer_id: "c1",
+    seller_id: "h1",
+    listing_id: "s1",
+    status: 'in_progress',
+    unit_price: 120000,
+    total_price: 120000,
+    escrow_status: 'held',
     milestones: [
       { id: "m1", title: "Setup phase", amount: 40000, status: "released" as any, deadline: "2026-05-10" },
       { id: "m2", title: "Drafting", amount: 40000, status: "released" as any, deadline: "2026-05-11" },
       { id: "m3", title: "Final files", amount: 40000, status: "in_progress" as any, deadline: "2026-05-12" },
     ],
-    scheduledAt: "2026-05-10",
-    createdAt: "2026-05-01",
-    updatedAt: "2026-05-01",
+    created_at: "2026-05-01",
+    updated_at: "2026-05-01",
   },
   {
     id: "BK-124",
-    clientId: "c1",
-    hustlerId: "h2",
-    serviceId: "s2",
-    status: BookingStatus.IN_PROGRESS,
-    price: 350000,
-    escrowStatus: EscrowStatus.FUNDED,
+    buyer_id: "c1",
+    seller_id: "h2",
+    listing_id: "s2",
+    status: 'in_progress',
+    unit_price: 350000,
+    total_price: 350000,
+    escrow_status: 'held',
     milestones: [
       { id: "m1", title: "Brand Identity", amount: 150000, status: "in_progress" as any, deadline: "2026-05-14" },
       { id: "m2", title: "Web Design", amount: 100000, status: "pending" as any, deadline: "2026-05-20" },
       { id: "m3", title: "Development", amount: 100000, status: "pending" as any, deadline: "2026-05-30" },
     ],
-    scheduledAt: "2026-05-14",
-    createdAt: "2026-05-08",
-    updatedAt: "2026-05-08",
+    created_at: "2026-05-08",
+    updated_at: "2026-05-08",
   }
 ];
 
@@ -115,7 +115,7 @@ export default function JobEscrowList({ onClose, isClient: initialIsClient = tru
                                                 {isClient ? `Job #${booking.id}` : `Earnings #${booking.id}`}
                                             </h4>
                                             <span className="text-[10px] uppercase font-bold tracking-widest text-white/40">
-                                               {isClient ? "Funds Protected" : "Payment Pending"} • ₦{booking.price.toLocaleString()}
+                                               {isClient ? "Funds Protected" : "Payment Pending"} • ₦{(booking.total_price || 0).toLocaleString()}
                                             </span>
                                         </div>
                                     </div>

@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "Booking" ADD COLUMN     "amount" DOUBLE PRECISION NOT NULL DEFAULT 0;

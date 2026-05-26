@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, ChevronRight, ChevronLeft, Sparkles, Plus, Image as ImageIcon, Video, AlignLeft, Tag, Clock, Calendar, CheckCircle2, Zap, ArrowRight, DollarSign, UploadCloud, Rocket, BarChart2 } from "lucide-react";
 import { useState } from "react";
+import { useMarketplaceStore } from "../features/marketplace/stores/useMarketplaceStore";
+import { supabase } from "../lib/supabase";
 
 interface CreateOfferingFlowProps {
   onClose: () => void;
@@ -18,9 +20,152 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
   const [priceType, setPriceType] = useState<"Fixed"|"Starting"|"Custom"|"Hourly">("Fixed");
   const [price, setPrice] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<"Remote"|"On-site"|"Instant"|"Scheduled">("Remote");
+  const [capacity, setCapacity] = useState(3);
+  
+  const [coverImageUrl, setCoverImageUrl] = useState("https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=600&auto=format&fit=crop");
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [videoDemoUrl, setVideoDemoUrl] = useState("");
+  const [videoDemoFile, setVideoDemoFile] = useState<File | null>(null);
+  const [deliveryTime, setDeliveryTime] = useState("3 Days");
+  const [publishedListing, setPublishedListing] = useState<any>(null);
+
+  const [showCoverInput, setShowCoverInput] = useState(false);
+  const [showVideoInput, setShowVideoInput] = useState(false);
 
   const progressSteps = ["type", "title", "description", "pricing", "delivery", "media", "availability"];
   const currentStepIndex = progressSteps.indexOf(step as any);
+
+  const { createService, createProduct, createTraining } = useMarketplaceStore();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePublish = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    let result = null;
+    const priceNum = parseFloat(price) || 0;
+
+    if (title.length < 3) {
+      setErrorMessage("Title must be at least 3 characters.");
+      setIsSubmitting(false);
+      return;
+    }
+    if (priceType !== "Custom" && priceNum < 0) {
+      setErrorMessage("Price cannot be negative.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    let finalCoverUrl = coverImageUrl;
+    let finalVideoUrl = videoDemoUrl;
+
+    try {
+      if (coverImageFile) {
+        const fileExt = coverImageFile.name.split('.').pop();
+        const rand = Math.random().toString(36).substring(2);
+        const fileName = `${Date.now()}-${rand}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('posts')
+          .upload(fileName, coverImageFile, {
+            cacheControl: '3600',
+            upsert: true
+          });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('posts')
+          .getPublicUrl(fileName);
+        
+        finalCoverUrl = publicUrl;
+      }
+
+      if (videoDemoFile) {
+        const fileExt = videoDemoFile.name.split('.').pop();
+        const rand = Math.random().toString(36).substring(2);
+        const fileName = `${Date.now()}-${rand}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('posts')
+          .upload(fileName, videoDemoFile, {
+            cacheControl: '3600',
+            upsert: true
+          });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('posts')
+          .getPublicUrl(fileName);
+        
+        finalVideoUrl = publicUrl;
+      }
+    } catch (uploadErr: any) {
+      setErrorMessage("Error uploading file: " + (uploadErr.message || uploadErr));
+      setIsSubmitting(false);
+      return;
+    }
+
+    const finalMedia = [
+      { url: finalCoverUrl, type: "image" as const },
+      ...(finalVideoUrl ? [{ url: finalVideoUrl, type: "video" as const }] : [])
+    ];
+
+    try {
+      if (offeringType === "Service") {
+        result = await createService({
+          title,
+          description,
+          category: category || "Tech",
+          pricing_type: (priceType === "Starting" || priceType === "Custom" ? "negotiable" : priceType.toLowerCase()) as any,
+          base_price: priceNum,
+          delivery_time: deliveryTime,
+          media: finalMedia
+        });
+      } else if (offeringType === "Product") {
+        result = await createProduct({
+          title,
+          description,
+          category: category || "Tech",
+          product_type: deliveryMethod === "Instant" ? "digital" : "physical",
+          price: priceNum,
+          inventory_count: 100,
+          media: finalMedia
+        });
+      } else if (offeringType === "Training") {
+        result = await createTraining({
+          title,
+          description,
+          category: category || "Tech",
+          training_type: deliveryMethod === "Scheduled" ? "live" : "recorded",
+          price: priceNum,
+          media: finalMedia
+        });
+      }
+
+      if (result) {
+        const listingPayload = {
+          ...result,
+          type: offeringType,
+          title: result.title || title,
+          name: result.title || title,
+          price: priceNum,
+          desc: result.description || description,
+          description: result.description || description,
+          media: finalMedia,
+          image: finalCoverUrl, // direct field mapping for backwards compatibility
+          video: finalVideoUrl || null,
+          capacity
+        };
+        setPublishedListing(listingPayload);
+        setStep("published");
+      } else {
+        const currentError = useMarketplaceStore.getState().error;
+        setErrorMessage(currentError || "Failed to publish your offering. Please verify your info and try again.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -121,6 +266,9 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                      placeholder={`e.g. Premium Logo Design`}
                      className="w-full h-16 bg-white/5 border border-white/10 rounded-2xl px-6 text-white text-lg font-bold placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
                    />
+                   {title.length > 0 && title.length < 3 && (
+                     <p className="text-red-500 text-[10px] font-black uppercase tracking-widest mt-2 pl-2">Title must be at least 3 characters</p>
+                   )}
                  </div>
                  
                  <div>
@@ -139,10 +287,29 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                  </div>
               </div>
 
+              {errorMessage && (
+                <p className="text-red-500 text-xs font-black text-center mb-4 uppercase tracking-wider">{errorMessage}</p>
+              )}
+
               <button 
-                onClick={() => setStep("description")}
-                disabled={!title || !category}
-                className="w-full h-16 mt-auto bg-white text-black disabled:bg-white/20 disabled:text-white/40 rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform"
+                type="button"
+                onClick={() => {
+                  if (title.trim().length === 0) {
+                    setErrorMessage("Please enter a title.");
+                    return;
+                  }
+                  if (title.trim().length < 3) {
+                    setErrorMessage("Title must be at least 3 characters long.");
+                    return;
+                  }
+                  if (!category) {
+                    setErrorMessage("Please select a category.");
+                    return;
+                  }
+                  setErrorMessage(null);
+                  setStep("description");
+                }}
+                className="w-full h-16 mt-auto bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform hover:bg-white/90 focus:outline-none"
               >
                 Continue
               </button>
@@ -182,10 +349,21 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                  </div>
               </div>
 
+              {errorMessage && (
+                <p className="text-red-500 text-xs font-black text-center mb-4 uppercase tracking-wider">{errorMessage}</p>
+              )}
+
               <button 
-                onClick={() => setStep("pricing")}
-                disabled={!description}
-                className="w-full h-16 bg-white text-black disabled:bg-white/20 disabled:text-white/40 rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform"
+                type="button"
+                onClick={() => {
+                  if (description.trim().length === 0) {
+                    setErrorMessage("Please enter a description outlining your deliverables.");
+                    return;
+                  }
+                  setErrorMessage(null);
+                  setStep("pricing");
+                }}
+                className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform hover:bg-white/90"
               >
                 Continue
               </button>
@@ -232,6 +410,9 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                        placeholder="0.00"
                        className="w-full h-20 bg-white/5 border border-white/10 rounded-[2rem] pl-14 pr-6 text-white text-3xl font-black placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
                      />
+                     {price && parseFloat(price) < 0 && (
+                        <p className="absolute -bottom-5 left-4 text-red-500 text-[10px] font-black uppercase tracking-widest">Price cannot be negative</p>
+                     )}
                    </div>
                  )}
                  
@@ -240,10 +421,28 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                  )}
               </div>
 
+              {errorMessage && (
+                <p className="text-red-500 text-xs font-black text-center mb-4 uppercase tracking-wider">{errorMessage}</p>
+              )}
+
               <button 
-                onClick={() => setStep("delivery")}
-                disabled={priceType !== "Custom" && !price}
-                className="w-full h-16 mt-auto bg-white text-black disabled:bg-white/20 disabled:text-white/40 rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform"
+                type="button"
+                onClick={() => {
+                  if (priceType !== "Custom") {
+                    if (!price.trim()) {
+                      setErrorMessage("Please set a price.");
+                      return;
+                    }
+                    const num = parseFloat(price);
+                    if (isNaN(num) || num < 0) {
+                      setErrorMessage("Price cannot be negative.");
+                      return;
+                    }
+                  }
+                  setErrorMessage(null);
+                  setStep("delivery");
+                }}
+                className="w-full h-16 mt-auto bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform hover:bg-white/90"
               >
                 Continue
               </button>
@@ -297,30 +496,169 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="flex flex-col gap-8 max-w-sm mx-auto h-full"
+              className="flex flex-col gap-6 max-w-sm mx-auto h-full"
             >
               <div className="flex flex-col gap-2">
                  <button onClick={() => setStep("delivery")} className="w-fit flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-white/40 mb-2 hover:text-white">
                     <ChevronLeft size={14} /> Back
                  </button>
                  <h2 className="text-3xl font-display font-black tracking-tight mb-1">Add visuals.</h2>
-                 <p className="text-white/40 font-medium text-sm">Listings with high quality media sell 3x more.</p>
+                 <p className="text-white/40 font-medium text-sm">Add custom cover image mockups & premium video demos.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                 <div className="aspect-square rounded-[2rem] bg-indigo-500/10 border-2 border-dashed border-indigo-500/30 flex flex-col items-center justify-center gap-3 hover:bg-indigo-500/20 transition-all cursor-pointer group">
-                    <ImageIcon size={28} className="text-indigo-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Cover Image</span>
-                 </div>
-                 <div className="aspect-square rounded-[2rem] bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all cursor-pointer text-white/30 group">
-                    <Video size={28} className="opacity-50 group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Video Demo</span>
-                 </div>
-                 <div className="col-span-2 h-20 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-2 hover:bg-white/10 transition-all cursor-pointer text-white/30">
-                    <UploadCloud size={20} className="opacity-50" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Add Portfolio Gallery Images</span>
-                 </div>
+                 {/* Cover Mockup Card */}
+                 <button
+                    onClick={() => {
+                      setShowCoverInput(!showCoverInput);
+                      setShowVideoInput(false);
+                    }}
+                    type="button"
+                    className={`aspect-square rounded-[2rem] border-2 relative overflow-hidden flex flex-col items-center justify-center gap-2 group transition-all text-left ${showCoverInput ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/10 hover:border-white/20 bg-white/5'}`}
+                 >
+                    {coverImageUrl ? (
+                      <>
+                        <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform" alt="Cover Preview" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] group-hover:backdrop-blur-none transition-all" />
+                        <div className="relative z-10 flex flex-col items-center gap-1.5 p-3 text-center">
+                          <ImageIcon size={22} className="text-indigo-400" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Cover Active</span>
+                          <span className="text-[7px] text-white/50 lowercase truncate max-w-[120px]">{coverImageUrl}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <ImageIcon size={28} className="text-white/40 group-hover:text-white transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Add Cover Image</span>
+                      </div>
+                    )}
+                 </button>
+
+                 {/* Video Demo Card */}
+                 <button
+                    onClick={() => {
+                      setShowVideoInput(!showVideoInput);
+                      setShowCoverInput(false);
+                    }}
+                    type="button"
+                    className={`aspect-square rounded-[2rem] border-2 relative overflow-hidden flex flex-col items-center justify-center gap-2 group transition-all text-left ${showVideoInput ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 hover:border-white/20 bg-white/5'}`}
+                 >
+                    {videoDemoUrl ? (
+                      <div className="flex flex-col items-center gap-1.5 p-3 text-center relative z-10">
+                        <Video size={24} className="text-emerald-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-300">Video Demo Loaded</span>
+                        <span className="text-[7px] text-white/50 lowercase truncate max-w-[120px]">{videoDemoUrl}</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Video size={28} className="text-white/40 group-hover:text-white transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Video Demo URL</span>
+                      </div>
+                    )}
+                 </button>
               </div>
+
+              {/* Cover Image Input Panel */}
+              {showCoverInput && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 flex flex-col gap-4"
+                >
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-indigo-400">Cover Image Web Link OR UPLOAD FILE</label>
+                    <div className="flex gap-2">
+                       <input 
+                         type="text" 
+                         value={coverImageUrl}
+                         onChange={(e) => { setCoverImageUrl(e.target.value); setCoverImageFile(null); }}
+                         placeholder="Paste cover URL..."
+                         className="flex-1 h-11 bg-black/40 border border-white/10 rounded-xl px-4 text-xs font-mono text-white/80 focus:border-indigo-500 outline-none"
+                       />
+                       <label className="h-11 px-4 cursor-pointer bg-white/5 border border-white/10 hover:border-indigo-500 hover:bg-white/10 rounded-xl flex items-center justify-center text-indigo-300 text-[10px] font-black uppercase tracking-widest transition-all">
+                          Upload
+                           <input 
+                             type="file" 
+                             accept="image/*" 
+                             className="hidden" 
+                             onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file) {
+                                 const url = URL.createObjectURL(file);
+                                 setCoverImageUrl(url);
+                                 setCoverImageFile(file);
+                               }
+                             }} 
+                           />
+                       </label>
+                    </div>
+                  </div>
+
+                  {/* Hot Presets */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Select Premium Preset Style</span>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { name: "Tech", url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=600&auto=format&fit=crop" },
+                        { name: "Code", url: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=600&auto=format&fit=crop" },
+                        { name: "SaaS", url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop" },
+                        { name: "Brand", url: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=600&auto=format&fit=crop" }
+                      ].map((preset) => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => { setCoverImageUrl(preset.url); setCoverImageFile(null); }}
+                          className={`h-12 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all relative overflow-hidden flex items-center justify-center border ${coverImageUrl === preset.url ? 'border-indigo-400 text-white font-bold bg-indigo-500/10' : 'border-white/5 text-white/50 bg-white/5 hover:bg-white/10'}`}
+                        >
+                          <img src={preset.url} className="absolute inset-0 w-full h-full object-cover opacity-20" alt={preset.name} referrerPolicy="no-referrer" />
+                          <span className="relative z-10">{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Video Demo Input Panel */}
+              {showVideoInput && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 flex flex-col gap-4"
+                >
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Interactive Video demo URL OR UPLOAD FILE</label>
+                    <div className="flex gap-2">
+                       <input 
+                         type="text" 
+                         value={videoDemoUrl}
+                         onChange={(e) => { setVideoDemoUrl(e.target.value); setVideoDemoFile(null); }}
+                         placeholder="URL link..."
+                         className="flex-1 h-11 bg-black/40 border border-white/10 rounded-xl px-4 text-xs font-mono text-white/80 focus:border-emerald-500 outline-none"
+                       />
+                       <label className="h-11 px-4 cursor-pointer bg-white/5 border border-white/10 hover:border-emerald-500 hover:bg-white/10 rounded-xl flex items-center justify-center text-emerald-300 text-[10px] font-black uppercase tracking-widest transition-all">
+                          Upload
+                           <input 
+                             type="file" 
+                             accept="video/*" 
+                             className="hidden" 
+                             onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file) {
+                                 const url = URL.createObjectURL(file);
+                                 setVideoDemoUrl(url);
+                                 setVideoDemoFile(file);
+                               }
+                             }} 
+                           />
+                       </label>
+                    </div>
+                    <p className="text-[8px] text-white/30 uppercase tracking-widest font-black leading-normal pl-1">
+                      Provide a URL to display a rich video preview badge on your listing.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
 
               <button 
                 onClick={() => setStep("availability")}
@@ -353,7 +691,7 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                     <label className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-3 block pl-2">Expected Delivery Time</label>
                     <div className="grid grid-cols-2 gap-2">
                       {["1 Day", "3 Days", "1 Week", "2+ Weeks"].map(t => (
-                         <button key={t} className="h-12 rounded-xl text-xs font-black tracking-widest uppercase transition-all bg-white/5 text-white/60 hover:bg-white/10 border border-white/5 hover:border-white/20 focus:bg-blue-500 focus:text-white focus:border-blue-400">
+                         <button key={t} type="button" onClick={() => setDeliveryTime(t)} className={`h-12 rounded-xl text-xs font-black tracking-widest uppercase transition-all border ${deliveryTime === t ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10 border-white/5 hover:border-white/20'}`}>
                            {t}
                          </button>
                       ))}
@@ -366,9 +704,9 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                       <p className="text-[10px] font-medium text-white/40 mt-1 uppercase tracking-widest">Auto-pause when full</p>
                     </div>
                     <div className="flex items-center gap-3">
-                       <button className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold hover:bg-white/20">-</button>
-                       <span className="font-black text-lg">3</span>
-                       <button className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold hover:bg-white/20">+</button>
+                       <button type="button" onClick={() => setCapacity(Math.max(1, capacity - 1))} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold hover:bg-white/20">-</button>
+                       <span className="font-black text-lg">{capacity}</span>
+                       <button type="button" onClick={() => setCapacity(capacity + 1)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold hover:bg-white/20">+</button>
                     </div>
                  </div>
               </div>
@@ -400,17 +738,21 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
 
               <div className="w-full rounded-[2.5rem] bg-[#0c0c0c] border border-white/10 p-1 relative overflow-hidden shadow-2xl">
                  <div className="aspect-[4/3] w-full rounded-[2.2rem] bg-white/5 mb-4 relative overflow-hidden flex items-center justify-center">
-                    <ImageIcon size={40} className="text-white/20" />
+                    {coverImageUrl ? (
+                       <img src={coverImageUrl} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
+                    ) : (
+                       <ImageIcon size={40} className="text-white/20" />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
                     <div className="absolute bottom-4 left-4 right-4 z-20 flex justify-between items-end">
-                       <span className="px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg text-[9px] font-black text-white uppercase tracking-widest">{category}</span>
+                       <span className="px-2.5 py-1 bg-black/50 backdrop-blur-md rounded-lg text-[9px] font-black text-white uppercase tracking-widest">{category || "Uncategorized"}</span>
                     </div>
                  </div>
                  
                  <div className="px-5 pb-6">
                     <h3 className="font-display font-black text-2xl tracking-tighter mb-2 leading-tight">{title || "Untitled Offering"}</h3>
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/40 mb-4">
-                       <span className="flex items-center gap-1"><Clock size={12}/> 3 Days</span>
+                       <span className="flex items-center gap-1"><Clock size={12}/> {deliveryTime}</span>
                        <span>•</span>
                        <span className="flex items-center gap-1"><Zap size={12}/> {deliveryMethod}</span>
                     </div>
@@ -426,13 +768,22 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
                  </div>
               </div>
 
+              {errorMessage && (
+                 <p className="text-red-500 text-xs font-black text-center mt-2 px-4 uppercase tracking-wider">{errorMessage}</p>
+              )}
+
               <button 
-                onClick={() => {
-                  setTimeout(() => setStep("published"), 400);
-                }}
-                className="w-full h-16 mt-auto bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                onClick={handlePublish}
+                disabled={isSubmitting}
+                className="w-full h-16 mt-auto bg-white text-black disabled:bg-white/20 disabled:text-white/40 rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
-                <Rocket size={16} /> Publish Now
+                {isSubmitting ? (
+                   <span className="animate-spin h-5 w-5 border-2 border-black border-t-transparent rounded-full" />
+                ) : (
+                   <>
+                     <Rocket size={16} /> Publish Now
+                   </>
+                )}
               </button>
             </motion.div>
           )}
@@ -457,7 +808,7 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
 
               <div className="w-full flex flex-col gap-3">
                  <button 
-                   onClick={() => onSuccess({ title, price, desc: description, type: offeringType, status: "Active" })}
+                   onClick={() => onSuccess({ title, price, desc: description, type: offeringType, status: "Active", image: coverImageUrl, video: videoDemoUrl })}
                    className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs active:scale-[0.98] transition-transform shadow-xl"
                  >
                    View My Offerings

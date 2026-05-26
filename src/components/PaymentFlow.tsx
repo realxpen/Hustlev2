@@ -5,6 +5,7 @@ import {
   CreditCard, Landmark, Wallet, Zap, Info, DollarSign,
   AlertCircle, ArrowRight
 } from "lucide-react";
+import { useBookingStore } from '../features/bookings/stores/useBookingStore';
 
 interface PaymentFlowProps {
   onClose: () => void;
@@ -14,19 +15,39 @@ interface PaymentFlowProps {
     hustler: string;
     amount: number;
     escrowDays: number;
+    sellerId?: string;
+    listingId?: string;
+    listingType?: 'service' | 'product' | 'training';
   };
 }
 
 export default function PaymentFlow({ onClose, onSuccess, bookingData }: PaymentFlowProps) {
   const [step, setStep] = useState<'checkout' | 'holding' | 'success'>('checkout');
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'card' | 'crypto'>('wallet');
+  const { createBooking, isLoading: isBookingLoading } = useBookingStore();
 
-  const handlePay = () => {
+  const handlePay = async () => {
     setStep('holding');
-    // Simulate payment processing and escrow locking
-    setTimeout(() => {
-      setStep('success');
-    }, 2500);
+    
+    try {
+      if (bookingData.listingId && bookingData.listingType) {
+        await createBooking({
+          listingId: bookingData.listingId,
+          listingType: bookingData.listingType,
+          quantity: 1,
+          notes: `Instant booking via QuickPay: ${bookingData.title}`
+        });
+      }
+      
+      // Artificial delay to show the "Securing Escrow" animation
+      setTimeout(() => {
+        setStep('success');
+      }, 1500);
+    } catch (err) {
+      console.error("Booking error:", err);
+      // In a real app we'd show an error state
+      setStep('checkout');
+    }
   };
 
   return (
