@@ -14,14 +14,16 @@ export enum MilestoneStatus {
 
 export interface Milestone {
   id: string;
-  title: string;
-  amount: number;
-  status: MilestoneStatus;
-  deadline?: string;
-  description?: string;
-  approvedAt?: string;
   booking_id: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  status: MilestoneStatus | string;
+  delivered_at: string | null;
+  released_at: string | null;
   created_at: string;
+  updated_at: string;
+  deadline?: string; // transient
 }
 
 export interface Booking {
@@ -34,18 +36,25 @@ export interface Booking {
   unit_price: number;
   total_price: number;
   status: BookingStatus;
-  payment_status?: PaymentStatus;
-  escrow_status?: EscrowStatus;
-  release_status?: ReleaseStatus;
-  notes?: string;
+  payment_status: PaymentStatus;
+  escrow_status: EscrowStatus;
+  release_status: ReleaseStatus;
+  notes: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_address?: string | null;
+  delivery_mode?: string | null;
   created_at: string;
   updated_at: string;
+  price_snapshot?: number;
   
   // Joined data
   listing?: any;
   buyer?: any;
   seller?: any;
   milestones?: Milestone[];
+  parsedNotes?: any;
+  listing_title?: string;
 }
 
 export interface Enrollment {

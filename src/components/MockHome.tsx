@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { 
   Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, 
   Wallet, Bell, Phone, Play, ShoppingBag, Map as MapIcon, Home, Radio,
-  Sparkles, Zap, ArrowRight, ChevronLeft
+  Sparkles, Zap, ArrowRight, ChevronLeft, Briefcase
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../features/auth";
@@ -41,6 +41,8 @@ import { useNotificationStore } from '../features/feed/stores/useNotificationSto
 import { useSocialGraphStore } from '../features/social/stores/useSocialGraphStore';
 import { useChatStore } from '../features/chat/stores/useChatStore';
 import { useRealtimeChat } from '../features/chat/hooks/useRealtimeChat';
+import { useBookingStore } from '../features/bookings/stores/useBookingStore';
+import { supabase } from '../lib/supabase';
 
 export default function MockHome() {
   useRealtimeChat();
@@ -52,7 +54,7 @@ export default function MockHome() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedHustler, setSelectedHustler] = useState<any>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "profile">("home");
+  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "bookings" | "profile">("home");
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeConversation, setActiveConversation] = useState<any>(null);
@@ -66,6 +68,7 @@ export default function MockHome() {
   const [isUploadFlowOpen, setIsUploadFlowOpen] = useState(false);
   const [isLiveStudioOpen, setIsLiveStudioOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [isJobEscrowListOpen, setIsJobEscrowListOpen] = useState(false);
   const [isTrustOpen, setIsTrustOpen] = useState(false);
   const [isFoundationOpen, setIsFoundationOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -101,6 +104,7 @@ export default function MockHome() {
       subscribeToNotifications();
       fetchRelationships(session.user.id);
       subscribeToRelationships(session.user.id);
+      useBookingStore.getState().fetchBookings();
     }
   }, [session?.user, fetchNotifications, subscribeToNotifications, fetchRelationships, subscribeToRelationships]);
 
@@ -250,7 +254,7 @@ export default function MockHome() {
   };
 
   // Tab Order for Gestures
-  const TABS = ["home", "live", "wallet", "profile"] as const;
+  const TABS = ["home", "live", "wallet", "bookings", "profile"] as const;
 
   const handleTabChange = (dir: "left" | "right") => {
     const currentIndex = TABS.indexOf(activeNav);
@@ -372,6 +376,12 @@ export default function MockHome() {
         </div>
         <div className="flex items-center gap-4 pointer-events-auto">
           <button 
+            onClick={() => setIsJobEscrowListOpen(true)}
+            className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <Briefcase size={22} className="text-white/80" />
+          </button>
+          <button 
             onClick={() => setIsNotificationsOpen(true)}
             className="relative p-2 rounded-full hover:bg-white/10 transition-colors"
           >
@@ -401,7 +411,7 @@ export default function MockHome() {
             >
               <MainFeedHub 
                 bridgeIntent={bridgeIntent} 
-                onOpenBookings={() => setActiveNav("profile")} 
+                onOpenBookings={() => setActiveNav("bookings")} 
                 onOpenActivity={() => setIsNotificationsOpen(true)}
                 onOpenChat={() => setIsChatOpen(true)} 
                 onOpenSearch={() => setIsSearchOpen(true)}
@@ -462,6 +472,7 @@ export default function MockHome() {
                  
                  <JobEscrowList 
                    onClose={() => setActiveNav("profile")}
+                   onViewDetails={(booking) => setSelectedBooking(booking)}
                  />
                </div>
             </motion.div>
@@ -632,6 +643,14 @@ export default function MockHome() {
         </button>
 
         <button 
+          onClick={() => setActiveNav("bookings")}
+          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 group ${activeNav === "bookings" ? 'text-indigo-400 scale-110' : 'text-white/20 hover:text-white/60'}`}
+        >
+          <Briefcase size={22} strokeWidth={activeNav === "bookings" ? 2.5 : 2} className={activeNav === "bookings" ? 'drop-shadow-glow-blue text-indigo-400' : ''} />
+          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "bookings" ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>Bookings</span>
+        </button>
+
+        <button 
           onClick={() => setActiveNav("profile")}
           className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 group ${activeNav === "profile" ? 'text-blue-400 scale-110' : 'text-white/20 hover:text-white/60'}`}
         >
@@ -719,6 +738,31 @@ export default function MockHome() {
             onLaunchCreator={(type) => {
                setInitialFlowType(type);
                setIsCreatorFlowOpen(true);
+            }}
+            onAction={async (action, payload) => {
+              if (action === 'chat') {
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) return;
+                  const convId = await useChatStore.getState().getOrCreateConversation(user.id, payload.userId);
+                  setIsCreatorStudioOpen(false);
+                  setActiveConversation({
+                    id: convId,
+                    name: 'Client',
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${payload.userId}`,
+                    online: false,
+                    otherParticipant: { id: payload.userId }
+                  });
+                } catch (err) {
+                  console.error("Error starting chat from creator studio:", err);
+                }
+              } else if (action === 'manage_booking') {
+                setIsCreatorStudioOpen(false);
+                setSelectedBookingForEscrow(payload.booking);
+              } else if (action === 'view_booking') {
+                setIsCreatorStudioOpen(false);
+                setSelectedBooking(payload.booking);
+              }
             }}
           />
         )}
@@ -867,6 +911,23 @@ export default function MockHome() {
           <BookingDetail 
             booking={selectedBooking} 
             onBack={() => setSelectedBooking(null)} 
+            onMessage={async (userId) => {
+              try {
+                const companionId = userId;
+                const convId = await useChatStore.getState().getOrCreateConversation(session?.user?.id || '', companionId);
+                setSelectedBooking(null);
+                setIsChatOpen(true);
+                setActiveConversation({
+                  id: convId,
+                  name: 'User',
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${companionId}`,
+                  online: false,
+                  otherParticipant: { id: companionId }
+                });
+              } catch (chatErr) {
+                console.error("Failed to start chat from BookingDetail:", chatErr);
+              }
+            }}
           />
         )}
       </AnimatePresence>
@@ -886,6 +947,7 @@ export default function MockHome() {
           <ConversationView 
             chat={activeConversation} 
             onClose={() => setActiveConversation(null)} 
+            onManageBooking={(booking) => setSelectedBookingForEscrow(booking)}
           />
         )}
       </AnimatePresence>
@@ -908,7 +970,17 @@ export default function MockHome() {
         {selectedBookingForEscrow && (
           <JobEscrowManager 
             booking={selectedBookingForEscrow} 
+            isClient={selectedBookingForEscrow?.buyer_id === session?.user?.id}
             onClose={() => setSelectedBookingForEscrow(null)} 
+            onViewDetails={(booking) => {
+              setSelectedBookingForEscrow(null);
+              setSelectedBooking(booking);
+            }}
+            onAcceptedRedirect={(booking) => {
+              console.log("[MockHome] Redirecting user to booking detail page...");
+              setSelectedBookingForEscrow(null);
+              setSelectedBooking(booking);
+            }}
             onMessage={(userId) => {
               // We need to find the profile to start a chat
               // For now, we can just trigger a chat start if we have enough info
@@ -927,6 +999,18 @@ export default function MockHome() {
               });
             }}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isJobEscrowListOpen && (
+           <JobEscrowList 
+             onClose={() => setIsJobEscrowListOpen(false)}
+             onViewDetails={(booking) => {
+               setIsJobEscrowListOpen(false);
+               setSelectedBooking(booking);
+             }}
+           />
         )}
       </AnimatePresence>
 
@@ -975,11 +1059,70 @@ export default function MockHome() {
         {isNotificationsOpen && (
           <NotificationCenter 
             onClose={() => setIsNotificationsOpen(false)} 
-            onOpenEscrow={(id) => {
-              // We need to fetch the booking first if we don't have it
-              // For simplicity, we'll try to find it in existing bookings
-              // or just set the ID and let JobEscrowManager fetch it
-              setSelectedBookingForEscrow({ id });
+            onOpenEscrow={async (id) => {
+              const bState = useBookingStore.getState();
+              let found = bState.buyerOrders.find(b => b.id === id) || bState.sellerOrders.find(b => b.id === id);
+              if (!found) {
+                const { data } = await supabase.from('bookings').select(`
+                  *,
+                  milestones(*)
+                `).eq('id', id).single();
+                if (data) {
+                  const bId = data.buyer_id;
+                  const sId = data.seller_id;
+                  const profilesFetch = await supabase.from('profiles').select('*').in('id', [bId, sId].filter(Boolean));
+                  const bProfile = profilesFetch.data?.find(p => p.id === bId) || {
+                    full_name: "Client Profile",
+                    avatar_url: null,
+                    hustle_name: "client"
+                  };
+                  const sProfile = profilesFetch.data?.find(p => p.id === sId) || {
+                    full_name: "Hustler Profile",
+                    avatar_url: null,
+                    hustle_name: "hustler",
+                    primary_skill: null
+                  };
+                  found = {
+                    ...data,
+                    buyer: bProfile,
+                    seller: sProfile
+                  } as any;
+                }
+              }
+              setSelectedBookingForEscrow(found || null);
+              setIsNotificationsOpen(false);
+            }}
+            onOpenBookingDetail={async (id) => {
+              const bState = useBookingStore.getState();
+              let found = bState.buyerOrders.find(b => b.id === id) || bState.sellerOrders.find(b => b.id === id);
+              if (!found) {
+                const { data } = await supabase.from('bookings').select(`
+                  *,
+                  milestones(*)
+                `).eq('id', id).single();
+                if (data) {
+                  const bId = data.buyer_id;
+                  const sId = data.seller_id;
+                  const profilesFetch = await supabase.from('profiles').select('*').in('id', [bId, sId].filter(Boolean));
+                  const bProfile = profilesFetch.data?.find(p => p.id === bId) || {
+                    full_name: "Client Profile",
+                    avatar_url: null,
+                    hustle_name: "client"
+                  };
+                  const sProfile = profilesFetch.data?.find(p => p.id === sId) || {
+                    full_name: "Hustler Profile",
+                    avatar_url: null,
+                    hustle_name: "hustler",
+                    primary_skill: null
+                  };
+                  found = {
+                    ...data,
+                    buyer: bProfile,
+                    seller: sProfile
+                  } as any;
+                }
+              }
+              setSelectedBooking(found || null);
               setIsNotificationsOpen(false);
             }}
             onOpenChat={(userId) => {

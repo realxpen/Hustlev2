@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Lock, CheckCircle2, TrendingUp, ShieldCheck } from "lucide-react";
-import { Booking } from "../types";
+import { Booking } from "../features/bookings/types";
 
 interface EscrowCardProps {
   booking: Booking;
@@ -8,12 +8,19 @@ interface EscrowCardProps {
 }
 
 export default function EscrowCard({ booking, isClient = true }: EscrowCardProps) {
-  const released = booking.milestones
+  const milestones = booking.milestones || [];
+  
+  // Rely on the normalized total_price from our store enrichment
+  const total = booking.total_price || 0;
+
+  const released = milestones
     .filter(m => m.status === "released")
-    .reduce((sum, m) => sum + m.amount, 0);
-  const locked = booking.price - released;
-  const activeMilestoneIndex = booking.milestones.findIndex(m => m.status === "in_progress" || m.status === "awaiting_approval");
-  const activeMilestone = booking.milestones[activeMilestoneIndex];
+    .reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
+  const locked = Math.max(0, total - released);
+
+  const activeMilestoneIndex = milestones.findIndex(m => m.status === "in_progress" || m.status === "awaiting_approval");
+  const activeMilestone = milestones[activeMilestoneIndex];
 
   return (
     <motion.div 
@@ -29,7 +36,7 @@ export default function EscrowCard({ booking, isClient = true }: EscrowCardProps
              <ShieldCheck size={16} className="text-blue-400" />
              <span className="text-[10px] text-white/40 font-bold uppercase tracking-[0.2em]">Hustle Protected Escrow</span>
            </div>
-           <h4 className="text-4xl font-display font-black text-white tracking-tighter">₦{booking.price.toLocaleString()}</h4>
+           <h4 className="text-4xl font-display font-black text-white tracking-tighter">₦{total.toLocaleString()}</h4>
         </div>
         <div className="text-right">
            <span className="text-[10px] text-white/40 font-bold uppercase tracking-[0.2em] block mb-1">Status</span>
@@ -59,21 +66,21 @@ export default function EscrowCard({ booking, isClient = true }: EscrowCardProps
       <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden relative z-10">
         <motion.div 
             initial={{ width: 0 }}
-            animate={{ width: `${(released / booking.price) * 100}%` }}
+            animate={{ width: `${total ? (released / total) * 100 : 0}%` }}
             className="h-full bg-green-500"
             transition={{ duration: 1, delay: 0.2 }}
         />
         <motion.div 
             initial={{ width: 0 }}
-            animate={{ width: `${(locked / booking.price) * 100}%` }}
+            animate={{ width: `${total ? (locked / total) * 100 : 0}%` }}
             className="h-full bg-blue-500/50 absolute top-0"
-            style={{ left: `${(released / booking.price) * 100}%` }}
+            style={{ left: `${total ? (released / total) * 100 : 0}%` }}
             transition={{ duration: 1, delay: 0.2 }}
         />
       </div>
       <div className="flex justify-between mt-2 px-1 relative z-10">
-          <span className="text-[9px] font-bold text-green-400 uppercase tracking-wider">{(booking.price ? (released / booking.price) * 100 : 0).toFixed(0)}% Released</span>
-          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{(booking.price ? (locked / booking.price) * 100 : 0).toFixed(0)}% Locked</span>
+          <span className="text-[9px] font-bold text-green-400 uppercase tracking-wider">{total ? ((released / total) * 100).toFixed(0) : 0}% Released</span>
+          <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wider">{total ? ((locked / total) * 100).toFixed(0) : 0}% Locked</span>
       </div>
     </motion.div>
   );

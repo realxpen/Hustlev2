@@ -77,7 +77,7 @@ export function usePayments() {
       const mappedBookingData = mapBookingDTO(bookingData);
 
       setTransactions(transactions.map(t => t.id === paymentId ? paymentData : t));
-      setBookings(bookings.map(b => b.id === bookingId ? mappedBookingData : b));
+      setBookings(bookings.map(b => b.id === bookingId ? mappedBookingData as any : b));
       updateEscrowState(bookingId, 'locked');
 
       return true;

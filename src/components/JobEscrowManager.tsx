@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint, MessageSquare, Phone } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint, MessageSquare, Phone, FileText } from "lucide-react";
 import { Booking, MilestoneStatus } from "../features/bookings/types";
 import EscrowCard from "./EscrowCard";
 import MilestoneTimeline from "./MilestoneTimeline";
@@ -8,6 +8,7 @@ import TrustBadge from "./TrustBadge";
 import PaymentConfirmationModal from "./PaymentConfirmationModal";
 import { useBookingStore } from "../features/bookings/stores/useBookingStore";
 import { useAuth } from "../features/auth";
+import { Toast } from "./HustleUI";
 
 interface JobEscrowManagerProps {
   booking: Booking;
@@ -15,20 +16,85 @@ interface JobEscrowManagerProps {
   isClient?: boolean;
   onMessage?: (userId: string) => void;
   onCall?: (userId: string) => void;
+  onAcceptedRedirect?: (booking: Booking) => void;
+  onViewDetails?: (booking: Booking) => void;
 }
 
 export default function JobEscrowManager({ 
-  booking, 
+  booking: propBooking, 
   onClose, 
-  isClient = true,
+  isClient: propIsClient = true,
   onMessage,
-  onCall
+  onCall,
+  onAcceptedRedirect,
+  onViewDetails
 }: JobEscrowManagerProps) {
-  const { releaseMilestone, requestMilestoneRelease, isLoading } = useBookingStore();
+  const { updateBookingStatus, releaseMilestone, requestMilestoneRelease, fetchBookings, isLoading } = useBookingStore();
+  const { user } = useAuth();
+
+  const [successToastOpen, setSuccessToastOpen] = useState(false);
+  const [errorToastOpen, setErrorToastOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [localLoading, setLocalLoading] = useState(false);
+
+  // Use reactive booking from state so UI updates instantly when status changes
+  const storeBooking = useBookingStore(state => 
+    state.buyerOrders.find(b => b.id === propBooking.id) || 
+    state.sellerOrders.find(b => b.id === propBooking.id)
+  );
+  const booking = storeBooking || propBooking;
+  const computedIsClient = user ? (booking.buyer_id === user.id) : propIsClient;
+
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [isDisputed, setIsDisputed] = useState(false);
 
-  const otherUserId = isClient ? booking.seller_id : booking.buyer_id;
+  const handleAcceptBooking = async () => {
+    setLocalLoading(true);
+    try {
+      console.log("[JobEscrowManager] Accepting booking:", booking.id);
+      await updateBookingStatus(booking.id, 'accepted');
+      console.log("[JobEscrowManager] Database updated booking accepted.");
+      
+      await fetchBookings();
+      setSuccessToastOpen(true);
+      
+      // Navigate to booking details page after short delay (1.5 seconds)
+      setTimeout(() => {
+        setSuccessToastOpen(false);
+        if (onAcceptedRedirect) {
+          console.log("[JobEscrowManager] Triggering onAcceptedRedirect...");
+          onAcceptedRedirect({ ...booking, status: 'accepted' });
+        } else {
+          onClose();
+        }
+      }, 1500);
+
+    } catch (err: any) {
+      console.error("[JobEscrowManager] Error accepting booking:", err);
+      setErrorMessage(err.message || "Failed to accept booking.");
+      setErrorToastOpen(true);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  const handleDeclineBooking = async () => {
+    setLocalLoading(true);
+    try {
+      console.log("[JobEscrowManager] Declining booking:", booking.id);
+      await updateBookingStatus(booking.id, 'rejected');
+      await fetchBookings();
+      onClose();
+    } catch (err: any) {
+      console.error("[JobEscrowManager] Error declining booking:", err);
+      setErrorMessage(err.message || "Failed to decline booking.");
+      setErrorToastOpen(true);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
+
+  const otherUserId = computedIsClient ? booking.seller_id : booking.buyer_id;
 
   // Find next milestone to release
   const nextMilestone = booking?.milestones?.find(m => m.status === MilestoneStatus.AWAITING_APPROVAL || m.status === MilestoneStatus.PENDING);
@@ -40,6 +106,7 @@ export default function JobEscrowManager({
   const handleReleaseConfirm = async () => {
     if (nextMilestone) {
       await releaseMilestone(nextMilestone.id);
+      await fetchBookings();
       setShowReleaseModal(false);
     }
   };
@@ -47,8 +114,25 @@ export default function JobEscrowManager({
   const handleRequestRelease = async () => {
     const inProgress = booking?.milestones?.find(m => m.status === MilestoneStatus.IN_PROGRESS);
     if (inProgress) {
-      await requestMilestoneRelease(inProgress.id);
+      setLocalLoading(true);
+      try {
+        await requestMilestoneRelease(inProgress.id);
+        await fetchBookings();
+        setSuccessToastOpen(true);
+        setTimeout(() => setSuccessToastOpen(false), 2000);
+      } catch (err: any) {
+        setErrorMessage(err.message);
+        setErrorToastOpen(true);
+      } finally {
+        setLocalLoading(false);
+      }
     }
+  };
+
+  const handleDeliverWorkAction = async () => {
+     if (confirm("Submit work for review? This will request payment release for the current milestone.")) {
+       await handleRequestRelease();
+     }
   };
 
   const isReleaseRequested = activeMilestone?.status === MilestoneStatus.AWAITING_APPROVAL;
@@ -66,7 +150,7 @@ export default function JobEscrowManager({
             <header className="mb-8">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-3xl font-display font-black tracking-tight">
-                      {isClient ? "Escrow Vault" : "Earnings Secure"}
+                      {computedIsClient ? "Escrow Vault" : "Earnings Secure"}
                   </h2>
                   <TrustBadge type="escrow_protected" size="xs" />
                 </div>
@@ -107,7 +191,7 @@ export default function JobEscrowManager({
                     </motion.div>
                 )}
 
-                <EscrowCard booking={booking} isClient={isClient} />
+                <EscrowCard booking={booking} isClient={computedIsClient} />
                 
                 <div className="pt-4">
                     <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
@@ -123,18 +207,27 @@ export default function JobEscrowManager({
                     onClick={() => onMessage?.(otherUserId)}
                     className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
                   >
-                    <MessageSquare size={16} /> Message {isClient ? "Hustler" : "Client"}
+                    <MessageSquare size={16} /> Message {computedIsClient ? "Hustler" : "Client"}
                   </button>
                   <button 
                     onClick={() => onCall?.(otherUserId)}
                     className="flex items-center justify-center gap-2 h-14 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest"
                   >
-                    <Phone size={16} /> Call {isClient ? "Hustler" : "Client"}
+                    <Phone size={16} /> Call {computedIsClient ? "Hustler" : "Client"}
                   </button>
                 </div>
 
+                {onViewDetails && (
+                  <button 
+                    onClick={() => onViewDetails(booking)}
+                    className="w-full h-14 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                  >
+                    <FileText size={16} className="text-white/40" /> View Project Details
+                  </button>
+                )}
+
                 <div className="pt-4 space-y-3">
-                   {isClient ? (
+                   {computedIsClient ? (
                       <>
                         <button 
                              disabled={!nextMilestone || nextMilestone.status !== MilestoneStatus.AWAITING_APPROVAL || isLoading}
@@ -155,24 +248,31 @@ export default function JobEscrowManager({
                              <AlertCircle size={18} /> Request Revision / Report
                         </button>
                       </>
+                   ) : booking.status === 'pending' ? (
+                     <button 
+                          onClick={() => onAcceptedRedirect?.(booking)}
+                          className="w-full h-16 bg-white text-black rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 transition-all shadow-xl shadow-white/5"
+                     >
+                          <FileText size={18} /> Review Booking Details
+                     </button>
                    ) : (
                       <>
                          <button 
-                            disabled={isReleaseRequested || !activeMilestone || isLoading}
+                            disabled={isReleaseRequested || !activeMilestone || isLoading || localLoading}
                             onClick={handleRequestRelease}
                             className={`w-full h-16 rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 transition-all ${
                                 isReleaseRequested || !activeMilestone
                                 ? "bg-white/5 text-white/40 border border-white/10" 
-                                : "bg-white text-black hover:bg-white/90"
+                                : "bg-white text-black hover:bg-white/90 shadow-xl shadow-white/5"
                             }`}
                          >
                              {isReleaseRequested ? (
                                  <>
-                                    <Clock size={18} /> Release Requested
+                                    <Clock size={18} className="animate-pulse" /> Release Pending
                                  </>
                              ) : (
                                  <>
-                                    <ShieldCheck size={18} /> Request Milestone Release
+                                    <ShieldCheck size={18} /> Request Payout
                                  </>
                              )}
                          </button>
@@ -180,14 +280,18 @@ export default function JobEscrowManager({
                          {isReleaseRequested && (
                              <motion.p 
                                 initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-                                className="text-center text-[9px] text-blue-400 font-bold uppercase tracking-widest"
+                                className="text-center text-[10px] text-blue-400 font-black uppercase tracking-[0.15em] bg-blue-400/5 py-3 rounded-xl border border-blue-400/10"
                              >
-                                Buyer notified. Funds usually released within 2-4 hours.
+                                Buyer Choice Notified • Securely Held
                              </motion.p>
                          )}
 
-                         <button className="w-full h-16 bg-white/5 border border-white/5 hover:bg-white/10 transition-colors text-white rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 text-white/60">
-                             Submit Work for Review
+                         <button 
+                           onClick={handleDeliverWorkAction}
+                           disabled={isLoading || localLoading}
+                           className="w-full h-16 bg-brand-primary/10 border border-brand-primary/20 hover:bg-brand-primary/20 transition-all text-brand-primary rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2"
+                         >
+                             <Check size={18} /> Deliver Work Artifacts
                          </button>
                       </>
                    )}
@@ -205,6 +309,20 @@ export default function JobEscrowManager({
           recipient="The Hustler"
           actionType="release"
           description={`Release funds for "${nextMilestone?.title}". This confirms that you have reviewed and approved the work submitted.`}
+        />
+
+        {/* Feedback Toasts */}
+        <Toast 
+          message="Booking Accepted Successfully!" 
+          type="success" 
+          isOpen={successToastOpen} 
+          onClose={() => setSuccessToastOpen(false)} 
+        />
+        <Toast 
+          message={errorMessage} 
+          type="error" 
+          isOpen={errorToastOpen} 
+          onClose={() => setErrorToastOpen(false)} 
         />
     </motion.div>
   );

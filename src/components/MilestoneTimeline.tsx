@@ -47,7 +47,7 @@ export default function MilestoneTimeline({ milestones }: MilestoneTimelineProps
                     <div className="flex-1 pt-1">
                         <div className="flex justify-between items-start mb-1">
                             <h5 className={`font-bold text-sm ${isReleased ? 'text-white' : 'text-white'}`}>{milestone.title}</h5>
-                            <span className="font-display font-black">₦{milestone.amount.toLocaleString()}</span>
+                            <span className="font-display font-black">₦{(milestone.amount < 10000 && milestone.amount > 0 ? milestone.amount * 1600 : milestone.amount).toLocaleString()}</span>
                         </div>
                         <p className={`text-[10px] uppercase tracking-widest font-bold ${
                             isReleased ? 'text-green-400' :

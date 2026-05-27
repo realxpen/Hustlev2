@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from "motion/react";
 import { ShieldCheck, ChevronRight, Lock, CheckCircle2, ArrowUpRight, Zap } from "lucide-react";
 import { Booking, MilestoneStatus } from "../features/bookings/types";
@@ -54,7 +55,7 @@ export default function BookingContextCard({ booking, onOpenBooking }: BookingCo
               </span>
               <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/5 rounded-full border border-white/5">
                 <Lock size={8} className="text-blue-400" />
-                <span className="text-[8px] font-black text-white/60">₦{booking.total_price?.toLocaleString() || booking.price?.toLocaleString()}</span>
+                <span className="text-[8px] font-black text-white/60">₦{booking.total_price?.toLocaleString() || booking.unit_price?.toLocaleString() || (booking as any).price?.toLocaleString() || 0}</span>
               </div>
             </div>
           </div>

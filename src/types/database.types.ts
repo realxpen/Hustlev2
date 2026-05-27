@@ -374,6 +374,10 @@ export interface Database {
           escrow_status: "none" | "held" | "released" | "refunded"
           release_status: "pending" | "released" | "disputed"
           notes: string | null
+          location_lat: number | null
+          location_lng: number | null
+          location_address: string | null
+          delivery_mode: "online" | "physical" | "home_service" | null
           created_at: string
           updated_at: string
         }
@@ -391,6 +395,10 @@ export interface Database {
           escrow_status?: "none" | "held" | "released" | "refunded"
           release_status?: "pending" | "released" | "disputed"
           notes?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          location_address?: string | null
+          delivery_mode?: "online" | "physical" | "home_service" | null
           created_at?: string
           updated_at?: string
         }
@@ -408,6 +416,10 @@ export interface Database {
           escrow_status?: "none" | "held" | "released" | "refunded"
           release_status?: "pending" | "released" | "disputed"
           notes?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          location_address?: string | null
+          delivery_mode?: "online" | "physical" | "home_service" | null
           created_at?: string
           updated_at?: string
         }
@@ -424,6 +436,53 @@ export interface Database {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      milestones: {
+        Row: {
+          id: string
+          booking_id: string
+          title: string
+          description: string | null
+          amount: number
+          status: "pending" | "in_progress" | "awaiting_approval" | "released" | "disputed"
+          delivered_at: string | null
+          released_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          title: string
+          description?: string | null
+          amount: number
+          status?: "pending" | "in_progress" | "awaiting_approval" | "released" | "disputed"
+          delivered_at?: string | null
+          released_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          title?: string
+          description?: string | null
+          amount?: number
+          status?: "pending" | "in_progress" | "awaiting_approval" | "released" | "disputed"
+          delivered_at?: string | null
+          released_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           }
         ]
@@ -815,6 +874,7 @@ export interface Database {
           content: string | null
           message_type: string
           media_url: string | null
+          media_metadata: Json | null
           shared_post_id: string | null
           is_read: boolean
           created_at: string
@@ -827,6 +887,7 @@ export interface Database {
           content?: string | null
           message_type?: string
           media_url?: string | null
+          media_metadata?: Json | null
           shared_post_id?: string | null
           is_read?: boolean
           created_at?: string
@@ -839,6 +900,7 @@ export interface Database {
           content?: string | null
           message_type?: string
           media_url?: string | null
+          media_metadata?: Json | null
           shared_post_id?: string | null
           is_read?: boolean
           created_at?: string

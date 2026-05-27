@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, MoreHorizontal, Star, MapPin, Send, Plus, Calendar, Camera, Mic, ShieldCheck, AlertCircle, FileText, LayoutGrid, Info, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { format } from "date-fns";
 import BookingContextCard from "./BookingContextCard";
 import TransactionMessage from "./TransactionMessage";
 import ChatAttachment from "./ChatAttachment";
@@ -424,17 +425,28 @@ export default function ChatRoom({ chat, onBack, onOpenBooking, onOpenEscrow, on
 
         {/* Dynamic Messages */}
         {messages.map((msg) => (
-          <div key={msg.id} className="flex flex-col gap-1 max-w-[80%] self-end items-end">
-            <div className="p-4 rounded-2xl bg-white text-black rounded-tr-none shadow-xl shadow-white/5">
-              {msg.type === 'voice' ? (
-                <VoiceMessagePlayer msg={msg} />
-              ) : msg.type === 'location' ? (
-                <LocationMessage msg={msg} />
-              ) : (
-                <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
-              )}
-            </div>
-            <span className="text-[8px] text-white/30 font-bold uppercase mr-1">{msg.time}</span>
+          <div key={msg.id} className={`flex flex-col gap-1 ${msg.type === 'system' ? 'w-full items-center' : 'max-w-[80%] self-end items-end'}`}>
+            {msg.type === 'system' ? (
+              <div className="flex flex-col items-center gap-4 my-2 w-full">
+                 <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 mx-auto">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/40 italic">{msg.text || msg.content}</span>
+                 </div>
+              </div>
+            ) : (
+              <>
+                <div className="p-4 rounded-2xl bg-white text-black rounded-tr-none shadow-xl shadow-white/5">
+                  {msg.type === 'voice' ? (
+                    <VoiceMessagePlayer msg={msg} />
+                  ) : msg.type === 'location' ? (
+                    <LocationMessage msg={msg} />
+                  ) : (
+                    <p className="text-sm font-medium leading-relaxed">{msg.text || msg.content}</p>
+                  )}
+                </div>
+                <span className="text-[8px] text-white/30 font-bold uppercase mr-1">{msg.time || format(new Date(msg.created_at), 'h:mm a')}</span>
+              </>
+            )}
           </div>
         ))}
       </div>

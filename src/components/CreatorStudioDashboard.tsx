@@ -6,23 +6,61 @@ import {
   ChevronRight, Calendar, Clock, Edit3, Trash2, 
   ArrowUpRight, BarChart3, LayoutDashboard, Layers,
   Play, MessageSquare, Heart, Share2, MoreVertical, X,
-  CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Zap, ShieldCheck
+  CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Zap, ShieldCheck, FileText
 } from "lucide-react";
 import { useCreatorStore } from '../features/feed/stores/useCreatorStore';
 import { useAuth } from '../features/auth';
 import { useBookingStore } from '../features/bookings/stores/useBookingStore';
+import { Toast } from './HustleUI';
 
 interface CreatorStudioDashboardProps {
   onClose: () => void;
   onLaunchCreator: (type?: string) => void;
+  onAction?: (action: string, payload?: any) => void;
 }
 
-export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: CreatorStudioDashboardProps) {
+export default function CreatorStudioDashboard({ onClose, onLaunchCreator, onAction }: CreatorStudioDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'content' | 'monetization'>('overview');
   const { fetchMyListings, myServices, myProducts, myTraining, myPosts, isLoading, toggleListingStatus, deleteListing, deletePost } = useCreatorStore();
   const { fetchSellerOrders, sellerOrders, isLoading: isBookingsLoading } = useBookingStore();
   const { profile } = useAuth();
   const isHustler = !!profile?.is_hustler;
+
+  const [isAcceptingId, setIsAcceptingId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+
+  const handleAcceptClick = async (booking: any) => {
+    setIsAcceptingId(booking.id);
+    try {
+      console.log("[CreatorStudio] Accepting booking:", booking.id);
+      await useBookingStore.getState().updateBookingStatus(booking.id, 'accepted');
+      console.log("[CreatorStudio] Booking updated in store successfully.");
+
+      await fetchSellerOrders();
+      const updatedList = useBookingStore.getState().sellerOrders;
+      const updatedBooking = updatedList.find(b => b.id === booking.id) || { ...booking, status: 'accepted' };
+
+      setToastType('success');
+      setToastMessage("Booking Accepted Successfully!");
+
+      setTimeout(() => {
+        setIsAcceptingId(null);
+        setToastMessage(null);
+        // Call parent action to redirect to booking details page after brief delay
+        onAction?.('open_booking_detail', { booking: updatedBooking });
+      }, 1500);
+
+    } catch (err: any) {
+      console.error("[CreatorStudio] Error accepting booking:", err);
+      setToastType('error');
+      setToastMessage(err.message || "Failed to accept booking.");
+      setTimeout(() => {
+        setIsAcceptingId(null);
+        setToastMessage(null);
+      }, 3000);
+    }
+  };
 
   useEffect(() => {
     if (isHustler) {
@@ -195,46 +233,108 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
                        <p className="text-[10px] text-white/20 font-black uppercase tracking-widest">No active bookings yet</p>
                     </div>
                   )}
-                  {sellerOrders.slice(0, 3).map((booking) => (
-                    <div key={booking.id} className="bg-white/5 border border-white/10 p-4 rounded-[2rem] flex flex-col gap-4">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden shrink-0">
-                            <img src={booking.buyer?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.buyer_id}`} alt="Buyer" />
+                  {sellerOrders.slice(0, 5).map((booking) => {
+                    const parsedNotes = booking.parsedNotes || {};
+                    const milestoneProgress = booking.milestones?.length > 0 
+                      ? Math.round((booking.milestones.filter((m: any) => m.status === 'released').length / booking.milestones.length) * 100)
+                      : 0;
+                    
+                    return (
+                      <div key={booking.id} className="bg-white/5 border border-white/10 p-5 rounded-[2.5rem] flex flex-col gap-5 group hover:bg-white/[0.08] transition-all relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/5 blur-3xl rounded-full" />
+                        
+                        <div className="flex justify-between items-start relative z-10">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 shadow-lg">
+                              <img src={booking.buyer?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.buyer_id}`} alt="Buyer" className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-black uppercase tracking-tight">{booking.buyer?.hustle_name || booking.buyer?.full_name || 'Client'}</h4>
+                                {booking.status === 'pending' && <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-ping" />}
+                              </div>
+                              <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{booking.listing_type} Engagement</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="text-xs font-black uppercase tracking-tight">{booking.buyer?.hustle_name || booking.buyer?.full_name || 'Client'}</h4>
-                            <p className="text-[9px] font-bold text-white/40 italic truncate max-w-[120px]">{booking.listing_type} • ₦{booking.total_price.toLocaleString()}</p>
+                          <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                            booking.status === 'pending' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                            booking.status === 'accepted' || booking.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                            'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                          }`}>
+                            {booking.status}
                           </div>
                         </div>
-                        <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                          booking.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 
-                          booking.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-500'
-                        }`}>
-                          {booking.status}
+
+                        <div className="grid grid-cols-2 gap-4 relative z-10">
+                           <div className="bg-black/30 p-3.5 rounded-2xl border border-white/5">
+                              <span className="text-[8px] font-black uppercase text-white/30 block mb-1">Contract Budget</span>
+                              <span className="text-sm font-black text-white">₦{(booking.total_price || 0).toLocaleString()}</span>
+                           </div>
+                           <div className="bg-black/30 p-3.5 rounded-2xl border border-white/5">
+                              <span className="text-[8px] font-black uppercase text-white/30 block mb-1">Progress</span>
+                              <div className="flex items-center gap-2">
+                                 <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${milestoneProgress}%` }} />
+                                 </div>
+                                 <span className="text-[9px] font-black text-emerald-400">{milestoneProgress}%</span>
+                              </div>
+                           </div>
+                        </div>
+
+                        {parsedNotes.client_note && booking.status === 'pending' && (
+                           <p className="text-[10px] text-white/60 font-medium italic line-clamp-2 px-1">
+                              "{parsedNotes.client_note}"
+                           </p>
+                        )}
+                                               <div className="flex flex-wrap gap-2 w-full relative z-10">
+                           {booking.status === 'pending' ? (
+                             <div className="flex gap-2 w-full">
+                               <button 
+                                  onClick={() => onAction?.('view_booking', { booking })}
+                                  className="flex-1 h-12 bg-white text-black rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                               >
+                                  <FileText size={16} /> Review & Accept
+                               </button>
+                               <button 
+                                  onClick={() => onAction?.('chat', { userId: booking.buyer_id, bookingId: booking.id })}
+                                  className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-all">
+                                  <MessageSquare size={16} />
+                               </button>
+                             </div>
+                           ) : (
+                               <div className="flex flex-col gap-2 w-full">
+                                 <div className="flex gap-2 w-full">
+                                   <button 
+                                      onClick={() => onAction?.('view_booking', { booking })}
+                                      className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                                      <FileText size={14} /> Details
+                                   </button>
+                                   <button 
+                                      onClick={() => onAction?.('manage_booking', { booking })}
+                                      className="flex-1 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95">
+                                      <ShieldCheck size={14} /> Open Escrow
+                                   </button>
+                                 </div>
+                                 <div className="flex gap-2 w-full">
+                                    <button 
+                                       onClick={() => onAction?.('chat', { userId: booking.buyer_id, bookingId: booking.id })}
+                                       className="flex-1 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                                       <MessageSquare size={14} /> Open Chat
+                                    </button>
+                                    {(booking.status === 'accepted' || booking.status === 'in_progress') && (
+                                       <button 
+                                          onClick={() => onAction?.('view_booking', { booking, tab: 'tracking' })}
+                                          className="flex-1 h-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-2xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all hover:bg-emerald-500/20">
+                                          <Zap size={14} /> Deliver Work
+                                       </button>
+                                    )}
+                                 </div>
+                               </div>
+                           )}
                         </div>
                       </div>
-                      
-                      <div className="flex gap-2">
-                         <button className="flex-1 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">
-                            <MessageSquare size={14} /> Message
-                         </button>
-                         {booking.status === 'pending' && (
-                           <button 
-                            onClick={() => useBookingStore.getState().updateBookingStatus(booking.id, 'accepted')}
-                            className="flex-1 h-10 bg-brand-primary text-white rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-brand-primary/20"
-                           >
-                              <CheckCircle2 size={14} /> Accept
-                           </button>
-                         )}
-                         {booking.status !== 'pending' && (
-                           <button className="flex-1 h-10 bg-white text-black rounded-xl flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest">
-                              <Zap size={14} fill="black" /> Manage
-                           </button>
-                         )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {sellerOrders.length > 3 && (
                     <button className="text-center py-2 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-colors">
                       View all orders
@@ -500,6 +600,13 @@ export default function CreatorStudioDashboard({ onClose, onLaunchCreator }: Cre
            </div>
         </div>
       </div>
+
+      <Toast 
+        message={toastMessage || ""} 
+        type={toastType} 
+        isOpen={!!toastMessage} 
+        onClose={() => setToastMessage(null)} 
+      />
     </div>
   );
 }

@@ -189,7 +189,7 @@ export function useEscrow(bookingId: string | null) {
         await supabase.from('escrow_transactions').insert({
           booking_id: bookingId,
           payer_id: user.id,
-          receiver_id: bookingData.hustler_id,
+          receiver_id: bookingData.seller_id,
           amount: totalAmount,
           status: 'held'
         });

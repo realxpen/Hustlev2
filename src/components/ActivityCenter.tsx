@@ -16,9 +16,14 @@ import {
   VolumeX,
   Filter,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  Briefcase,
+  ExternalLink,
+  Navigation
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNotificationStore } from '../features/feed/stores/useNotificationStore';
+import { formatDistanceToNow } from 'date-fns';
 
 type Priority = "HIGH" | "MEDIUM" | "LOW";
 type Category = "ALL" | "BOOKINGS" | "PAYMENTS" | "MESSAGES" | "MENTIONS" | "SYSTEM";
@@ -102,23 +107,58 @@ const ACTIVITY_FEED = [
 export default function ActivityCenter({ onClose, onAction }: { onClose: () => void; onAction?: (action: string, payload?: any) => void }) {
   const [activeTab, setActiveTab] = useState<"notifications" | "activity">("notifications");
   const [filter, setFilter] = useState<Category>("ALL");
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const { groupedNotifications, fetchNotifications, subscribeToNotifications, markGroupRead, markAllRead } = useNotificationStore();
   const [showSettings, setShowSettings] = useState(false);
   const [quietHours, setQuietHours] = useState(false);
 
-  const handleAction = (notif: Notification) => {
-    if (notif.category === 'PAYMENTS') onAction?.('wallet');
-    if (notif.category === 'BOOKINGS') onAction?.('bookings');
-    if (notif.category === 'MESSAGES' || notif.category === 'MENTIONS') onAction?.('chat', { chatId: notif.targetId });
+  useEffect(() => {
+    fetchNotifications();
+    subscribeToNotifications();
+  }, []);
+
+  const handleAction = (group: any) => {
+    const type = group.type;
+    const itemIds = group.items.map((i: any) => i.id);
+    markGroupRead(itemIds);
+
+    if (type.includes('booking') || type.includes('milestone')) onAction?.('bookings');
+    if (type === 'wallet' || type === 'escrow') onAction?.('wallet');
+    if (type === 'message' || type === 'reply' || type === 'comment' || type === 'mention') onAction?.('chat', { chatId: group.entity_id });
     onClose();
   };
 
-  // Mark all as read
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
+  const filteredNotifications = groupedNotifications
+    .filter(g => {
+      if (filter === "ALL") return true;
+      if (filter === "BOOKINGS") return g.type.includes('booking') || g.type.includes('milestone');
+      if (filter === "PAYMENTS") return g.type === 'wallet' || g.type === 'escrow';
+      if (filter === "MESSAGES") return g.type === 'message' || g.type === 'reply' || g.type === 'comment' || g.type === 'mention';
+      if (filter === "SYSTEM") return g.type === 'system';
+      return true;
+    })
+    .map(g => {
+      const item = g.items[0];
+      const actor = g.actors[0];
+      
+      let category: Category = 'SYSTEM';
+      if (g.type.includes('booking') || g.type.includes('milestone')) category = 'BOOKINGS';
+      else if (g.type === 'wallet' || g.type === 'escrow') category = 'PAYMENTS';
+      else if (g.type === 'message' || g.type === 'reply' || g.type === 'comment' || g.type === 'mention') category = 'MESSAGES';
 
-  const filteredNotifications = notifications.filter(n => filter === "ALL" || n.category === filter);
+      return {
+        id: g.id,
+        category,
+        priority: (g.type.includes('booking') || g.type.includes('milestone')) ? 'HIGH' : 'MEDIUM' as Priority,
+        title: g.count > 1 ? `${g.count} updates on your ${category.toLowerCase()}` : (item.message || 'New Update'),
+        message: item.message || 'You have a new update in your hustle feed.',
+        time: formatDistanceToNow(new Date(item.created_at), { addSuffix: true }),
+        read: g.is_read,
+        actionText: category === 'BOOKINGS' ? 'View Details' : category === 'PAYMENTS' ? 'Check Wallet' : 'Open',
+        avatar: actor?.avatar_url,
+        isGrouped: g.count > 1,
+        items: g.items
+      };
+    });
 
   return (
     <motion.div

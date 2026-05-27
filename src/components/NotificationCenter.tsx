@@ -7,19 +7,27 @@ import {
   TrendingUp, Zap, Info, Briefcase, Heart, UserPlus, Repeat, ShieldCheck, Phone
 } from "lucide-react";
 import { useNotificationStore, NotificationType, NotificationGroup } from '../features/feed/stores/useNotificationStore';
+import { useBookingStore } from '../features/bookings/stores/useBookingStore';
 import { FollowButton } from "./social/FollowButton";
 import { useAuthStore } from '../features/auth/stores/useAuthStore';
+import { Toast } from './HustleUI';
 
 interface NotificationCenterProps {
   onClose: () => void;
   onOpenEscrow: (bookingId: string) => void;
   onOpenChat: (userId: string) => void;
+  onOpenBookingDetail?: (bookingId: string) => void;
 }
 
-export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }: NotificationCenterProps) {
+export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, onOpenBookingDetail }: NotificationCenterProps) {
   const [activeFilter, setActiveFilter] = useState<'all' | NotificationType>('all');
   const { groupedNotifications, markGroupRead, markAllRead, fetchNotifications } = useNotificationStore();
+  const { buyerOrders, sellerOrders, fetchBookings, updateBookingStatus } = useBookingStore();
   const { user } = useAuthStore();
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
 
   const handleNotificationClick = (group: NotificationGroup) => {
     markGroupRead(group.items.map(item => item.id));
@@ -39,7 +47,8 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
 
   useEffect(() => {
     fetchNotifications();
-  }, [fetchNotifications]);
+    fetchBookings();
+  }, [fetchNotifications, fetchBookings]);
 
   const filtered = groupedNotifications.filter(n => activeFilter === 'all' || n.type === activeFilter);
 
@@ -67,7 +76,18 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
     }
   };
 
-  const getTitle = (type: NotificationType, count: number) => {
+  const getTitle = (type: NotificationType, count: number, entityId?: string | null) => {
+      if (entityId) {
+          const booking = buyerOrders.find(b => b.id === entityId) || sellerOrders.find(b => b.id === entityId);
+          if (booking) {
+              if (booking.status === 'accepted') return 'Booking Active';
+              if (booking.status === 'rejected') return 'Booking Declined';
+              if (booking.status === 'cancelled') return 'Booking Cancelled';
+              if (booking.status === 'completed') return 'Booking Completed';
+              if (booking.status === 'in_progress') return 'Work Active';
+          }
+      }
+
       switch (type) {
         case 'like': return count > 1 ? `${count} New Likes` : 'New Like';
         case 'comment': return count > 1 ? `${count} New Comments` : 'New Comment';
@@ -106,6 +126,18 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
       const firstActor = group.actors[0]?.full_name || 'Someone';
       const others = group.count - 1;
       
+      const bookingTypes: NotificationType[] = ['booking', 'booking_new', 'booking_accepted'];
+      if (bookingTypes.includes(group.type) && group.entity_id) {
+          const booking = buyerOrders.find(b => b.id === group.entity_id) || sellerOrders.find(b => b.id === group.entity_id);
+          if (booking) {
+              if (booking.status === 'accepted') return `Booking request was accepted. Project is now active.`;
+              if (booking.status === 'rejected') return `This booking request was declined.`;
+              if (booking.status === 'cancelled') return `This booking request was cancelled.`;
+              if (booking.status === 'completed') return `Project completed! Payment released.`;
+              if (booking.status === 'in_progress') return `Work is currently in progress.`;
+          }
+      }
+
       switch(group.type) {
           case 'like': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} liked your post.`;
           case 'comment': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} commented on your post.`;
@@ -207,7 +239,7 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
                      </div>
                      <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1">
-                           <h3 className="text-[11px] font-black uppercase tracking-tight italic">{getTitle(n.type, n.count)}</h3>
+                           <h3 className="text-[11px] font-black uppercase tracking-tight italic">{getTitle(n.type, n.count, n.entity_id)}</h3>
                            <span className="text-[8px] font-bold text-white/20 uppercase whitespace-nowrap">{formatDistanceToNow(n.created_at)}</span>
                         </div>
                                 <p className="text-[12px] font-medium text-white/60 leading-tight">
@@ -223,14 +255,113 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
                                    </div>
                                 )}
 
+                                 {/* Dynamic Booking Actions */}
                                  {(n.type === 'booking_new' || n.type === 'milestone_delivered') && (
-                                    <div className="mt-3 flex gap-2">
-                                       <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand-primary/20 hover:brightness-110 active:scale-95 transition-all">
-                                          {n.type === 'booking_new' ? 'Accept Booking' : 'Release Funds'}
-                                       </button>
-                                       <button className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 transition-all">
-                                          {n.type === 'booking_new' ? 'Decline' : 'Review Work'}
-                                       </button>
+                                    <div className="mt-3">
+                                       {(() => {
+                                          const booking = n.entity_id ? (buyerOrders.find(b => b.id === n.entity_id) || sellerOrders.find(b => b.id === n.entity_id)) : null;
+                                          const isPending = !booking || booking.status === 'pending';
+                                          const isAccepted = booking?.status === 'accepted' || booking?.status === 'in_progress';
+                                          const isRejected = booking?.status === 'rejected';
+
+                                          if (n.type === 'booking_new' && isPending) {
+                                             return (
+                                                <div className="flex gap-2">
+                                                   <button 
+                                                      onClick={async (e) => {
+                                                         e.stopPropagation();
+                                                         const bookingId = n.entity_id;
+                                                         if (bookingId) {
+                                                            setIsProcessingId(n.id);
+                                                            try {
+                                                               await updateBookingStatus(bookingId, 'accepted');
+                                                               await fetchBookings();
+                                                               await fetchNotifications();
+
+                                                               setToastType('success');
+                                                               setToastMessage("Booking Accepted Successfully!");
+
+                                                               setTimeout(() => {
+                                                                  setIsProcessingId(null);
+                                                                  setToastMessage(null);
+                                                                  if (onOpenBookingDetail) {
+                                                                     onOpenBookingDetail(bookingId);
+                                                                  } else {
+                                                                     onOpenEscrow?.(bookingId);
+                                                                  }
+                                                               }, 1500);
+                                                            } catch (err: any) {
+                                                               console.error("[NotificationCenter] Error accepting booking:", err);
+                                                               setToastType('error');
+                                                               setToastMessage(err.message || "Failed to accept booking.");
+                                                               setTimeout(() => {
+                                                                  setIsProcessingId(null);
+                                                                  setToastMessage(null);
+                                                               }, 3000);
+                                                            }
+                                                         }
+                                                      }}
+                                                      className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand-primary/20 hover:brightness-110 active:scale-95 transition-all"
+                                                   >
+                                                      Accept Booking
+                                                   </button>
+                                                   <button 
+                                                      onClick={async (e) => {
+                                                         e.stopPropagation();
+                                                         const bookingId = n.entity_id;
+                                                         if (bookingId) {
+                                                            setIsProcessingId(n.id);
+                                                            try {
+                                                               await updateBookingStatus(bookingId, 'rejected');
+                                                               await fetchBookings();
+                                                               await fetchNotifications();
+                                                               setToastType('success');
+                                                               setToastMessage("Booking Declined successfully.");
+                                                               setTimeout(() => {
+                                                                  setIsProcessingId(null);
+                                                                  setToastMessage(null);
+                                                               }, 1500);
+                                                            } catch (err: any) {
+                                                               console.error("[NotificationCenter] Error declining booking:", err);
+                                                               setToastType('error');
+                                                               setToastMessage(err.message || "Failed to decline booking.");
+                                                               setTimeout(() => {
+                                                                  setIsProcessingId(null);
+                                                                  setToastMessage(null);
+                                                               }, 3000);
+                                                            }
+                                                         }
+                                                      }}
+                                                      className="px-4 py-2 bg-white/5 border border-white/10 text-white/60 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 transition-all"
+                                                   >
+                                                      Decline
+                                                   </button>
+                                                </div>
+                                             );
+                                          } else if (n.type === 'booking_new' && (isAccepted || isRejected)) {
+                                             return (
+                                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/5">
+                                                   <div className={`w-1.5 h-1.5 rounded-full ${isAccepted ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500'}`} />
+                                                   <span className="text-[9px] font-black uppercase tracking-widest text-white/40">
+                                                      Request {isAccepted ? 'Accepted' : 'Declined'}
+                                                   </span>
+                                                </div>
+                                             );
+                                          } else if (n.type === 'milestone_delivered') {
+                                             return (
+                                                <button 
+                                                   onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      onOpenEscrow?.(n.entity_id || "");
+                                                   }}
+                                                   className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-brand-primary/20 hover:brightness-110 active:scale-95 transition-all"
+                                                >
+                                                   Release Funds
+                                                </button>
+                                             );
+                                          }
+                                          return null;
+                                       })()}
                                     </div>
                                  )}
 
@@ -278,6 +409,13 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat }
             <span className="text-[9px] font-black uppercase tracking-widest group-hover:tracking-[0.2em] transition-all">Mark all as processed</span>
          </button>
       </footer>
+
+      <Toast 
+        message={toastMessage || ""} 
+        type={toastType} 
+        isOpen={!!toastMessage} 
+        onClose={() => setToastMessage(null)} 
+      />
     </div>
   );
 }

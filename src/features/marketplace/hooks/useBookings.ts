@@ -2,9 +2,9 @@ import { useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuthStore } from '../../auth/stores/useAuthStore';
 import { useBookingStore } from '../stores/useBookingStore';
-import type { Booking, BookingStatus, EscrowStatus } from '../../../types';
+import type { BookingStatus, EscrowStatus } from '../../bookings/types';
 
-export const mapBookingDTO = (dbBooking: any): Booking => ({
+export const mapBookingDTO = (dbBooking: any): any => ({
   id: dbBooking.id,
   clientId: dbBooking.buyer_id,
   hustlerId: dbBooking.seller_id,

@@ -9,9 +9,13 @@ import {
   UserPlus,
   UserCheck
 } from "lucide-react";
+import TransactionMessage from './TransactionMessage';
+import { TransactionType } from '../types';
 import { useConversation } from '../features/chat/hooks/useConversation';
 import { useAuthStore } from '../features/auth/stores/useAuthStore';
 import { useChatStore } from '../features/chat/stores/useChatStore';
+import { useBookingStore } from '../features/bookings/stores/useBookingStore';
+import BookingContextCard from './BookingContextCard';
 import { supabase } from '../lib/supabase';
 import { format, formatDistanceToNow } from 'date-fns';
 import { AudioPlayer } from './chat/AudioPlayer';
@@ -32,9 +36,10 @@ interface ConversationViewProps {
     otherParticipant?: any;
   };
   onClose: () => void;
+  onManageBooking?: (booking: any) => void;
 }
 
-export default function ConversationView({ chat: passedChat, conversationId, onClose }: ConversationViewProps) {
+export default function ConversationView({ chat: passedChat, conversationId, onClose, onManageBooking }: ConversationViewProps) {
   const { user } = useAuthStore();
   const cId = passedChat?.id || conversationId!;
   
@@ -71,6 +76,18 @@ export default function ConversationView({ chat: passedChat, conversationId, onC
   const [isRecording, setIsRecording] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { buyerOrders, sellerOrders } = useBookingStore();
+  
+  const targetUser = foundConversation?.otherParticipant || passedChat?.otherParticipant;
+  
+  // Find active booking between the current user and the target user
+  let activeBooking = null;
+  if (targetUser && user) {
+     const relevantBuyer = buyerOrders.find(b => b.seller_id === targetUser.id && (b.status === 'pending' || b.status === 'in_progress' || b.status === 'accepted'));
+     const relevantSeller = sellerOrders.find(b => b.buyer_id === targetUser.id && (b.status === 'pending' || b.status === 'in_progress' || b.status === 'accepted'));
+     activeBooking = relevantBuyer || relevantSeller || null;
+  }
 
   const durations = [
     { label: 'Off', value: null },
@@ -211,6 +228,13 @@ export default function ConversationView({ chat: passedChat, conversationId, onC
         </div>
       </header>
 
+      {activeBooking && (
+        <BookingContextCard 
+          booking={activeBooking as any} 
+          onOpenBooking={() => onManageBooking && onManageBooking(activeBooking)} 
+        />
+      )}
+
       {/* Project Status Bar - The HUD for Work */}
       <div className="relative z-10 bg-white/5 border-b border-white/5 px-6 py-3 flex items-center justify-between overflow-x-auto no-scrollbar whitespace-nowrap">
          <div className="flex items-center gap-4">
@@ -249,143 +273,183 @@ export default function ConversationView({ chat: passedChat, conversationId, onC
               key={msg.id}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${msg.message_type === 'system' ? 'w-full items-center' : ''}`}
             >
-              {/* Meta Info */}
-              <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                 <span className="text-[8px] font-bold text-white/20 uppercase">{time}</span>
-                 {msg.expires_at && (
-                   <div className="flex items-center gap-1 text-brand-primary animate-pulse">
-                     <Clock size={8} />
-                     <span className="text-[7px] font-bold uppercase whitespace-nowrap">
-                       Expires in {formatDistanceToNow(new Date(msg.expires_at), { addSuffix: false })}
-                     </span>
-                   </div>
-                 )}
-                 {isMe && (
-                   <div className="flex items-center gap-1 group/status">
-                     {msg.is_read ? (
-                       <>
-                         <CheckCheck size={10} className="text-brand-primary" />
-                         <span className="text-[7px] font-black uppercase tracking-tighter text-brand-primary hidden group-hover/status:block">Read</span>
-                       </>
-                     ) : msg.delivered_at ? (
-                       <>
-                         <CheckCheck size={10} className="text-white/40" />
-                         <span className="text-[7px] font-black uppercase tracking-tighter text-white/40 hidden group-hover/status:block">Delivered</span>
-                       </>
-                     ) : (
-                       <>
-                         <Check size={10} className="text-white/40" />
-                         <span className="text-[7px] font-black uppercase tracking-tighter text-white/40 hidden group-hover/status:block">Sent</span>
-                       </>
+              {msg.message_type === 'system' ? (
+                <div className="w-full flex flex-col items-center gap-4 my-2">
+                   {msg.media_metadata && typeof msg.media_metadata === 'object' && msg.media_metadata.booking_id ? (
+                      <div className="w-full max-w-[90%] pointer-events-auto">
+                         <TransactionMessage 
+                           payload={{
+                             type: msg.media_metadata.booking_status === 'accepted' ? TransactionType.ESCROW_FUNDED : TransactionType.AWAITING_APPROVAL,
+                             title: msg.content,
+                             amount: Number(msg.media_metadata.booking_price || 0),
+                             description: msg.media_metadata.booking_status === 'accepted' 
+                               ? "Funds are escrowed under Hustler Trust protection. The project is safe and underway."
+                               : msg.media_metadata.booking_status === 'rejected'
+                               ? "The booking request was declined. No charges were made."
+                               : "Track the transaction and escrow history of this active contract anytime.",
+                             actionLabel: "View Escrow Vault",
+                             onAction: () => {
+                               if (onManageBooking) {
+                                 onManageBooking({
+                                    id: msg.media_metadata.booking_id,
+                                    buyer_id: msg.media_metadata.buyer_id,
+                                    seller_id: msg.media_metadata.seller_id,
+                                    total_price: msg.media_metadata.booking_price,
+                                    status: msg.media_metadata.booking_status
+                                 });
+                               }
+                             }
+                           }}
+                         />
+                      </div>
+                   ) : (
+                      <div className="flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 mx-auto">
+                         <div className="w-1.5 h-1.5 rounded-full bg-brand-primary shadow-[0_0_8px_rgba(var(--brand-primary-rgb),0.5)]" />
+                         <span className="text-[9px] font-black uppercase tracking-widest text-white/40 italic">{msg.content}</span>
+                      </div>
+                   )}
+                </div>
+              ) : (
+                <>
+                  {/* Meta Info */}
+                  <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                     <span className="text-[8px] font-bold text-white/20 uppercase">{time}</span>
+                     {msg.expires_at && (
+                       <div className="flex items-center gap-1 text-brand-primary animate-pulse">
+                         <Clock size={8} />
+                         <span className="text-[7px] font-bold uppercase whitespace-nowrap">
+                           Expires in {formatDistanceToNow(new Date(msg.expires_at), { addSuffix: false })}
+                         </span>
+                       </div>
                      )}
-                   </div>
-                 )}
-              </div>
+                     {isMe && (
+                       <div className="flex items-center gap-1 group/status">
+                         {msg.is_read ? (
+                           <>
+                             <CheckCheck size={10} className="text-brand-primary" />
+                             <span className="text-[7px] font-black uppercase tracking-tighter text-brand-primary hidden group-hover/status:block">Read</span>
+                           </>
+                         ) : msg.delivered_at ? (
+                           <>
+                             <CheckCheck size={10} className="text-white/40" />
+                             <span className="text-[7px] font-black uppercase tracking-tighter text-white/40 hidden group-hover/status:block">Delivered</span>
+                           </>
+                         ) : (
+                           <>
+                             <Check size={10} className="text-white/40" />
+                             <span className="text-[7px] font-black uppercase tracking-tighter text-white/40 hidden group-hover/status:block">Sent</span>
+                           </>
+                         )}
+                       </div>
+                     )}
+                  </div>
 
-              {/* Content Logic */}
-              <div className={`max-w-[85%] rounded-[1.75rem] p-4 relative group ${
-                isMe 
-                  ? 'bg-brand-primary text-white rounded-tr-none' 
-                  : 'bg-white/5 border border-white/5 text-white rounded-tl-none'
-              }`}>
-                 {(msg.media_metadata as any)?.reply_to_content && (
-                   <div className="mb-2 pl-3 border-l-2 border-white/20 bg-black/10 p-2 rounded-lg">
-                      <p className="text-[9px] font-bold text-white/50 mb-0.5">{`Replying to ${(msg.media_metadata as any)?.reply_to_sender}`}</p>
-                      <p className="text-[11px] text-white/70 line-clamp-1">{(msg.media_metadata as any)?.reply_to_content}</p>
-                   </div>
-                 )}
-                 {(msg.message_type === 'text' || !msg.message_type) && <p className="text-[13px] font-medium leading-relaxed">{msg.content}</p>}
-                 
-                 {msg.message_type === 'file' && (
-                   <div className="flex items-center gap-4 bg-black/20 p-3 rounded-2xl border border-white/5">
-                      <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
-                         <FileText size={20} className="text-red-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                         <h5 className="text-[11px] font-black uppercase tracking-tight italic line-clamp-1">{msg.content || 'File Attachment'}</h5>
-                         <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Download</span>
-                      </div>
-                      <a 
-                        href={msg.media_url || (msg.media_metadata as any)?.url} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
-                      >
-                         <Download size={14} />
-                      </a>
-                   </div>
-                 )}
+                  {/* Content Logic */}
+                  <div className={`max-w-[85%] rounded-[1.75rem] p-4 relative group ${
+                    isMe 
+                      ? 'bg-brand-primary text-white rounded-tr-none' 
+                      : 'bg-white/5 border border-white/5 text-white rounded-tl-none'
+                  }`}>
+                     {(msg.media_metadata as any)?.reply_to_content && (
+                       <div className="mb-2 pl-3 border-l-2 border-white/20 bg-black/10 p-2 rounded-lg">
+                          <p className="text-[9px] font-bold text-white/50 mb-0.5">{`Replying to ${(msg.media_metadata as any)?.reply_to_sender}`}</p>
+                          <p className="text-[11px] text-white/70 line-clamp-1">{(msg.media_metadata as any)?.reply_to_content}</p>
+                       </div>
+                     )}
+                     {(msg.message_type === 'text' || !msg.message_type) && <p className="text-[13px] font-medium leading-relaxed">{msg.content}</p>}
+                     
+                     {msg.message_type === 'file' && (
+                       <div className="flex items-center gap-4 bg-black/20 p-3 rounded-2xl border border-white/5">
+                          <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                             <FileText size={20} className="text-red-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                             <h5 className="text-[11px] font-black uppercase tracking-tight italic line-clamp-1">{msg.content || 'File Attachment'}</h5>
+                             <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Download</span>
+                          </div>
+                          <a 
+                            href={msg.media_url || (msg.media_metadata as any)?.url} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                          >
+                             <Download size={14} />
+                          </a>
+                       </div>
+                     )}
 
-                 {msg.message_type === 'shared_post' && msg.shared_post_id && (
-                   <div className="flex flex-col gap-3 min-w-[200px]">
-                      {postPreviews[msg.shared_post_id] ? (
-                        <div className="flex flex-col bg-black/40 rounded-2xl overflow-hidden border border-white/10">
-                           <div className="aspect-[4/5] relative">
-                              {postPreviews[msg.shared_post_id].media_type === 'video' ? (
-                                <video src={postPreviews[msg.shared_post_id].media_url} className="w-full h-full object-cover" />
-                              ) : (
-                                <img src={postPreviews[msg.shared_post_id].media_url} className="w-full h-full object-cover" alt="Post" />
-                              )}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                              <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2">
-                                 <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden">
-                                    <img src={postPreviews[msg.shared_post_id].profiles?.avatar_url} className="w-full h-full object-cover" />
-                                 </div>
-                                 <span className="text-[9px] font-bold text-white truncate">@{postPreviews[msg.shared_post_id].profiles?.username}</span>
-                              </div>
-                           </div>
-                           <div className="p-3">
-                              <p className="text-[10px] text-white/60 line-clamp-2 italic mb-3">"{postPreviews[msg.shared_post_id].caption}"</p>
-                              <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
-                                 View Post <ExternalLink size={10} />
-                              </button>
-                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 p-4 bg-black/20 rounded-2xl animate-pulse">
-                           <div className="w-10 h-10 rounded-xl bg-white/5" />
-                           <div className="flex-1 space-y-2">
-                              <div className="h-2 w-20 bg-white/5 rounded" />
-                              <div className="h-1.5 w-32 bg-white/5 rounded" />
-                           </div>
-                        </div>
-                      )}
-                      <p className="text-[12px] font-medium leading-relaxed opacity-60">Shared a post with you</p>
-                   </div>
-                 )}
+                     {msg.message_type === 'shared_post' && msg.shared_post_id && (
+                       <div className="flex flex-col gap-3 min-w-[200px]">
+                          {postPreviews[msg.shared_post_id] ? (
+                            <div className="flex flex-col bg-black/40 rounded-2xl overflow-hidden border border-white/10">
+                               <div className="aspect-[4/5] relative">
+                                  {postPreviews[msg.shared_post_id].media_type === 'video' ? (
+                                    <video src={postPreviews[msg.shared_post_id].media_url} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <img src={postPreviews[msg.shared_post_id].media_url} className="w-full h-full object-cover" alt="Post" />
+                                  )}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                  <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2">
+                                     <div className="w-6 h-6 rounded-full border border-white/20 overflow-hidden">
+                                        <img src={postPreviews[msg.shared_post_id].profiles?.avatar_url} className="w-full h-full object-cover" />
+                                     </div>
+                                     <span className="text-[9px] font-bold text-white truncate">@{postPreviews[msg.shared_post_id].profiles?.username}</span>
+                                  </div>
+                               </div>
+                               <div className="p-3">
+                                  <p className="text-[10px] text-white/60 line-clamp-2 italic mb-3">"{postPreviews[msg.shared_post_id].caption}"</p>
+                                  <button className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all">
+                                     View Post <ExternalLink size={10} />
+                                  </button>
+                               </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3 p-4 bg-black/20 rounded-2xl animate-pulse">
+                               <div className="w-10 h-10 rounded-xl bg-white/5" />
+                               <div className="flex-1 space-y-2">
+                                  <div className="h-2 w-20 bg-white/5 rounded" />
+                                  <div className="h-1.5 w-32 bg-white/5 rounded" />
+                               </div>
+                            </div>
+                          )}
+                          <p className="text-[12px] font-medium leading-relaxed opacity-60">Shared a post with you</p>
+                       </div>
+                     )}
 
-                 {msg.message_type === 'image' && (
-                   <div className="rounded-2xl overflow-hidden border border-white/10 mt-1">
-                      <img src={msg.media_url || (msg.media_metadata as any)?.url} className="max-w-full h-auto object-cover" alt="Attachment" />
-                   </div>
-                 )}
+                     {msg.message_type === 'image' && (
+                       <div className="rounded-2xl overflow-hidden border border-white/10 mt-1">
+                          <img src={msg.media_url || (msg.media_metadata as any)?.url} className="max-w-full h-auto object-cover" alt="Attachment" />
+                       </div>
+                     )}
 
-                 {msg.message_type === 'video' && (
-                   <div className="rounded-2xl overflow-hidden border border-white/10 mt-1">
-                      <video src={msg.media_url || (msg.media_metadata as any)?.url} controls className="max-w-[240px] w-full bg-black" />
-                   </div>
-                 )}
+                     {msg.message_type === 'video' && (
+                       <div className="rounded-2xl overflow-hidden border border-white/10 mt-1">
+                          <video src={msg.media_url || (msg.media_metadata as any)?.url} controls className="max-w-[240px] w-full bg-black" />
+                       </div>
+                     )}
 
-                 {msg.message_type === 'voice' && (
-                   <div className="mt-1">
-                      <AudioPlayer 
-                         mediaUrl={msg.media_url || (msg.media_metadata as any)?.url} 
-                         duration={(msg.media_metadata as any)?.duration_seconds} 
-                      />
-                   </div>
-                 )}
+                     {msg.message_type === 'voice' && (
+                       <div className="mt-1">
+                          <AudioPlayer 
+                             mediaUrl={msg.media_url || (msg.media_metadata as any)?.url} 
+                             duration={(msg.media_metadata as any)?.duration_seconds} 
+                          />
+                       </div>
+                     )}
 
-                 <MessageReactions messageId={msg.id} isMe={isMe} />
+                     <MessageReactions messageId={msg.id} isMe={isMe} />
 
-                 <button 
-                   onClick={() => useChatStore.getState().setActiveReply(cId, msg)}
-                   className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-[105%]' : 'left-[105%]'} opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 border border-white/10 rounded-full p-2 hover:bg-white/10`}
-                 >
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
-                 </button>
-              </div>
+                     <button 
+                       onClick={() => useChatStore.getState().setActiveReply(cId, msg)}
+                       className={`absolute top-1/2 -translate-y-1/2 ${isMe ? 'right-[105%]' : 'left-[105%]'} opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 border border-white/10 rounded-full p-2 hover:bg-white/10`}
+                     >
+                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                     </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           );
         })}

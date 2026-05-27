@@ -96,20 +96,55 @@ export const useBookingEngineStore = create<NewBookingState>((set, get) => ({
       if (!user) throw new Error('Not authenticated');
 
       const column = role === 'hustler' ? 'seller_id' : 'buyer_id';
-      const { data, error } = await (supabase as any)
+      const { data: bookingsData, error } = await (supabase as any)
         .from('bookings')
         .select(`
           *,
-          milestones(*),
-          seller:profiles!bookings_seller_id_fkey(*),
-          buyer:profiles!bookings_buyer_id_fkey(*)
+          milestones(*)
         `)
         .eq(column, user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      set({ bookings: data || [] });
+      if (bookingsData) {
+        const userIds = Array.from(new Set([
+          ...bookingsData.map((b: any) => b.buyer_id),
+          ...bookingsData.map((b: any) => b.seller_id)
+        ].filter(Boolean)));
+        
+        const profilesMap: Record<string, any> = {};
+        if (userIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await (supabase as any)
+            .from('profiles')
+            .select('*')
+            .in('id', userIds);
+          if (!profilesError && profilesData) {
+            profilesData.forEach((p: any) => {
+              profilesMap[p.id] = p;
+            });
+          }
+        }
+
+        const enrichedBookings = bookingsData.map((booking: any) => ({
+          ...booking,
+          buyer: profilesMap[booking.buyer_id] || {
+            full_name: "Client Profile",
+            avatar_url: null,
+            hustle_name: "client"
+          },
+          seller: profilesMap[booking.seller_id] || {
+            full_name: "Hustler Profile",
+            avatar_url: null,
+            hustle_name: "hustler",
+            primary_skill: null
+          }
+        }));
+
+        set({ bookings: enrichedBookings });
+      } else {
+        set({ bookings: [] });
+      }
     } catch (err: any) {
       set({ error: err.message });
     } finally {

@@ -123,7 +123,7 @@ export default function TransactionDetailView({ tx, onClose }: TransactionDetail
 
       <AnimatePresence>
         {showManager && (
-            <JobEscrowManager booking={MOCK_BOOKING} onClose={() => setShowManager(false)} />
+            <JobEscrowManager booking={MOCK_BOOKING} isClient={tx.amount < 0} onClose={() => setShowManager(false)} />
         )}
       </AnimatePresence>
     </>

@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import type { Database } from '../../../types/database.types';
 
 export type NotificationType = 
-  | 'like' | 'comment' | 'reply' | 'repost' | 'follow' 
+  | 'like' | 'comment' | 'reply' | 'mention' | 'repost' | 'follow' | 'message'
   | 'story_reaction' | 'story_reply' | 'internal_share' 
   | 'system' | 'booking' | 'wallet' | 'escrow' | 'work' | 'milestone'
   | 'booking_new' | 'booking_accepted' | 'booking_rejected' | 'booking_completed'

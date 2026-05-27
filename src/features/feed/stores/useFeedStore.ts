@@ -546,9 +546,9 @@ export const useFeedStore = create<FeedState>()(
             .from('saved_posts')
             .select(`
               *,
-              post:posts (
+              posts (
                 *,
-                profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews)
+                profiles (id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews)
               )
             `)
             .eq('user_id', user.id)
@@ -559,8 +559,9 @@ export const useFeedStore = create<FeedState>()(
           const savedIds: Record<string, boolean> = {};
           const posts: FeedPost[] = (data || []).map((s: any) => {
             if (s.post_id) savedIds[s.post_id] = true;
+            const postData = s.posts || s.post;
             return {
-              ...s.post,
+              ...postData,
               userHasSaved: true,
               collection_id: s.collection_id
             };

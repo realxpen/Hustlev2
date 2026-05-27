@@ -13,7 +13,7 @@ export function useBookingActions() {
 
   const PLATFORM_FEE_PERCENTAGE = 0.10; // 10%
 
-  const updateBookingState = (updatedBooking: Booking) => {
+  const updateBookingState = (updatedBooking: any) => {
     setBookings(bookings.map(b => b.id === updatedBooking.id ? updatedBooking : b));
     setActiveBooking(updatedBooking);
   };
