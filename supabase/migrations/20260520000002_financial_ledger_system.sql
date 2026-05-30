@@ -35,17 +35,23 @@ CREATE TABLE IF NOT EXISTS public.escrow_accounts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Add currency preferences to profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_currency TEXT DEFAULT 'USD';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS display_currency TEXT DEFAULT 'USD';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS location_country TEXT;
 -- Enable RLS
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ledger_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.escrow_accounts ENABLE ROW LEVEL SECURITY;
 
 -- Post RLS Policies for transactions
+DROP POLICY IF EXISTS "Users can view their own transaction history" ON public.transactions;
 CREATE POLICY "Users can view their own transaction history"
     ON public.transactions FOR SELECT
     USING (auth.uid() = user_id);
 
 -- Post RLS Policies for ledger_entries
+DROP POLICY IF EXISTS "Users can view ledger entries related to their transactions" ON public.ledger_entries;
 CREATE POLICY "Users can view ledger entries related to their transactions"
     ON public.ledger_entries FOR SELECT
     USING (
@@ -55,13 +61,42 @@ CREATE POLICY "Users can view ledger entries related to their transactions"
     );
 
 -- Post RLS Policies for escrow_accounts
+DROP POLICY IF EXISTS "Participants can view escrow balances" ON public.escrow_accounts;
 CREATE POLICY "Participants can view escrow balances"
     ON public.escrow_accounts FOR SELECT
     USING (
         booking_id IN (
-            SELECT id FROM public.bookings WHERE client_id = auth.uid() OR hustler_id = auth.uid()
+            SELECT id FROM public.bookings WHERE buyer_id = auth.uid() OR seller_id = auth.uid()
         )
     );
+
+-- --- IMMUTABILITY & SAFETY ENFORCEMENT ---
+
+-- 0. Ensure additional balance columns are constrained (reinforce)
+ALTER TABLE public.wallets DROP CONSTRAINT IF EXISTS wallets_available_balance_check;
+ALTER TABLE public.wallets ADD CONSTRAINT wallets_available_balance_check CHECK (available_balance >= 0);
+ALTER TABLE public.wallets DROP CONSTRAINT IF EXISTS wallets_escrow_balance_check;
+ALTER TABLE public.wallets ADD CONSTRAINT wallets_escrow_balance_check CHECK (escrow_balance >= 0);
+
+-- 1. Create a function to block updates and deletes on immutable tables
+CREATE OR REPLACE FUNCTION public.prevent_immutable_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Database Governance Error: Table % is immutable and records cannot be modified or deleted.', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Apply immutability to ledger_entries
+DROP TRIGGER IF EXISTS ledger_entries_immutable ON public.ledger_entries;
+CREATE TRIGGER ledger_entries_immutable 
+BEFORE UPDATE OR DELETE ON public.ledger_entries
+FOR EACH ROW EXECUTE PROCEDURE public.prevent_immutable_modification();
+
+-- 3. Apply immutability to transactions
+DROP TRIGGER IF EXISTS transactions_immutable ON public.transactions;
+CREATE TRIGGER transactions_immutable 
+BEFORE UPDATE OR DELETE ON public.transactions
+FOR EACH ROW EXECUTE PROCEDURE public.prevent_immutable_modification();
 
 -- Secure RPC Database Functions for Walnut operations to avoid race conditions and maintain database trust block.
 
@@ -278,6 +313,9 @@ DECLARE
 BEGIN
     -- 1. Deduct from client's escrow tracker (their main balance is already deducted, now we deduct from the tracked escrow fields)
     v_client_wallet_id := secure_ensure_wallet(p_client_id);
+    
+    -- Lock client wallet for atomic update of escrow tracking
+    PERFORM id FROM public.wallets WHERE id = v_client_wallet_id FOR UPDATE;
     
     UPDATE public.wallets
     SET escrow_balance = GREATEST(0, escrow_balance - p_total_amount),

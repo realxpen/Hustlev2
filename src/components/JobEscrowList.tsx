@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, ShieldCheck, ChevronRight, Lock, CheckCircle2, User, CheckCircle } from "lucide-react";
-import { Booking, BookingStatus, EscrowStatus, Milestone } from "../features/bookings/types";
+import { Booking, BookingStatus, EscrowStatus, Milestone, getEscrowPaymentState, EscrowPaymentState } from "../features/bookings/types";
 import { useState, useEffect } from "react";
 import JobEscrowManager from "./JobEscrowManager";
 import { useBookingStore } from "../features/bookings/stores/useBookingStore";
@@ -171,7 +171,22 @@ export default function JobEscrowList({ onClose, isClient: initialIsClient, onVi
                                             </span>
                                         </div>
                                     </div>
-                                    <ChevronRight size={18} className="text-white/20 group-hover:text-white transition-colors" />
+                                    <div className="flex flex-col items-end gap-2">
+                                        <ChevronRight size={18} className="text-white/20 group-hover:text-white transition-colors" />
+                                        {(() => {
+                                            const pState = getEscrowPaymentState(booking);
+                                            return (
+                                                <div className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter border ${
+                                                    pState === EscrowPaymentState.RELEASED ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                                                    pState === EscrowPaymentState.REFUNDED ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                                                    pState === EscrowPaymentState.IN_ESCROW ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                    'bg-white/5 text-white/40 border-white/10'
+                                                }`}>
+                                                    {pState.replace('_', ' ')}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                                 
                                 <div className="w-full grid grid-cols-2 gap-2 relative z-10">

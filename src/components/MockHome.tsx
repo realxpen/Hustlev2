@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { 
   Compass, MessageSquare, User, PlusCircle, X, Search, Calendar, 
   Wallet, Bell, Phone, Play, ShoppingBag, Map as MapIcon, Home, Radio,
-  Sparkles, Zap, ArrowRight, ChevronLeft, Briefcase
+  Sparkles, Zap, ArrowRight, ChevronLeft, Briefcase, ShieldAlert
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../features/auth";
@@ -36,6 +36,7 @@ import ChatHub from "./ChatHub";
 import ConversationView from "./ConversationView";
 import NotificationCenter from "./NotificationCenter";
 import HustleAI from "./HustleAI";
+import AdminGovernanceHub from "./AdminGovernanceHub";
 
 import { useNotificationStore } from '../features/feed/stores/useNotificationStore';
 import { useSocialGraphStore } from '../features/social/stores/useSocialGraphStore';
@@ -54,7 +55,7 @@ export default function MockHome() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedHustler, setSelectedHustler] = useState<any>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "bookings" | "profile">("home");
+  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "profile">("home");
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeConversation, setActiveConversation] = useState<any>(null);
@@ -94,9 +95,16 @@ export default function MockHome() {
   // Global Polish & System Glue
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAdminHubOpen, setIsAdminHubOpen] = useState(false);
   
   // Auth State
   const { session, profile, signOut } = useAuth();
+
+  useEffect(() => {
+    const handleOpenAdmin = () => setIsAdminHubOpen(true);
+    window.addEventListener('open-admin-hub', handleOpenAdmin as EventListener);
+    return () => window.removeEventListener('open-admin-hub', handleOpenAdmin as EventListener);
+  }, []);
 
   useEffect(() => {
     if (session?.user) {
@@ -254,7 +262,7 @@ export default function MockHome() {
   };
 
   // Tab Order for Gestures
-  const TABS = ["home", "live", "wallet", "bookings", "profile"] as const;
+  const TABS = ["home", "live", "wallet", "profile"] as const;
 
   const handleTabChange = (dir: "left" | "right") => {
     const currentIndex = TABS.indexOf(activeNav);
@@ -266,6 +274,52 @@ export default function MockHome() {
 
   return (
     <main className="fixed inset-0 bg-black text-white font-sans overflow-hidden selection:bg-brand-primary/30">
+      {/* Account Suspended Interception Overlay */}
+      {isLoggedIn && profile && (profile as any).is_suspended && (
+        <div className="fixed inset-0 z-[99999] bg-[#050505] flex flex-col items-center justify-center p-6 text-white text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-[#0c0c0c] border border-red-500/20 rounded-[2rem] p-8 flex flex-col items-center gap-6"
+          >
+            <div className="p-4 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 animate-pulse">
+              <ShieldAlert size={48} />
+            </div>
+            
+            <div className="flex flex-col gap-2">
+              <h1 className="text-2xl font-black uppercase tracking-tight text-red-500">
+                Account Suspended
+              </h1>
+              <p className="text-xs text-white/50 leading-relaxed">
+                Your account (@{profile.username || 'hustler'}) has been suspended due to violations of our safety and community guidelines. This restriction cannot be bypassed.
+              </p>
+            </div>
+
+            <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-left font-mono text-[9px] text-white/40 uppercase tracking-wider flex flex-col gap-2">
+              <div>
+                <span className="text-white/20">Status: </span>
+                <span className="text-red-400 font-bold">Suspended</span>
+              </div>
+              <div>
+                <span className="text-white/20">Restriction: </span>
+                <span className="text-red-400">Write & Match Disabled</span>
+              </div>
+              <div>
+                <span className="text-white/20">Ref Code: </span>
+                <span>{profile.id.substring(0, 8)}...</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => signOut()}
+              className="w-full py-3.5 bg-white/10 hover:bg-white/15 active:scale-[0.98] rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all border border-white/10 cursor-pointer"
+            >
+              Logout Securely
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
         {/* LANDING PAGE / SIGN UP FLOW */}
         {!isLoggedIn && (
@@ -505,6 +559,23 @@ export default function MockHome() {
                 setActiveNav={(nav: any) => setActiveNav(nav)} 
                 onOpenCreatorStudio={() => setIsCreatorStudioOpen(true)}
                 onSignOut={() => handleResetApp()}
+                onOpenBookingDetail={(booking) => setSelectedBooking(booking)}
+                onOpenChat={(booking) => {
+                  // Find or create conversation for this booking
+                  const otherUserId = booking.buyer_id === session?.user?.id ? booking.seller_id : booking.buyer_id;
+                  if (otherUserId) {
+                    const existingChat = useChatStore.getState().conversations.find(c => 
+                      c.otherParticipant?.id === otherUserId
+                    );
+                    if (existingChat) {
+                      setSelectedChat(existingChat);
+                    } else {
+                      // Fallback: just open chat list if no direct conversation found
+                      setActiveNav("home");
+                      setIsChatOpen(true);
+                    }
+                  }
+                }}
               />
             </motion.div>
           )}
@@ -568,7 +639,7 @@ export default function MockHome() {
       {/* Bottom Nav System - Dynamic & Alive */}
       <motion.nav 
         initial={{ y: 0 }}
-        animate={{ y: isNavVisible ? 0 : 120 }}
+        animate={{ y: (isNavVisible && activeNav !== "wallet" && activeNav !== "bookings" && activeNav !== "profile") ? 0 : 120 }}
         transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
         className="fixed bottom-6 left-6 right-6 h-20 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] flex items-center justify-around px-2 z-50 shadow-2xl"
       >
@@ -640,14 +711,6 @@ export default function MockHome() {
         >
           <Wallet size={22} strokeWidth={activeNav === "wallet" ? 2.5 : 2} className={activeNav === "wallet" ? 'drop-shadow-glow-emerald text-emerald-400' : ''} />
           <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "wallet" ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>Wallet</span>
-        </button>
-
-        <button 
-          onClick={() => setActiveNav("bookings")}
-          className={`flex-1 flex flex-col items-center gap-1 transition-all duration-500 z-10 group ${activeNav === "bookings" ? 'text-indigo-400 scale-110' : 'text-white/20 hover:text-white/60'}`}
-        >
-          <Briefcase size={22} strokeWidth={activeNav === "bookings" ? 2.5 : 2} className={activeNav === "bookings" ? 'drop-shadow-glow-blue text-indigo-400' : ''} />
-          <span className={`text-[8px] uppercase tracking-tighter font-black transition-all duration-300 ${activeNav === "bookings" ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>Bookings</span>
         </button>
 
         <button 
@@ -1140,6 +1203,12 @@ export default function MockHome() {
             onClose={() => setIsAIOpen(false)} 
             currentContext={activeNav as any}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAdminHubOpen && (
+          <AdminGovernanceHub onClose={() => setIsAdminHubOpen(false)} />
         )}
       </AnimatePresence>
 

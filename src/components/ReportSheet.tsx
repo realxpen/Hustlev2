@@ -1,10 +1,14 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, Flag, AlertTriangle, ShieldX, ChevronRight, Check } from "lucide-react";
 import { useState } from "react";
+import { useModerationStore } from "../stores/useModerationStore";
+import type { ReportTargetType } from "../types/moderation";
 
 interface ReportSheetProps {
   onClose: () => void;
   entityName: string;
+  targetId: string;
+  targetType: ReportTargetType;
 }
 
 const REPORT_REASONS = [
@@ -14,14 +18,26 @@ const REPORT_REASONS = [
   { id: "inappropriate", label: "Inappropriate Content", icon: <Flag size={18} /> },
 ];
 
-export default function ReportSheet({ onClose, entityName }: ReportSheetProps) {
+export default function ReportSheet({ onClose, entityName, targetId, targetType }: ReportSheetProps) {
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [internalError, setInternalError] = useState("");
+  const { submitReport, isLoading } = useModerationStore();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedReason) {
-      setIsSubmitted(true);
-      setTimeout(onClose, 2000);
+      setInternalError("");
+      const res = await submitReport({
+        target_id: targetId,
+        target_type: targetType,
+        reason: selectedReason
+      });
+      if (res.success) {
+        setIsSubmitted(true);
+        setTimeout(onClose, 2000);
+      } else {
+        setInternalError(res.error || "Failed to submit report");
+      }
     }
   };
 
@@ -83,17 +99,23 @@ export default function ReportSheet({ onClose, entityName }: ReportSheetProps) {
                ))}
             </div>
 
+            {internalError && (
+              <div className="text-red-500 text-xs font-medium bg-red-500/10 p-3 rounded-xl mb-4">
+                {internalError}
+              </div>
+            )}
+            
             <div className="flex flex-col gap-4">
                <button 
-                 disabled={!selectedReason}
+                 disabled={!selectedReason || isLoading}
                  onClick={handleSubmit}
-                 className={`w-full h-16 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all active:scale-95 ${
+                 className={`w-full h-16 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] transition-all active:scale-95 flex justify-center items-center ${
                     selectedReason 
                     ? 'bg-red-500 text-white shadow-2xl shadow-red-500/20' 
                     : 'bg-white/5 text-white/20'
                  }`}
                >
-                  Submit Report
+                  {isLoading ? 'Submitting...' : 'Submit Report'}
                </button>
                <button 
                  onClick={onClose}

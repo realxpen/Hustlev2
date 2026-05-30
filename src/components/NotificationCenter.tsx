@@ -4,7 +4,7 @@ import {
   X, Bell, BellOff, CheckCircle2, MessageSquare, 
   DollarSign, ShoppingBag, Radio, Shield, Star,
   Clock, ChevronRight, MoreVertical, Filter,
-  TrendingUp, Zap, Info, Briefcase, Heart, UserPlus, Repeat, ShieldCheck, Phone
+  TrendingUp, Zap, Info, Briefcase, Heart, UserPlus, Repeat, ShieldCheck, Phone, Video
 } from "lucide-react";
 import { useNotificationStore, NotificationType, NotificationGroup } from '../features/feed/stores/useNotificationStore';
 import { useBookingStore } from '../features/bookings/stores/useBookingStore';
@@ -34,13 +34,13 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
 
     // If it's a booking-related notification, open the escrow manager
     const bookingTypes: NotificationType[] = [
-      'booking', 'booking_new', 'booking_accepted', 'escrow', 
-      'milestone', 'milestone_delivered', 'milestone_released'
+      'booking', 'booking_new', 'booking_accepted', 'booking_rejected', 'booking_completed',
+      'escrow', 'milestone', 'milestone_delivered', 'milestone_released', 'milestone_disputed'
     ];
 
     if (bookingTypes.includes(group.type) && group.entity_id) {
        onOpenEscrow(group.entity_id);
-    } else if (group.type === 'internal_share' && group.actors[0]?.id) {
+    } else if ((group.type === 'internal_share' || group.type === 'message') && group.actors[0]?.id) {
        onOpenChat(group.actors[0].id);
     }
   };
@@ -50,13 +50,23 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
     fetchBookings();
   }, [fetchNotifications, fetchBookings]);
 
-  const filtered = groupedNotifications.filter(n => activeFilter === 'all' || n.type === activeFilter);
+  const filtered = groupedNotifications.filter(n => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'booking') {
+      return ['booking', 'booking_new', 'booking_accepted', 'booking_rejected', 'booking_completed'].includes(n.type);
+    }
+    if (activeFilter === 'milestone') {
+      return ['milestone', 'milestone_delivered', 'milestone_released', 'milestone_disputed'].includes(n.type);
+    }
+    return n.type === activeFilter;
+  });
 
   const getIcon = (type: NotificationType) => {
     switch (type) {
       case 'like': return <Heart size={16} className="text-pink-500" />;
       case 'comment': return <MessageSquare size={16} className="text-blue-400" />;
       case 'reply': return <MessageSquare size={16} className="text-blue-400" />;
+      case 'message': return <MessageSquare size={16} className="text-brand-primary" />;
       case 'repost': return <Repeat size={16} className="text-green-500" />;
       case 'follow': return <UserPlus size={16} className="text-purple-500" />;
       case 'story_reaction': return <Star size={16} className="text-yellow-400" />;
@@ -71,6 +81,14 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
       case 'milestone_released': return <Zap size={16} className="text-yellow-400" />;
       case 'booking_new': return <Briefcase size={16} className="text-brand-primary animate-pulse" />;
       case 'booking_accepted': return <ShieldCheck size={16} className="text-blue-400" />;
+      case 'agent_approved':
+      case 'agent_approved_by_hustler':
+      case 'commission_paid':
+      case 'commission_payout': return <ShieldCheck size={16} className="text-emerald-400" />;
+      case 'live_started': return <Video size={16} className="text-red-500 animate-pulse" />;
+      case 'agent_rejected':
+      case 'agent_revoked_by_hustler': return <BellOff size={16} className="text-red-400" />;
+      case 'agent_request': return <UserPlus size={16} className="text-brand-primary" />;
       case 'system': return <Shield size={16} className="text-slate-400" />;
       default: return <Bell size={16} className="text-white/60" />;
     }
@@ -92,6 +110,7 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
         case 'like': return count > 1 ? `${count} New Likes` : 'New Like';
         case 'comment': return count > 1 ? `${count} New Comments` : 'New Comment';
         case 'reply': return count > 1 ? `${count} New Replies` : 'New Reply';
+        case 'message': return count > 1 ? `${count} New Messages` : 'New Message';
         case 'repost': return count > 1 ? `${count} New Reposts` : 'New Repost';
         case 'follow': return count > 1 ? `${count} New Followers` : 'New Follower';
         case 'story_reaction': return count > 1 ? `${count} Story Reactions` : 'Story Reaction';
@@ -106,6 +125,14 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
         case 'milestone_released': return 'Payment Released';
         case 'booking_new': return 'New Booking Request';
         case 'booking_accepted': return 'Booking Accepted';
+        case 'agent_approved': return 'Agency Approved';
+        case 'agent_rejected': return 'Agency Application Rejected';
+        case 'agent_request': return 'Agency Partnership Request';
+        case 'agent_approved_by_hustler': return 'Agency Partnership Active';
+        case 'agent_revoked_by_hustler': return 'Agency Partnership Revoked';
+        case 'live_started': return 'Live Stream Started';
+        case 'commission_paid': return 'Commission Received';
+        case 'commission_payout': return 'Agency Share Deducted';
         case 'system': return 'System Alert';
         default: return 'Notification';
       }
@@ -126,10 +153,11 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
       const firstActor = group.actors[0]?.full_name || 'Someone';
       const others = group.count - 1;
       
-      const bookingTypes: NotificationType[] = ['booking', 'booking_new', 'booking_accepted'];
+      const bookingTypes: NotificationType[] = ['booking', 'booking_new', 'booking_accepted', 'booking_rejected', 'booking_completed'];
       if (bookingTypes.includes(group.type) && group.entity_id) {
           const booking = buyerOrders.find(b => b.id === group.entity_id) || sellerOrders.find(b => b.id === group.entity_id);
           if (booking) {
+              if (booking.status === 'pending') return `New booking request received for ₦${(booking.total_price || 0).toLocaleString()}.`;
               if (booking.status === 'accepted') return `Booking request was accepted. Project is now active.`;
               if (booking.status === 'rejected') return `This booking request was declined.`;
               if (booking.status === 'cancelled') return `This booking request was cancelled.`;
@@ -148,6 +176,21 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
           case 'story_reply': return `${firstActor}${others > 0 ? ` and ${others} others` : ''} replied to your story.`;
           case 'internal_share': return `${firstActor} shared a post with you.`;
           case 'booking': return group.items[0]?.message || 'You have a new booking request.';
+          case 'booking_new': return group.items[0]?.message || 'New booking request received.';
+          case 'booking_accepted': return group.items[0]?.message || 'Your booking has been accepted.';
+          case 'booking_rejected': return group.items[0]?.message || 'Your booking has been declined.';
+          case 'booking_completed': return group.items[0]?.message || 'Your booking is complete!';
+          case 'milestone_delivered': return group.items[0]?.message || 'Milestone has been delivered. Review and release funds.';
+          case 'milestone_released': return group.items[0]?.message || 'Funds for milestone have been released.';
+          case 'milestone_disputed': return group.items[0]?.message || 'Milestone has been disputed / flagged.';
+          case 'agent_approved': return group.items[0]?.message || 'Your Agency Application has been approved.';
+          case 'agent_rejected': return group.items[0]?.message || 'Your Agency Application was not approved.';
+          case 'agent_request': return group.items[0]?.message || 'An Agency wants to manage your Career.';
+          case 'agent_approved_by_hustler': return group.items[0]?.message || 'Partnership with Agency is now Active.';
+          case 'agent_revoked_by_hustler': return group.items[0]?.message || 'Partnership with Agency has been Revoked.';
+          case 'live_started': return group.items[0]?.message || 'Someone you follow started a Live Session!';
+          case 'commission_paid': return group.items[0]?.message || 'You received a commission payment.';
+          case 'commission_payout': return group.items[0]?.message || 'Agency commission share has been deducted from your earnings.';
           case 'wallet': return group.items[0]?.message || 'Wallet transaction update.';
           case 'escrow': return group.items[0]?.message || 'Escrow status changed.';
           case 'work': return group.items[0]?.message || 'Work update.';
@@ -369,6 +412,34 @@ export default function NotificationCenter({ onClose, onOpenEscrow, onOpenChat, 
                                     <div className="mt-3">
                                        <button className="w-full py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 hover:bg-blue-500/20 transition-all">
                                           <MessageSquare size={12} /> Message Client
+                                       </button>
+                                    </div>
+                                 )}
+
+                                 {n.type === 'agent_request' && (
+                                    <div className="mt-3">
+                                       <button 
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           onClose();
+                                         }}
+                                         className="w-full py-2 bg-brand-primary text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:brightness-110 active:scale-95 transition-all"
+                                       >
+                                         Review Request
+                                       </button>
+                                    </div>
+                                 )}
+
+                                 {n.type === 'live_started' && (
+                                    <div className="mt-3">
+                                       <button 
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           onClose();
+                                         }}
+                                         className="w-full py-2 bg-red-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:brightness-110 active:scale-95 transition-all"
+                                       >
+                                         Join Stream
                                        </button>
                                     </div>
                                  )}

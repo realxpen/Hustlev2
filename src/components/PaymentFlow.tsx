@@ -6,6 +6,8 @@ import {
   AlertCircle, ArrowRight
 } from "lucide-react";
 import { useBookingStore } from '../features/bookings/stores/useBookingStore';
+import { useAuthStore } from '../features/auth/stores/useAuthStore';
+import { convertCurrency, formatCurrency, Currency, EXCHANGE_RATES } from '../lib/currency';
 
 interface PaymentFlowProps {
   onClose: () => void;
@@ -25,6 +27,10 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
   const [step, setStep] = useState<'checkout' | 'holding' | 'success'>('checkout');
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'card' | 'crypto'>('wallet');
   const { createBooking, isLoading: isBookingLoading } = useBookingStore();
+  const { profile } = useAuthStore();
+
+  const displayCurrency = (profile?.display_currency || 'USD') as Currency;
+  const convertedAmount = convertCurrency(bookingData.amount, 'USD', displayCurrency);
 
   const handlePay = async () => {
     setStep('holding');
@@ -92,7 +98,7 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
                        <h4 className="text-sm font-black uppercase mb-1">{bookingData.title}</h4>
                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">with {bookingData.hustler}</span>
                     </div>
-                    <span className="text-xl font-black tracking-tighter">${bookingData.amount.toLocaleString()}</span>
+                    <span className="text-xl font-black tracking-tighter">{formatCurrency(convertedAmount, displayCurrency)}</span>
                  </div>
                  <div className="pt-4 border-t border-white/5 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-blue-500/20 flex items-center justify-center">
@@ -118,7 +124,7 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
                        </div>
                        <div className="text-left">
                           <h5 className="text-xs font-black uppercase tracking-tight italic">Hustle Wallet</h5>
-                          <span className="text-[9px] font-bold text-white/30 uppercase">$12,400 available</span>
+                          <span className="text-[9px] font-bold text-white/30 uppercase">{formatCurrency(convertCurrency(12400, 'USD', displayCurrency), displayCurrency)} available</span>
                        </div>
                     </div>
                     {paymentMethod === 'wallet' && <CheckCircle2 size={16} className="text-emerald-500" />}
@@ -155,7 +161,7 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
               >
                 <div className="flex flex-col items-center">
                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 group-hover:tracking-[0.3em] transition-all">Confirm Payment</span>
-                   <span className="text-2xl font-black italic tracking-tighter">${bookingData.amount.toLocaleString()}</span>
+                   <span className="text-2xl font-black italic tracking-tighter">{formatCurrency(convertedAmount, displayCurrency)}</span>
                 </div>
                 <ArrowRight size={24} className="group-hover:translate-x-2 transition-transform" />
               </button>
@@ -223,7 +229,7 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
                      <span className="text-[10px] font-black text-white/60 uppercase tracking-widest italic">Booking ID: #HS-48291</span>
                   </div>
                   <p className="text-xs font-medium text-white/40 leading-relaxed max-w-[280px] mx-auto">
-                     Payment successful. ${bookingData.amount.toLocaleString()} is now held in escrow. {bookingData.hustler} has been notified to begin work.
+                     Payment successful. {formatCurrency(convertedAmount, displayCurrency)} is now held in escrow. {bookingData.hustler} has been notified to begin work.
                   </p>
                </div>
 

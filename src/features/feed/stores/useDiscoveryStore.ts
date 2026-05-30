@@ -12,6 +12,8 @@ export interface SuggestedCreator {
   primary_skill?: string | null;
   is_hustler?: boolean;
   follower_count?: number;
+  review_count?: number;
+  rating_average?: number;
 }
 
 export interface ExploreTopic {
@@ -101,7 +103,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
           .eq('is_active', true)
           .or(`title.ilike.${searchQuery},description.ilike.${searchQuery},category.ilike.${searchQuery}`)
           .limit(10);
-        results.services = services || [];
+        results.services = (services || []).filter((s: any) => s.profiles);
       }
 
       // 2. Search Products
@@ -112,7 +114,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
           .eq('is_active', true)
           .or(`title.ilike.${searchQuery},description.ilike.${searchQuery},category.ilike.${searchQuery}`)
           .limit(10);
-        results.products = products || [];
+        results.products = (products || []).filter((p: any) => p.profiles);
       }
 
       // 3. Search Training
@@ -123,14 +125,14 @@ export const useDiscoveryStore = create<DiscoveryState>()(
           .eq('is_active', true)
           .or(`title.ilike.${searchQuery},description.ilike.${searchQuery},category.ilike.${searchQuery}`)
           .limit(10);
-        results.training = training || [];
+        results.training = (training || []).filter((t: any) => t.profiles);
       }
 
       // 4. Search Hustlers (Profiles)
       if (intent === 'any' || intent === 'hustler' || intent === 'service') {
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average')
+          .select('id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, follower_count')
           .eq('is_hustler', true) // Only active hustlers
           .or(`full_name.ilike.${searchQuery},username.ilike.${searchQuery},hustle_name.ilike.${searchQuery},primary_skill.ilike.${searchQuery}`)
           .limit(15);
@@ -159,7 +161,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews),
+          profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews, follower_count),
           likes:post_likes(count),
           comments(count)
         `)
@@ -171,7 +173,8 @@ export const useDiscoveryStore = create<DiscoveryState>()(
 
       // Diversity Rule: Prevent same content loops.
       // Take top 10 viral/trending directly. Then take 15 random from the remaining pool.
-      const pool = data as any[] || [];
+      // We also enforce that the author profile is available (not suspended/hidden in the backend)
+      const pool = (data as any[] || []).filter(p => p.profiles);
       let finalFeed = pool;
       
       if (pool.length > 10) {
@@ -203,7 +206,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
         
       if (tagError) throw tagError;
 
-      // Fetch top trending posts
+      // Fetch top trending posts, ensuring their creator profiles are active/not suspended
       const { data: postData, error: postError } = await (supabase as any)
         .from('posts')
         .select(`
@@ -214,13 +217,17 @@ export const useDiscoveryStore = create<DiscoveryState>()(
         `)
         .eq('is_repost', false)
         .order('trending_score', { ascending: false, nullsFirst: false })
-        .limit(15);
+        .limit(25); // Fetch slightly more to ensure filtering doesn't leave gaps
         
       if (postError) throw postError;
 
+      const filteredTrendingPosts = (postData as any[] || [])
+        .filter(p => p.profiles)
+        .slice(0, 15);
+
       set({
         trendingHashtags: tagData as unknown as ExploreTopic[],
-        trendingPosts: postData as any[]
+        trendingPosts: filteredTrendingPosts
       });
     } catch (err: any) {
       console.error("Error fetching trending", err);
@@ -236,7 +243,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
       // Based on hustle identity and engagement to find trending creators
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average')
+        .select('id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, follower_count')
         .eq('is_hustler', true)
         .order('review_count', { ascending: false, nullsFirst: false }) // Prioritize active hustlers
         .limit(30);
@@ -279,7 +286,7 @@ export const useDiscoveryStore = create<DiscoveryState>()(
       set((state) => ({
         categoryFeeds: {
           ...state.categoryFeeds,
-          [category]: data as any[]
+          [category]: (data as any[] || []).filter(p => p.profiles)
         }
       }));
     } catch (err: any) {

@@ -8,6 +8,7 @@ import {
   CreditCard, 
   Landmark, 
   CheckCircle2, 
+  AlertCircle,
   Copy, 
   AlertTriangle,
   ArrowRight,
@@ -20,8 +21,10 @@ import {
   Fingerprint
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useWalletStore } from "../features/wallets/stores/useWalletStore";
 import PaymentConfirmationModal from "./PaymentConfirmationModal";
 import TrustBadge from "./TrustBadge";
+import { convertCurrency, Currency, EXCHANGE_RATES } from "../lib/currency";
 
 interface DepositFlowProps {
   isOpen: boolean;
@@ -40,6 +43,7 @@ type DepositStep =
 type StatusState = "pending" | "processing" | "completed" | "failed";
 
 export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
+  const { initiateDeposit } = useWalletStore();
   const [step, setStep] = useState<DepositStep>("selection");
   const [direction, setDirection] = useState(1);
   const [fiatAmount, setFiatAmount] = useState("");
@@ -80,22 +84,45 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
     simulateFiatDeposit();
   };
 
-  const simulateFiatDeposit = () => {
+  const simulateFiatDeposit = async () => {
     navigateTo("fiat_status");
     setTxStatus("processing");
-    setTimeout(() => {
-      setTxStatus("completed");
-    }, 2500);
+    try {
+      const amount = Number(fiatAmount || 0);
+      if (isNaN(amount) || amount <= 0) throw new Error("Invalid amount");
+
+      // Backend expects base units (USD). Convert input amount to USD.
+      const amountInUSD = convertCurrency(amount, fiatCurrency as Currency, 'USD');
+
+      const res = await initiateDeposit(amountInUSD);
+      if (res.success) {
+        setTxStatus("completed");
+      } else {
+        setTxStatus("failed");
+      }
+    } catch (e) {
+      console.error(e);
+      setTxStatus("failed");
+    }
   };
 
-  const simulateCryptoDeposit = () => {
+  const simulateCryptoDeposit = async () => {
     navigateTo("crypto_status");
     setTxStatus("pending");
-    setTimeout(() => {
+    setTimeout(async () => {
       setTxStatus("processing");
-      setTimeout(() => {
-        setTxStatus("completed");
-      }, 3000);
+      try {
+        const cryptoWorthNGN = cryptoType === "BTC" ? 10000000 : cryptoType === "ETH" ? 500000 : 160000;
+        const res = await initiateDeposit(cryptoWorthNGN);
+        if (res.success) {
+          setTxStatus("completed");
+        } else {
+          setTxStatus("failed");
+        }
+      } catch (e) {
+        console.error(e);
+        setTxStatus("failed");
+      }
     }, 2000);
   };
 
@@ -114,12 +141,12 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed inset-0 z-[100] bg-black p-6 flex flex-col pt-16 overflow-y-auto"
+        className="fixed inset-0 z-[200] bg-black p-6 flex flex-col pt-16 overflow-hidden"
       >
         <div className="grain-overlay pointer-events-none" />
 
         {/* Header */}
-        <header className="flex items-center justify-between mb-8 shrink-0">
+        <header className="flex items-center justify-between mb-6 shrink-0">
           <div className="flex items-center gap-3">
             {step !== "selection" && step !== "fiat_status" && step !== "crypto_status" && (
               <button 
@@ -150,7 +177,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
         </header>
 
         {/* Main Content Area */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative flex flex-col min-h-0 overflow-y-auto no-scrollbar pb-32">
           <AnimatePresence mode="wait" custom={direction}>
             
             {/* STEP: SELECTION */}
@@ -196,26 +223,34 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
 
             {/* STEP: FIAT AMOUNT */}
             {step === "fiat_amount" && (
-              <motion.div
+              <motion.form
                 key="fiat_amount"
                 custom={direction}
                 variants={variants}
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (fiatAmount && Number(fiatAmount) > 0) {
+                    navigateTo("fiat_method");
+                  }
+                }}
+                className="flex flex-col flex-1 min-h-[350px] justify-between"
               >
-                <div className="flex-1 flex flex-col justify-center items-center py-20">
-                  <span className="text-[10px] text-white/30 font-bold uppercase tracking-[0.3em] mb-6">Enter Amount</span>
+                <div className="flex-1 flex flex-col justify-center items-center py-6 sm:py-10">
+                  <span className="text-[10px] text-white/30 font-bold uppercase tracking-[0.3em] mb-4">Enter Amount</span>
                   
-                  <div className="flex items-center gap-4 mb-12">
-                    <div className="text-6xl font-display font-black tracking-tighter text-white opacity-40">$</div>
+                  <div className="flex items-center justify-center gap-3 mb-8 w-full">
+                    <div className="text-5xl font-display font-black tracking-tighter text-emerald-400">
+                      {fiatCurrency === "NGN" ? "₦" : fiatCurrency === "EUR" ? "€" : "$"}
+                    </div>
                     <input 
                       type="number"
                       value={fiatAmount}
                       onChange={(e) => setFiatAmount(e.target.value)}
                       placeholder="0.00"
-                      className="bg-transparent text-7xl font-display font-black tracking-tighter w-full max-w-[250px] outline-none text-white placeholder-white/20"
+                      className="bg-transparent text-6xl font-display font-black tracking-tighter max-w-[220px] outline-none text-white placeholder-white/20 text-center animate-pulse"
                       autoFocus
                     />
                   </div>
@@ -223,6 +258,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                   <div className="flex gap-2 p-1 bg-white/5 rounded-full border border-white/10">
                     {["USD", "NGN", "EUR"].map(curr => (
                       <button
+                        type="button"
                         key={curr}
                         onClick={() => setFiatCurrency(curr)}
                         className={`px-6 py-2 rounded-full text-[10px] font-black tracking-widest uppercase transition-colors ${
@@ -235,14 +271,17 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                   </div>
                 </div>
 
-                <button 
-                  disabled={!fiatAmount || Number(fiatAmount) <= 0}
-                  onClick={() => navigateTo("fiat_method")}
-                  className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl flex justify-center items-center disabled:opacity-30 transition-opacity"
-                >
-                  Continue
-                </button>
-              </motion.div>
+                <div className="shrink-0 pt-4">
+                  <button 
+                    type="submit"
+                    disabled={!fiatAmount || Number(fiatAmount) <= 0}
+                    className="w-full h-16 bg-white disabled:bg-white/10 text-black disabled:text-white/30 border border-white/10 rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl flex justify-center items-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    <span>Continue</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              </motion.form>
             )}
 
             {/* STEP: FIAT METHOD */}
@@ -254,7 +293,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full"
+                className="flex flex-col flex-1 justify-between min-h-[350px]"
               >
                 <div className="mb-12">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-6 px-2">Select Payment Method</h4>
@@ -316,7 +355,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full"
+                className="flex flex-col flex-1 justify-between min-h-[350px]"
               >
                 <div className="p-8 rounded-[32px] bg-white/[0.02] border border-white/10 mb-8 mt-4">
                   <span className="text-[10px] text-white/40 font-bold uppercase tracking-[0.2em] block text-center mb-4">Deposit Amount</span>
@@ -365,7 +404,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="flex flex-col h-full items-center justify-center pb-20"
+                className="flex flex-col flex-1 items-center justify-center py-6"
               >
                 <div className="w-32 h-32 relative mb-8 flex items-center justify-center">
                   {txStatus === "processing" ? (
@@ -374,6 +413,15 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                       transition={{ duration: 2, ease: "linear", repeat: Infinity }}
                       className="w-full h-full rounded-full border-4 border-white/10 border-t-blue-500 absolute inset-0"
                     />
+                  ) : txStatus === "failed" ? (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", bounce: 0.5 }}
+                      className="w-full h-full rounded-full bg-red-500/20 flex items-center justify-center"
+                    >
+                      <AlertCircle size={48} className="text-red-400" />
+                    </motion.div>
                   ) : (
                     <motion.div
                       initial={{ scale: 0 }}
@@ -387,15 +435,17 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                 </div>
 
                 <h3 className="text-2xl font-display font-black tracking-tight mb-2">
-                  {txStatus === "processing" ? "Processing Deposit.." : "Deposit Successful"}
+                  {txStatus === "processing" ? "Processing Deposit.." : txStatus === "failed" ? "Deposit Failed" : "Deposit Successful"}
                 </h3>
                 <p className="text-sm text-white/50 text-center max-w-xs mb-10">
                   {txStatus === "processing" 
                     ? "Adding funds to your wallet. This shouldn't take long."
-                    : `$${fiatAmount} has been added to your Fiat Balance.`}
+                    : txStatus === "failed" 
+                    ? "We encountered an unexpected error processing your deposit."
+                    : `${fiatCurrency} ${fiatAmount} has been added to your local Naira balance.`}
                 </p>
 
-                {txStatus === "completed" && (
+                {(txStatus === "completed" || txStatus === "failed") && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -403,7 +453,7 @@ export default function DepositFlow({ isOpen, onClose }: DepositFlowProps) {
                     className="w-full"
                   >
                     <button onClick={onClose} className="w-full h-16 bg-white text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs">
-                      Done
+                      {txStatus === "failed" ? "Close" : "Done"}
                     </button>
                   </motion.div>
                 )}

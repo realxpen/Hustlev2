@@ -277,6 +277,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
     const product_type = data.product_type || 'digital';
 
     set({ isLoading: true, error: null });
+    const inventory_count = Math.max(0, Number(data.inventory_count) || 10);
     const sanitizedData = {
       ...data,
       title,
@@ -285,6 +286,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       product_type,
       owner_id: user.id,
       is_active: true,
+      inventory_count,
       media: data.media || []
     };
 

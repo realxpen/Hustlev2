@@ -15,14 +15,19 @@ interface ProfileState {
   updateHustleName: (hustleName: string) => Promise<void>;
   updateSkills: (primarySkill: string, secondarySkills: string[]) => Promise<void>;
   syncTrustMetrics: () => Promise<void>;
+  blockUser: (targetUserId: string, reason?: string) => Promise<void>;
+  unblockUser: (targetUserId: string) => Promise<void>;
+  isUserBlocked: (targetUserId: string) => Promise<boolean>;
   setProfile: (profile: Profile | null) => void;
   reset: () => void;
+  activeChannel: any | null;
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
   profile: null,
   isLoading: false,
   error: null,
+  activeChannel: null,
   
   setProfile: (profile) => {
     set({ profile });
@@ -33,8 +38,59 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
   
   fetchProfile: async (userId: string) => {
+    // Prevent duplicated subscription setup
+    const currentChannel = get().activeChannel;
+    if (currentChannel) {
+      supabase.removeChannel(currentChannel);
+    }
+
     set({ isLoading: true, error: null });
     try {
+      // Set up real-time subscription
+      const channel = supabase
+        .channel(`profile-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${userId}`
+          },
+          async (payload) => {
+            console.log('[ProfileStore] Profile update received:', payload.new);
+            const { data: modState } = await (supabase as any)
+              .from('content_moderation_states')
+              .select('moderation_status')
+              .eq('target_type', 'profile')
+              .eq('target_id', userId)
+              .maybeSingle();
+
+            const isSuspended = ['hidden', 'removed'].includes((modState as any)?.moderation_status || '');
+            get().setProfile({ ...(payload.new as any), is_suspended: isSuspended } as any);
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'content_moderation_states',
+            filter: `target_id=eq.${userId}`
+          },
+          (payload) => {
+            console.log('[ProfileStore] User moderation state received:', payload.new);
+            const isSuspended = ['hidden', 'removed'].includes((payload.new as any)?.moderation_status || '');
+            const currentProfile = get().profile;
+            if (currentProfile && currentProfile.id === userId) {
+              get().setProfile({ ...currentProfile, is_suspended: isSuspended } as any);
+            }
+          }
+        );
+      
+      channel.subscribe();
+      set({ activeChannel: channel });
+
       let { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -70,8 +126,20 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
           throw error;
         }
       }
+
+      const { data: modState } = await (supabase as any)
+        .from('content_moderation_states')
+        .select('moderation_status')
+        .eq('target_type', 'profile')
+        .eq('target_id', userId)
+        .maybeSingle();
+
+      const isSuspended = ['hidden', 'removed'].includes((modState as any)?.moderation_status || '');
+      if (data) {
+        data = { ...data, is_suspended: isSuspended } as any;
+      }
       
-      get().setProfile(data);
+      get().setProfile(data as any);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message || error);
       
@@ -344,6 +412,55 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       console.error('Error syncing trust metrics:', error);
     }
   },
+
+  blockUser: async (targetUserId: string, reason?: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('buyer_restrictions')
+      .upsert({
+        seller_id: user.id,
+        buyer_id: targetUserId,
+        reason: reason || 'Violation of terms or unsatisfactory interaction'
+      });
+
+    if (error) throw error;
+  },
+
+  unblockUser: async (targetUserId: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('buyer_restrictions')
+      .delete()
+      .eq('seller_id', user.id)
+      .eq('buyer_id', targetUserId);
+
+    if (error) throw error;
+  },
+
+  isUserBlocked: async (targetUserId: string) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return false;
+
+    const { data, error } = await supabase
+      .from('buyer_restrictions')
+      .select('id')
+      .eq('seller_id', user.id)
+      .eq('buyer_id', targetUserId)
+      .maybeSingle();
+
+    if (error) return false;
+    return !!data;
+  },
   
-  reset: () => set({ profile: null, isLoading: false, error: null })
+  reset: () => {
+    const channel = get().activeChannel;
+    if (channel) {
+      supabase.removeChannel(channel);
+    }
+    set({ profile: null, isLoading: false, error: null, activeChannel: null });
+  }
 }));

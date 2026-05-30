@@ -12,6 +12,20 @@ export enum MilestoneStatus {
   DISPUTED = "disputed"
 }
 
+export enum EscrowPaymentState {
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  IN_ESCROW = 'IN_ESCROW',
+  RELEASED = 'RELEASED',
+  REFUNDED = 'REFUNDED'
+}
+
+export const getEscrowPaymentState = (booking: Booking): EscrowPaymentState => {
+  if (booking.escrow_status === 'released') return EscrowPaymentState.RELEASED;
+  if (booking.escrow_status === 'refunded') return EscrowPaymentState.REFUNDED;
+  if (booking.escrow_status === 'held') return EscrowPaymentState.IN_ESCROW;
+  return EscrowPaymentState.PENDING_PAYMENT;
+};
+
 export interface Milestone {
   id: string;
   booking_id: string;

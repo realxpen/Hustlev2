@@ -11,7 +11,11 @@ import {
   Search,
 } from "lucide-react";
 import FeedCard from "./FeedCard";
-import LiveStreamCard from "./LiveStreamCard";
+import LiveStreamCardThumbnail from "./live/LiveStreamCard";
+import LivePlayer from "./live/LivePlayer";
+import LiveStudio from "./live/LiveStudio";
+import { useLiveStore } from "../stores/useLiveStore";
+import { useAuthStore } from "../features/auth/stores/useAuthStore";
 import StoryBar from "./StoryBar";
 import StoryViewer from "./StoryViewer";
 import StoryCreator from "./StoryCreator";
@@ -53,7 +57,15 @@ export default function MainFeedHub({
   const [activeTab, setActiveTab] = useState<FeedTab>(initialTab);
   const { openStoryCreator } = useStoryDraftStore();
   const { posts, refreshFeed, fetchNextPage, isFetchingMore, hasMore } = useFeed();
+  const { profile } = useAuthStore();
+  const { activeSessions, fetchActiveSessions } = useLiveStore();
   const { fetchBuyerOrders, fetchSellerOrders, getMostRecentActiveBooking } = useBookingStore();
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
+  const [showStudio, setShowStudio] = useState(false);
+
+  useEffect(() => {
+    fetchActiveSessions();
+  }, [fetchActiveSessions]);
   const activeBooking = getMostRecentActiveBooking();
 
   useEffect(() => {
@@ -318,6 +330,14 @@ export default function MainFeedHub({
           </div>
 
           <div className="absolute right-0 flex items-center gap-3">
+            {activeTab === "live" && (profile?.is_hustler || profile?.is_agent || profile?.role === 'hustler') && (
+               <button
+                 onClick={() => setShowStudio(true)}
+                 className="flex items-center gap-2 bg-red-500 text-white px-4 h-10 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95 transition-all text-xs font-black uppercase tracking-widest"
+               >
+                 <Radio size={14} className="animate-pulse" /> Go Live
+               </button>
+            )}
             <button
               onClick={onOpenSearch}
               className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/20 cursor-pointer hover:bg-white/10 transition-colors shadow-lg"
@@ -428,200 +448,82 @@ export default function MainFeedHub({
             className="h-full w-full absolute inset-0"
           >
             {activeTab === "live" ? (
-              <div className="absolute inset-0 z-50 bg-black">
-                {isEnteredLive ? (
-                  <div className="relative h-full w-full">
-                    <button
-                      onClick={() => setIsEnteredLive(false)}
-                      className="absolute top-12 left-4 z-[60] w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20 text-white"
-                    >
-                      <ChevronDown className="rotate-90" size={20} />
-                    </button>
-
-                    <div
-                      ref={liveContainerRef}
-                      className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar bg-black"
-                      onScroll={handleLiveScroll}
-                      style={{ overscrollBehaviorY: "contain" }}
-                    >
-                      {getLiveItems().map((hustler, idx) => (
-                        <div
-                          key={`live-${hustler.id}`}
-                          className="h-full w-full snap-start snap-always relative"
-                        >
-                          <LiveStreamCard
-                            hustler={hustler}
-                            onProfileClick={() => bridgeIntent(hustler)}
-                            isActive={idx === activeStreamIndex}
-                            isExpanded={isLiveExpanded}
-                            onExpand={() => setIsLiveExpanded(true)}
-                            onCollapse={() => setIsLiveExpanded(false)}
-                          />
-                        </div>
-                      ))}
-
-                      {/* Pagination Spinner for Live */}
-                      {(isFetchingMore || hasMore) && (
-                        <div className="h-full w-full snap-start flex flex-col items-center justify-center gap-4 bg-black">
-                          <div className="w-8 h-8 rounded-full border-2 border-white/5 border-t-white/40 animate-spin" />
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
-                            Loading More
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-full w-full overflow-y-auto snap-y snap-mandatory no-scrollbar bg-[#050505]">
-                    {/* Featured Secondary Scroll Feed */}
-                    {getLiveItems()
-                      .slice(0, 4)
-                      .map((h, i) => (
-                        <div
-                          key={`featured-${i}`}
-                          className="w-full shrink-0 snap-start snap-always relative h-[100dvh] bg-zinc-900 overflow-hidden cursor-pointer group"
-                          onClick={() => {
-                            setIsEnteredLive(true);
-                            const realIdx = getLiveItems().findIndex(
-                              (item) => item.id === h.id,
-                            );
-                            setActiveStreamIndex(realIdx >= 0 ? realIdx : 0);
-                          }}
-                        >
-                          <img
-                            src={
-                              h.detailData?.heroMedia?.[0] ||
-                              h.creator.avatar ||
-                              null
-                            }
-                            className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700"
-                            alt="featured live"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-black/60 pointer-events-none" />
-
-                          {/* HUD overlay minimal */}
-                          <div className="absolute top-28 left-4 flex gap-2">
-                            <div className="bg-red-500 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-lg flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />{" "}
-                              Live
-                            </div>
-                            <div className="bg-black/60 backdrop-blur-md text-white text-xs font-bold px-2 py-1 rounded">
-                              {(Math.random() * 10 + 2).toFixed(1)}K Viewers
-                            </div>
-                          </div>
-
-                          <div className="absolute bottom-28 left-6 right-6">
-                            <div className="flex items-center gap-3 mb-3">
-                              <img
-                                src={`https://i.pravatar.cc/150?u=${h.creator.name}`}
-                                className="w-10 h-10 rounded-full border-2 border-white/20 shadow-xl"
-                              />
-                              <div>
-                                <h3 className="text-white font-bold text-sm tracking-tight">
-                                  {h.creator.name}
-                                </h3>
-                                <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">
-                                  {h.category}
-                                </p>
-                              </div>
-                            </div>
-                            <h2 className="text-xl font-black text-white leading-tight line-clamp-2">
-                              Join my exclusive {h.category} masterclass right
-                              now! 🔥
-                            </h2>
-                            <p className="text-white/50 text-xs mt-3 flex items-center gap-1 font-medium group-hover:text-white/80 transition-colors">
-                              Tap to watch live{" "}
-                              <ChevronDown
-                                className="-rotate-90 animate-bounce"
-                                size={14}
-                              />
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-
-                    <div className="w-full min-h-[100dvh] shrink-0 snap-start pt-28 pb-32 bg-[#050505] relative z-20 flex flex-col">
-                      <div className="px-6 mb-6 flex items-center justify-between">
-                        <h2 className="text-2xl font-black text-white italic tracking-tighter">
-                          Discover LIVE
-                        </h2>
-                        <button className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-1">
-                          View all{" "}
-                          <ChevronDown className="-rotate-90" size={12} />
-                        </button>
+              <div className="absolute inset-0 z-50 bg-[#050505] overflow-y-auto no-scrollbar pb-32">
+                
+                {/* Active Live Horizontal Scroll */}
+                <section className="pt-28 px-6 mb-10 overflow-hidden">
+                   <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-2">
+                         <div className="w-1.5 h-6 bg-red-500 rounded-full" />
+                         <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase font-display">Active Hustles</h2>
                       </div>
+                      <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">{activeSessions.length} Online Now</span>
+                   </div>
 
-                      {/* Primary Categories Scroll */}
-                      {categories.map((cat, catIdx) => (
-                        <section key={cat} className="mb-10">
-                          <div className="px-6 mb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-1 h-4 rounded-full ${catIdx === 0 ? "bg-red-500" : "bg-blue-500"}`}
-                              />
-                              <h3 className="text-lg font-black text-white tracking-tight">
-                                {cat}
-                              </h3>
+                   {activeSessions.length > 0 ? (
+                      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-6 px-6">
+                        {activeSessions.map((session) => (
+                           <LiveStreamCardThumbnail 
+                             key={session.id} 
+                             session={session} 
+                             onClick={() => setViewingSessionId(session.id)}
+                           />
+                        ))}
+                      </div>
+                   ) : (
+                      <div className="p-12 rounded-[2.5rem] bg-white/[0.02] border border-white/5 border-dashed flex flex-col items-center justify-center gap-4 text-center">
+                         <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-white/10">
+                            <Radio size={32} />
+                         </div>
+                         <div>
+                            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">No active streams</p>
+                            <p className="text-[9px] text-white/20 font-medium px-8 mt-1 italic">Hustlers are currently preparing their showcases. Check back soon!</p>
+                         </div>
+                      </div>
+                   )}
+                </section>
+
+                {/* Categories & Recommended (Mock layout for depth) */}
+                {activeSessions.length > 0 && categories.map((cat, catIdx) => (
+                    <section key={cat} className="mb-10 px-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-black text-white/40 uppercase tracking-widest">{cat}</h3>
+                        <ChevronDown className="-rotate-90 text-white/20" size={14} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                         {activeSessions.slice(0, 2).map((session) => (
+                            <div 
+                              key={`grid-${session.id}`}
+                              onClick={() => setViewingSessionId(session.id)}
+                              className="aspect-video rounded-3xl bg-zinc-900 border border-white/5 overflow-hidden relative cursor-pointer active:scale-[0.98] transition-all"
+                            >
+                               {session.thumbnail_url && <img src={session.thumbnail_url} className="w-full h-full object-cover opacity-60" />}
+                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                               <div className="absolute bottom-3 left-3 right-3 flex flex-col">
+                                  <span className="text-[9px] font-black text-white truncate">{session.title}</span>
+                                  <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">{session.host_profiles?.hustle_name || 'Hustler'}</span>
+                               </div>
                             </div>
-                          </div>
-
-                          <div className="flex gap-4 overflow-x-auto no-scrollbar px-6">
-                            {getLiveByCategory(cat).map((h, i) => (
-                              <div
-                                key={i}
-                                onClick={() => {
-                                  setIsEnteredLive(true);
-                                  // Find real index in getLiveItems()
-                                  const realIdx = getLiveItems().findIndex(
-                                    (item) => item.id === h.id,
-                                  );
-                                  setActiveStreamIndex(
-                                    realIdx >= 0 ? realIdx : 0,
-                                  );
-                                }}
-                                className="relative min-w-[200px] h-[280px] rounded-3xl bg-zinc-900 border border-white/5 overflow-hidden group cursor-pointer active:scale-95 transition-all shadow-2xl"
-                              >
-                                <img
-                                  src={
-                                    h.detailData?.heroMedia?.[0] ||
-                                    h.creator.avatar ||
-                                    null
-                                  }
-                                  className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700"
-                                  alt="live"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30" />
-
-                                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-red-500 text-white text-[9px] font-black px-2 py-1 rounded shadow-lg">
-                                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />{" "}
-                                  LIVE
-                                </div>
-
-                                <div className="absolute top-3 right-3 bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90">
-                                  {Math.floor(Math.random() * 5 + 1)}k viewers
-                                </div>
-
-                                <div className="absolute bottom-4 left-4 right-4">
-                                  <h4 className="text-white text-xs font-bold line-clamp-1 mb-2">
-                                    Exclusive {h.category} stream
-                                  </h4>
-                                  <div className="flex items-center gap-2">
-                                    <img
-                                      src={`https://i.pravatar.cc/150?u=${h.creator.name}`}
-                                      className="w-5 h-5 rounded-full border border-white/20"
-                                    />
-                                    <span className="text-[10px] font-bold text-white/70 truncate">
-                                      {h.creator.name}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      ))}
-                    </div>
-                  </div>
+                         ))}
+                      </div>
+                    </section>
+                ))}
+                
+                {/* Fallback discovery if no active sessions */}
+                {activeSessions.length === 0 && (
+                   <section className="px-6 mb-12">
+                      <div className="p-8 rounded-[3rem] bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20">
+                         <h3 className="text-xl font-black text-white italic tracking-tighter mb-2">Want to lead the way?</h3>
+                         <p className="text-[10px] text-white/50 leading-relaxed font-medium mb-6 uppercase tracking-wider">Start a live session to showcase your expertise, sell products, or guide your team in real-time.</p>
+                         {(profile?.is_hustler || profile?.is_agent || profile?.role === 'hustler') ? (
+                           <button onClick={() => setShowStudio(true)} className="h-14 w-full bg-red-500 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl flex items-center justify-center gap-2">
+                             <Radio size={14} className="animate-pulse" /> Launch Your Stream
+                           </button>
+                         ) : (
+                           <button className="h-14 w-full bg-white/5 text-white/40 font-black uppercase tracking-widest text-[10px] rounded-2xl border border-white/10">Become a Creator to Stream</button>
+                         )}
+                      </div>
+                   </section>
                 )}
               </div>
             ) : (
@@ -682,6 +584,21 @@ export default function MainFeedHub({
         </AnimatePresence>
       </div>
       <StoryCreator />
+
+      {/* Live Stream View Modals */}
+      <AnimatePresence>
+        {viewingSessionId && (
+          <LivePlayer 
+            sessionId={viewingSessionId} 
+            onClose={() => setViewingSessionId(null)} 
+          />
+        )}
+        {showStudio && (
+          <LiveStudio 
+            onClose={() => setShowStudio(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

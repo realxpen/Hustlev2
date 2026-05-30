@@ -10,6 +10,8 @@ interface HustlerUpgradeFlowProps {
 
 export type UpgradeStep = "intro" | "skill" | "experience" | "media" | "bio" | "identity" | "status" | "success" | "rejected";
 
+import { supabase } from "../lib/supabase";
+
 export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: HustlerUpgradeFlowProps) {
   const [step, setStep] = useState<UpgradeStep>(initialStep || "intro");
   const [skill, setSkill] = useState("");
@@ -18,9 +20,156 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
   const [reviewStatus, setReviewStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customSkill, setCustomSkill] = useState("");
+  
+  // Controlled fields for rich application metadata
+  const [serviceTitle, setServiceTitle] = useState("");
+  const [serviceDetails, setServiceDetails] = useState("");
+  const [identifierInput, setIdentifierInput] = useState("");
+  const [govIdAttached, setGovIdAttached] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const progressSteps = ["skill", "experience", "media", "bio", "identity"];
   const currentStepIndex = progressSteps.indexOf(step as any);
+
+  // Fetch Existing Verification Status on mount, and bind real-time subscription
+  useEffect(() => {
+    let channel: any;
+
+    async function checkExistingVerification() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        
+        const { data } = await (supabase as any)
+          .from('creator_verifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        if (data) {
+          const d = data as any;
+          setReviewStatus(d.status as any);
+          if (d.status === 'pending') {
+            setStep('status');
+          } else if (d.status === 'approved') {
+            setStep('success');
+          } else if (d.status === 'rejected') {
+            setStep('rejected');
+          }
+          
+          if (d.submission_metadata) {
+            const meta = d.submission_metadata as any;
+            if (meta.skill) setSkill(meta.skill);
+            if (meta.experience) setExperience(meta.experience);
+            if (meta.serviceTitle) setServiceTitle(meta.serviceTitle);
+            if (meta.serviceDetails) setServiceDetails(meta.serviceDetails);
+            if (meta.identityMethod) setIdentityMethod(meta.identityMethod);
+            if (meta.identifierInput) setIdentifierInput(meta.identifierInput);
+            if (meta.governmentIdAttached !== undefined) setGovIdAttached(meta.governmentIdAttached);
+          }
+        }
+
+        // Live status sync subscription
+        channel = supabase
+          .channel(`my-verification-${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'creator_verifications',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              const updated = payload.new as any;
+              if (updated) {
+                console.log("[HustlerUpgradeFlow] Live Verification updated:", updated);
+                setReviewStatus(updated.status);
+                if (updated.status === 'pending') {
+                  setStep('status');
+                } else if (updated.status === 'approved') {
+                  setStep('success');
+                } else if (updated.status === 'rejected') {
+                  setStep('rejected');
+                }
+              }
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.error("Failed to load verification status:", err);
+      }
+    }
+
+    checkExistingVerification();
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
+  const handleSubmitApplication = async () => {
+    setIsSubmitting(true);
+    setErrorMessage("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const metadata = {
+        skill,
+        experience,
+        serviceTitle,
+        serviceDetails,
+        identityMethod,
+        identifierInput,
+        governmentIdAttached: govIdAttached,
+        submitted_at: new Date().toISOString()
+      };
+
+      // Check for existing verification row
+      const { data: existing } = await (supabase as any)
+        .from('creator_verifications')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        const res = await (supabase as any)
+          .from('creator_verifications')
+          .update({
+            status: 'pending',
+            verification_type: 'skill',
+            submission_metadata: metadata,
+            submitted_at: new Date().toISOString()
+          })
+          .eq('user_id', user.id);
+        error = res.error;
+      } else {
+        const res = await (supabase as any)
+          .from('creator_verifications')
+          .insert({
+            user_id: user.id,
+            verification_type: 'skill',
+            status: 'pending',
+            submission_metadata: metadata
+          });
+        error = res.error;
+      }
+
+      if (error) throw error;
+      setReviewStatus('pending');
+      setStep('status');
+    } catch (err: any) {
+      console.error("Submit application error:", err);
+      setErrorMessage(err.message || "Failed to submit application.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -291,6 +440,8 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
                    <div>
                      <label className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2 block pl-2">Service Title</label>
                      <input 
+                       value={serviceTitle}
+                       onChange={(e) => setServiceTitle(e.target.value)}
                        placeholder="e.g. Logo Design, Sink Repair"
                        className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-white text-sm font-medium placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
                      />
@@ -299,6 +450,8 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
                    <div>
                      <label className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2 block pl-2">Details</label>
                      <textarea 
+                       value={serviceDetails}
+                       onChange={(e) => setServiceDetails(e.target.value)}
                        placeholder="Describe deliverables, timeframes, and process..."
                        className="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-6 text-white text-sm font-medium placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none resize-none"
                      />
@@ -307,7 +460,8 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
 
                 <button 
                   onClick={() => setStep("identity")}
-                  className="w-full h-16 bg-white text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs mt-auto active:scale-[0.98] transition-transform"
+                  disabled={!serviceTitle.trim() || !serviceDetails.trim()}
+                  className="w-full h-16 bg-white disabled:opacity-40 text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs mt-auto active:scale-[0.98] transition-transform"
                 >
                   Continue
                 </button>
@@ -334,13 +488,13 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
                 <div className="flex flex-col gap-4 mb-4">
                   <div className="flex bg-white/5 border border-white/10 p-1 rounded-2xl">
                      <button 
-                       onClick={() => setIdentityMethod('phone')}
+                       onClick={() => { setIdentityMethod('phone'); setIdentifierInput(''); }}
                        className={`flex-1 py-3 flex items-center justify-center gap-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${identityMethod === 'phone' ? 'bg-white text-black' : 'text-white/40 hover:text-white'}`}
                      >
                         <Smartphone size={14} /> SMS
                      </button>
                      <button 
-                       onClick={() => setIdentityMethod('email')}
+                       onClick={() => { setIdentityMethod('email'); setIdentifierInput(''); }}
                        className={`flex-1 py-3 flex items-center justify-center gap-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${identityMethod === 'email' ? 'bg-white text-black' : 'text-white/40 hover:text-white'}`}
                      >
                         <Mail size={14} /> Email
@@ -348,26 +502,48 @@ export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: 
                   </div>
 
                   <input 
+                    value={identifierInput}
+                    onChange={(e) => setIdentifierInput(e.target.value)}
                     placeholder={identityMethod === 'phone' ? "+1 Phone Number" : "Email Address"}
                     className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-white text-sm font-medium placeholder:text-white/20 focus:border-blue-500 focus:bg-white/10 transition-all outline-none"
                   />
                 </div>
 
-                <div className="p-5 rounded-3xl bg-white/5 border border-white/10 border-dashed flex items-center gap-4 group hover:bg-white/10 transition-all cursor-pointer">
-                   <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center shrink-0">
-                      <FileText size={20} className="text-white/60 group-hover:text-white" />
+                <div 
+                  onClick={() => setGovIdAttached(!govIdAttached)}
+                  className={`p-5 rounded-3xl border border-dashed flex items-center gap-4 group transition-all cursor-pointer ${govIdAttached ? 'bg-blue-500/15 border-blue-500/40' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                >
+                   <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${govIdAttached ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-white/60 group-hover:text-white'}`}>
+                      <FileText size={20} />
                    </div>
                    <div>
-                      <h4 className="text-sm font-black text-white uppercase tracking-tight">Optional: Government ID</h4>
-                      <p className="text-[10px] font-medium text-white/40 mt-1 leading-relaxed">Speeds up approval and unlocks "Identity Verified" badge instantly.</p>
+                      <h4 className="text-sm font-black text-white uppercase tracking-tight">
+                        {govIdAttached ? "Government ID Attached" : "Optional: Government ID"}
+                      </h4>
+                      <p className="text-[10px] font-medium text-white/40 mt-1 leading-relaxed">
+                        {govIdAttached ? "Ready to verify instantly upon submission." : "Speeds up approval and unlocks \"Identity Verified\" badge instantly."}
+                      </p>
                    </div>
                 </div>
 
+                {errorMessage && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-2xl flex items-center gap-2">
+                    <AlertCircle size={14} />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 <button 
-                  onClick={() => setStep("status")}
-                  className="w-full h-16 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs mt-auto active:scale-[0.98] transition-transform shadow-[0_0_40px_rgba(59,130,246,0.3)] hover:bg-blue-500"
+                  onClick={handleSubmitApplication}
+                  disabled={isSubmitting || !identifierInput.trim()}
+                  className="w-full h-16 bg-blue-600 disabled:opacity-40 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs mt-auto active:scale-[0.98] transition-transform shadow-[0_0_40px_rgba(59,130,246,0.3)] hover:bg-blue-500 flex items-center justify-center gap-2"
                 >
-                  Submit Application
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Submitting...
+                    </>
+                  ) : "Submit Application"}
                 </button>
              </motion.div>
           )}

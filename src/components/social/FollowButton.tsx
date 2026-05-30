@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { UserPlus, UserCheck, ChevronDown, UserMinus } from 'lucide-react';
 import { useSocialGraphStore } from '../../features/social/stores/useSocialGraphStore';
 import { useAuthStore } from '../../features/auth/stores/useAuthStore';
+import { useAppOrchestrator } from '../../stores/useAppOrchestrator';
 
 interface FollowButtonProps {
   targetUserId: string;
@@ -45,6 +46,15 @@ export const FollowButton: React.FC<FollowButtonProps> = ({
       setShowMenu(!showMenu);
     } else {
       await toggleFollow(targetUserId);
+      
+      useAppOrchestrator.getState().emitEvent({
+        event_type: 'follow_created',
+        actor_id: user.id,
+        target_id: targetUserId,
+        entity_id: targetUserId,
+        entity_type: 'profile',
+        payload: { followed: true }
+      });
     }
   };
 

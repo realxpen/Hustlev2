@@ -6,6 +6,7 @@ import {
 import { useState, useEffect } from "react";
 import JobEscrowManager from "./JobEscrowManager";
 import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { useProfileStore } from "../features/profile/stores/useProfileStore";
 import { useAuth } from "../features/auth";
 
 interface BookingDetailProps {
@@ -22,6 +23,9 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
   
   const { session } = useAuth();
   const { buyerOrders, sellerOrders, updateBookingStatus, proposeInvoiceRevision, respondToInvoiceRevision } = useBookingStore();
+  const { blockUser, unblockUser, isUserBlocked } = useProfileStore();
+
+  const [isBlocked, setIsBlocked] = useState(false);
 
   // Keep synced with store changes for real-time reactivity
   const booking = buyerOrders.find(b => b.id === initialBooking.id) || 
@@ -32,6 +36,37 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
   const isClient = booking.buyer_id === session?.user?.id;
   const otherUser = isSeller ? booking.buyer : booking.seller;
   const otherUserId = isSeller ? booking.buyer_id : booking.seller_id;
+
+  // Check block status
+  useEffect(() => {
+    const checkBlock = async () => {
+      if (isSeller && otherUserId) {
+        const blocked = await isUserBlocked(otherUserId);
+        setIsBlocked(blocked);
+      }
+    };
+    checkBlock();
+  }, [isSeller, otherUserId, isUserBlocked]);
+
+  const handleBlockAction = async () => {
+    if (!otherUserId) return;
+    setLocalLoading(true);
+    try {
+      if (isBlocked) {
+        await unblockUser(otherUserId);
+        setIsBlocked(false);
+      } else {
+        if (confirm("Restrict this buyer? They will be blocked from future bookings and interaction.")) {
+          await blockUser(otherUserId);
+          setIsBlocked(true);
+        }
+      }
+    } catch (e: any) {
+      alert("Failed to update restriction: " + e.message);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
 
   // Invoice Modification States (Hustler edits)
   const [editPrice, setEditPrice] = useState<number>(booking.total_price || 0);
@@ -366,12 +401,23 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                         </h4>
                      </div>
                   </div>
-                  <button 
-                     onClick={() => onMessage?.(otherUserId)}
-                     className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
-                  >
-                     <MessageSquare size={16} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                       onClick={() => onMessage?.(otherUserId)}
+                       className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+                    >
+                       <MessageSquare size={16} />
+                    </button>
+                    {isSeller && (
+                      <button 
+                        onClick={handleBlockAction}
+                        className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${isBlocked ? 'bg-red-500 border-red-500 text-white' : 'bg-white/5 border-white/10 text-red-500/40 hover:text-red-500 hover:bg-red-500/10'}`}
+                        title={isBlocked ? "Unblock Buyer" : "Block Buyer"}
+                      >
+                        <AlertCircle size={16} />
+                      </button>
+                    )}
+                  </div>
                </div>
 
                {/* Side-by-Side Revision Panel for Client Approval */}

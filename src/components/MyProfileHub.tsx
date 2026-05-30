@@ -4,7 +4,7 @@ import {
   Briefcase, Info, Calendar, Edit2, ChevronLeft, X, ArrowRight,
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, Plus, Play, Link as LinkIcon,
   ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap, ChevronRight, RefreshCcw,
-  Bookmark, Repeat
+  Bookmark, Repeat, Users, Award, GraduationCap
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
@@ -13,10 +13,15 @@ import HustlerUpgradeFlow, { UpgradeStep } from "./HustlerUpgradeFlow";
 import CreateOfferingFlow from "./CreateOfferingFlow";
 import ServiceDetailModal from "./ServiceDetailModal";
 import ImageEditorModal from "./ImageEditorModal";
+import AgencyCenter from "./AgencyCenter";
+import { LearnerWorkspace } from "./apprenticeship/LearnerWorkspace";
+import { MentorDashboard } from "./apprenticeship/MentorDashboard";
 import { useProfileStore } from "../features/profile/stores/useProfileStore";
 import { useUpdateProfile } from "../features/profile/hooks/useUpdateProfile";
 import { useAvatarUpload } from "../features/profile/hooks/useAvatarUpload";
 import { useFeedStore } from "../features/feed/stores/useFeedStore";
+import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { useAgentStore } from "../stores/useAgentStore";
 import { supabase } from "../lib/supabase";
 import FullscreenMediaViewer from "./FullscreenMediaViewer";
 import FeedCard from "./FeedCard";
@@ -42,6 +47,8 @@ interface MyProfileHubProps {
   setActiveNav?: (nav: any) => void;
   onOpenCreatorStudio?: () => void;
   onSignOut?: () => void;
+  onOpenBookingDetail?: (booking: any) => void;
+  onOpenChat?: (booking: any) => void;
 }
 
 export default function MyProfileHub({ 
@@ -49,14 +56,33 @@ export default function MyProfileHub({
   onHustlerModeChange, 
   setActiveNav, 
   onOpenCreatorStudio,
-  onSignOut 
+  onSignOut,
+  onOpenBookingDetail,
+  onOpenChat
 }: MyProfileHubProps) {
+  const { profile: realProfile } = useProfileStore();
+  const { updateProfile, error: updateError } = useUpdateProfile();
+  const { uploadImage } = useAvatarUpload(); 
+  const { buyerOrders, sellerOrders, fetchBookings } = useBookingStore();
+  const { 
+    submitAgentApplication, 
+    isLoading: isAgentLoading,
+    pendingInvites,
+    fetchPendingInvites,
+    respondToInvite
+  } = useAgentStore();
+
   const [activeTab, setActiveTab] = useState("posts");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showCreateOffering, setShowCreateOffering] = useState<boolean>(false);
   const [selectedService, setSelectedService] = useState<any>(null);
   const [upgradeInitialStep, setUpgradeInitialStep] = useState<UpgradeStep>("intro");
   const [hustlerMode, setHustlerMode] = useState(isHustler);
+  
+  const [showAgencyCenter, setShowAgencyCenter] = useState(false);
+  const [showAgentApplication, setShowAgentApplication] = useState(false);
+  const [agencyFormData, setAgencyFormData] = useState({ name: "", bio: "" });
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
 
   useEffect(() => {
     setHustlerMode(isHustler);
@@ -67,9 +93,70 @@ export default function MyProfileHub({
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [jobFilter, setJobFilter] = useState("Active");
   const [showAvailabilityManager, setShowAvailabilityManager] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Open for Bookings");
+  const [statusMessage, setStatusMessage] = useState(realProfile?.availability_status || "Open for Bookings");
   const [reviewFilter, setReviewFilter] = useState<"received" | "given">("received");
   const [imageEditorState, setImageEditorState] = useState<{isOpen: boolean, type: 'avatar' | 'cover' | null}>({ isOpen: false, type: null });
+
+  useEffect(() => {
+    fetchPendingInvites();
+  }, []);
+
+  // 1. Initialize from real profile
+  useEffect(() => {
+    if (realProfile) {
+      setIsAvailable(realProfile.is_available ?? true);
+      if (realProfile.availability_status) {
+        setStatusMessage(realProfile.availability_status);
+      }
+      if (realProfile.capacity) {
+        setCapacity(realProfile.capacity);
+      }
+      if (realProfile.schedule) {
+        setSchedule(realProfile.schedule as any);
+      }
+    }
+  }, [realProfile]);
+
+  const handleUpdateCapacity = async (val: number) => {
+    setCapacity(val);
+    try {
+      await updateProfile({ capacity: val });
+    } catch (e) {
+      console.error("Failed to update capacity:", e);
+    }
+  };
+
+  const handleUpdateSchedule = async (newSchedule: any[]) => {
+    setSchedule(newSchedule);
+    try {
+      await updateProfile({ schedule: newSchedule as any });
+    } catch (e) {
+      console.error("Failed to update schedule:", e);
+    }
+  };
+
+  const handleToggleAvailability = async (available: boolean) => {
+    setIsAvailable(available);
+    try {
+      await updateProfile({ is_available: available });
+    } catch (e) {
+      console.error("Failed to update availability:", e);
+    }
+  };
+
+  const handleUpdateStatus = async (status: string) => {
+    setStatusMessage(status);
+    const available = status !== "Fully Booked" && status !== "Away / Vacation";
+    setIsAvailable(available);
+    try {
+      await updateProfile({ 
+        availability_status: status,
+        is_available: available 
+      });
+    } catch (e) {
+      console.error("Failed to update status:", e);
+    }
+  };
 
   // 7. EARNINGS + ACTIVITY SECTION (Hustler Mode)
   const [reviewsReceived, setReviewsReceived] = useState<any[]>([]);
@@ -102,10 +189,6 @@ export default function MyProfileHub({
   const [autoAway, setAutoAway] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const { profile: realProfile } = useProfileStore();
-  const { updateProfile, error: updateError } = useUpdateProfile();
-  const { uploadImage } = useAvatarUpload(); // We renamed it to uploadImage under the hood
 
   const [errorToast, setErrorToast] = useState<string | null>(null);
 
@@ -174,8 +257,8 @@ export default function MyProfileHub({
           *,
           profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews)
         `).eq("user_id", realProfile.id).order("created_at", { ascending: false }),
-        (supabase as any).from("bookings").select("*, client:profiles!bookings_client_id_fkey(full_name, avatar_url), service:services(title)").eq("hustler_id", realProfile.id),
-        (supabase as any).from("bookings").select("*, hustler:profiles!bookings_hustler_id_fkey(full_name, avatar_url), service:services(title)").eq("client_id", realProfile.id),
+        (supabase as any).from("bookings").select("*, client:profiles!bookings_buyer_id_fkey(full_name, avatar_url), service:services(title)").eq("seller_id", realProfile.id),
+        (supabase as any).from("bookings").select("*, hustler:profiles!bookings_seller_id_fkey(full_name, avatar_url), service:services(title)").eq("buyer_id", realProfile.id),
         (supabase as any).from("ledger_entries").select("*").eq("profile_id", realProfile.id)
       ]);
 
@@ -347,13 +430,16 @@ export default function MyProfileHub({
 
   useEffect(() => {
     loadMyRealOfferings();
-  }, [realProfile?.id]);
+    fetchBookings();
+  }, [realProfile?.id, fetchBookings]);
 
 
 
   const tabs = [
     { id: "posts", label: "Posts", icon: <Grid size={14} /> },
+    { id: "academy", label: "Academy", icon: <GraduationCap size={14} /> },
     ...(hustlerMode ? [
+      { id: "fellowships", label: "Fellowships", icon: <Award size={14} /> },
       { id: "services", label: "Services", icon: <Briefcase size={14} /> },
       { id: "products", label: "Products", icon: <ShoppingBag size={14} /> },
       { id: "trainings", label: "Trainings", icon: <BookOpen size={14} /> },
@@ -448,7 +534,7 @@ export default function MyProfileHub({
             className="absolute top-4 left-4 z-20 flex items-center gap-1.5"
           >
             <button 
-              onClick={() => setIsAvailable(!isAvailable)}
+              onClick={() => handleToggleAvailability(!isAvailable)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-2xl border transition-all shadow-2xl active:scale-95 ${
                 isAvailable ? 'bg-green-500/20 border-green-500/30 text-green-400' : 'bg-red-500/20 border-red-500/30 text-red-400'
               }`}
@@ -672,6 +758,7 @@ export default function MyProfileHub({
               {/* Bio & Location Selection */}
               <div className="max-w-md mx-auto mt-6 relative group cursor-pointer" onClick={() => !isEditingBio && setIsEditingBio(true)}>
                 {isEditingBio ? (
+                  // ... bio editing ...
                   <div className="flex flex-col gap-3">
                     <textarea 
                       className="w-full bg-white/5 border border-white/20 rounded-xl p-3 text-white text-sm outline-none focus:border-blue-500 italic resize-none"
@@ -710,6 +797,99 @@ export default function MyProfileHub({
                   </>
                 )}
               </div>
+
+              {/* Management Requests (Specialist Side) */}
+              {pendingInvites.filter(i => i.hustler_id === realProfile?.id).length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mt-8 px-6 w-full max-w-lg mx-auto space-y-3"
+                >
+                  <p className="text-[9px] font-black uppercase text-white/30 tracking-widest ml-4">Management Requests</p>
+                  {pendingInvites.filter(i => i.hustler_id === realProfile?.id).map(invite => (
+                    <div 
+                      key={invite.id}
+                      className="p-4 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 flex flex-col gap-4 relative overflow-hidden group"
+                    >
+                      <div className="flex items-center gap-3 relative z-10">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                          <Users size={20} />
+                        </div>
+                        <div className="text-left flex-1">
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                            {invite.agent_profile?.agency_name || "New Agency Request"}
+                          </h4>
+                          <p className="text-[9px] text-white/40 uppercase font-bold">{invite.commission_percentage}% Fixed Commission split</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 relative z-10">
+                        <button 
+                          onClick={() => respondToInvite(invite.id, 'active')}
+                          className="flex-1 h-10 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all"
+                        >
+                          Accept
+                        </button>
+                        <button 
+                          onClick={() => respondToInvite(invite.id, 'revoked')}
+                          className="flex-1 h-10 bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-white/10 hover:text-white transition-all"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-2xl pointer-events-none" />
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+
+              {/* Agency Controls - Exclusive for Agents */}
+              {realProfile?.is_agent ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="mt-8 px-6 w-full max-w-lg mx-auto"
+                >
+                  <button 
+                    onClick={() => setShowAgencyCenter(true)}
+                    className="w-full p-6 rounded-[2.5rem] bg-gradient-to-br from-blue-600/20 to-blue-900/10 border border-blue-500/30 flex items-center justify-between group active-scale shadow-2xl relative overflow-hidden"
+                  >
+                    <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-blue-400 border border-blue-500/20 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                        <Users size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] mb-1">Agency Management</p>
+                        <h4 className="text-lg font-black text-white italic tracking-tighter uppercase whitespace-nowrap">
+                           {realProfile.agency_name || "Enterprise Agency"}
+                        </h4>
+                      </div>
+                    </div>
+                    <div className="relative z-10 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 group-hover:text-white group-hover:bg-white/10 transition-all">
+                       <ArrowRight size={20} />
+                    </div>
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 opacity-5 blur-3xl pointer-events-none group-hover:opacity-20 transition-opacity" />
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="mt-8 px-6 w-full max-w-lg mx-auto"
+                >
+                  <button 
+                    onClick={() => setShowAgentApplication(true)}
+                    className="w-full px-6 py-4 rounded-[1.75rem] bg-white/[0.02] border border-white/5 flex items-center justify-between group hover:bg-white/5 transition-all text-white/40 hover:text-white"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Award size={18} className="text-white/20 group-hover:text-blue-400 transition-colors" />
+                      <span className="text-[10px] font-black uppercase tracking-widest leading-none">Apply for Agency Status</span>
+                    </div>
+                    <ChevronRight size={16} className="opacity-0 group-hover:opacity-100 transition-all" />
+                  </button>
+                </motion.div>
+              )}
 
               {/* Hustle & Identity Cards */}
               {isHustler ? (
@@ -901,46 +1081,55 @@ export default function MyProfileHub({
                  </button>
               </div>
               <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
-                {hustlerJobs.filter(j => j.type === "Active").map((job) => (
-                  <div 
-                    key={job.id} 
-                    className="min-w-[240px] p-5 rounded-[2rem] bg-[#0c0c0c] border border-white/10 snap-start relative overflow-hidden group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl"
-                    onClick={() => setActiveNav && setActiveNav("bookings")}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                       <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xs font-black text-white/40 text-blue-400">
-                            {job.avatar}
+                {sellerOrders.filter(j => ['pending', 'accepted', 'in_progress', 'active'].includes(j.status)).map((job) => {
+                  const progress = job.status === 'completed' ? 100 : (job.status === 'in_progress' ? 60 : (job.status === 'accepted' ? 30 : 10));
+                  const statusLabel = job.status === 'pending' ? 'Review Required' : (job.status === 'accepted' ? 'Active' : (job.status === 'in_progress' ? 'In Progress' : (job.status === 'completed' ? 'Completed' : job.status)));
+                  
+                  return (
+                    <div 
+                      key={job.id} 
+                      className="min-w-[240px] p-5 rounded-[2rem] bg-[#0c0c0c] border border-white/10 snap-start relative overflow-hidden group hover:border-blue-500/30 transition-all cursor-pointer shadow-2xl"
+                      onClick={() => onOpenBookingDetail ? onOpenBookingDetail(job) : (setActiveNav && setActiveNav("bookings"))}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                         <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black text-blue-400 overflow-hidden">
+                              {job.buyer?.avatar_url ? (
+                                <img src={job.buyer.avatar_url} className="w-full h-full object-cover" />
+                              ) : (
+                                (job.buyer?.hustle_name || job.buyer?.full_name || "C")[0]
+                              )}
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{job.listing_title || job.listing?.title || 'Custom Service'}</h4>
+                              <p className="text-[8px] text-white/30 uppercase tracking-widest font-black">Escrow ID: {job.id.substring(0,8)}</p>
+                           </div>
                          </div>
-                         <div className="flex-1">
-                            <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{job.service}</h4>
-                            <p className="text-[8px] text-white/30 uppercase tracking-widest font-black">Escrow ID: {job.id}</p>
+                         <div className="text-[9px] font-black text-green-400 p-1 bg-green-400/10 rounded-md border border-green-500/20">
+                            ₦{(job.total_price || 0).toLocaleString()}
                          </div>
-                       </div>
-                       <div className="text-[9px] font-black text-green-400 p-1 bg-green-400/10 rounded-md border border-green-500/20">
-                         {job.amount}
-                       </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-end">
-                         <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{job.status}</span>
-                         <span className="text-[10px] font-black text-white">{job.progress}%</span>
                       </div>
-                      <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                         <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${job.progress}%` }}
-                            className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                         />
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-end">
+                           <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">{statusLabel}</span>
+                           <span className="text-[10px] font-black text-white">{progress}%</span>
+                        </div>
+                        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                           <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }}
+                              className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                           />
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                       <Zap size={40} />
+                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                         <Zap size={40} />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 
                 <button 
                   onClick={() => setShowCreateOffering(true)}
@@ -962,23 +1151,28 @@ export default function MyProfileHub({
                </div>
             </div>
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x pb-4">
-              {myBookings.filter(b => b.type === "Active").map((booking) => (
+              {buyerOrders.filter(b => ['pending', 'accepted', 'in_progress', 'active'].includes(b.status)).map((booking) => (
                 <div 
                   key={booking.id} 
                   className="min-w-[240px] p-5 rounded-[2rem] bg-[#0c0c0c] border border-white/10 snap-start relative overflow-hidden group hover:border-purple-500/30 transition-all cursor-pointer shadow-2xl"
+                  onClick={() => onOpenBookingDetail ? onOpenBookingDetail(booking) : (setActiveNav && setActiveNav("bookings"))}
                 >
                   <div className="flex justify-between items-start mb-6">
                     <div className="flex items-center gap-3">
                        <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden bg-white/10">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.hustler}`} className="w-full h-full object-cover" />
+                          {booking.seller?.avatar_url ? (
+                            <img src={booking.seller.avatar_url} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-[10px] font-black text-white/40">{(booking.seller?.hustle_name || booking.seller?.full_name || "H")[0]}</div>
+                          )}
                        </div>
-                       <div>
-                          <h4 className="text-[11px] font-black text-white uppercase tracking-tight">{booking.hustler}</h4>
-                          <p className="text-[8px] text-white/30 uppercase tracking-widest font-black leading-none">{booking.service}</p>
+                       <div className="min-w-0 flex-1">
+                          <h4 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{booking.seller?.hustle_name || booking.seller?.full_name || 'Hustler'}</h4>
+                          <p className="text-[8px] text-white/30 uppercase tracking-widest font-black leading-none truncate">{booking.listing_title || booking.listing?.title || 'Service'}</p>
                        </div>
                     </div>
                     <div className="text-[9px] font-black text-purple-400 p-1 bg-purple-400/10 rounded-md border border-purple-500/20">
-                      {booking.amount}
+                       ₦{(booking.total_price || 0).toLocaleString()}
                     </div>
                   </div>
 
@@ -987,11 +1181,27 @@ export default function MyProfileHub({
                         <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
                           <History size={10} /> {booking.status}
                         </span>
-                        <span className="text-[9px] text-white/40 font-black uppercase tracking-widest italic">{booking.due}</span>
+                        <span className="text-[9px] text-white/40 font-black uppercase tracking-widest italic">{booking.created_at ? new Date(booking.created_at).toLocaleDateString() : 'TBD'}</span>
                      </div>
                      <div className="flex gap-1">
-                        <button className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Message</button>
-                        <button className="flex-1 py-1.5 rounded-lg bg-white text-black text-[9px] font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all shadow-xl">Details</button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenChat && onOpenChat(booking);
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                        >
+                          Message
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenBookingDetail && onOpenBookingDetail(booking);
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-white text-black text-[9px] font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all shadow-xl"
+                        >
+                          Details
+                        </button>
                      </div>
                   </div>
                 </div>
@@ -1608,6 +1818,44 @@ export default function MyProfileHub({
               </motion.div>
             )}
 
+            {/* 6. ACADEMY & LEARNING SYSTEM */}
+            {activeTab === "academy" && (
+              <motion.div
+                key="academy"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-6"
+              >
+                <div className="flex items-center justify-between px-2 mb-2">
+                   <div className="flex flex-col">
+                      <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Academy Workspace</h3>
+                      <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-black mt-1">Real-world skill building</p>
+                   </div>
+                </div>
+                <LearnerWorkspace />
+              </motion.div>
+            )}
+
+            {/* 7. FELLOWSHIPS & MENTOR SYSTEM */}
+            {activeTab === "fellowships" && (
+              <motion.div
+                key="fellowships"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex flex-col gap-6"
+              >
+                <div className="flex items-center justify-between px-2 mb-2">
+                   <div className="flex flex-col">
+                      <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Fellowships Hub</h3>
+                      <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-black mt-1">Manage your apprenticeships</p>
+                   </div>
+                </div>
+                <MentorDashboard />
+              </motion.div>
+            )}
+
             {/* ABOUT & TRUST */}
             {activeTab === "about" && (
               <motion.div
@@ -1685,22 +1933,24 @@ export default function MyProfileHub({
                 </div>
 
                 {/* Admin Platform Hub - Hidden Dev Link */}
-                <div className="mt-4 p-8 rounded-[2.5rem] bg-red-900/10 border border-red-500/20 text-center relative overflow-hidden shadow-2xl">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                       <ShieldAlert size={40} className="text-red-500" />
-                    </div>
-                    <h4 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2">Platform Governance</h4>
-                    <p className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest leading-relaxed mb-6 max-w-[280px] mx-auto">
-                      Admin access for moderation and trust operations.
-                    </p>
-                    <button 
-                      onClick={() => window.dispatchEvent(new CustomEvent('open-admin-hub'))}
-                      className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all text-[10px] font-black uppercase tracking-widest border border-red-500/30 shadow-lg active:scale-95"
-                    >
-                      <ShieldAlert size={14} />
-                      Open Admin Hub
-                    </button>
-                </div>
+                {['moderator', 'admin', 'super_admin'].includes(realProfile?.role || '') && (
+                  <div className="mt-4 p-8 rounded-[2.5rem] bg-red-900/10 border border-red-500/20 text-center relative overflow-hidden shadow-2xl">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                         <ShieldAlert size={40} className="text-red-500" />
+                      </div>
+                      <h4 className="text-sm font-black text-red-500 uppercase tracking-widest mb-2">Platform Governance</h4>
+                      <p className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest leading-relaxed mb-6 max-w-[280px] mx-auto">
+                        Admin access for moderation and trust operations.
+                      </p>
+                      <button 
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-admin-hub'))}
+                        className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all text-[10px] font-black uppercase tracking-widest border border-red-500/30 shadow-lg active:scale-95"
+                      >
+                        <ShieldAlert size={14} />
+                        Open Admin Hub
+                      </button>
+                  </div>
+                )}
 
                 <div className="mt-8 pt-8 border-t border-white/5 flex flex-col gap-2">
                    <button 
@@ -1838,7 +2088,7 @@ export default function MyProfileHub({
                     </div>
                  </div>
                  <button 
-                    onClick={() => setIsAvailable(!isAvailable)}
+                    onClick={() => handleToggleAvailability(!isAvailable)}
                     className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isAvailable ? 'bg-white text-black' : 'bg-red-500 text-white'}`}
                  >
                     {isAvailable ? "Pause Shop" : "Go Live"}
@@ -1855,10 +2105,7 @@ export default function MyProfileHub({
                     {statusReasons.map((reason) => (
                       <button 
                         key={reason.label}
-                        onClick={() => {
-                          setStatusMessage(reason.label);
-                          setIsAvailable(reason.label !== "Fully Booked" && reason.label !== "Away / Vacation");
-                        }}
+                        onClick={() => handleUpdateStatus(reason.label)}
                         className={`px-4 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${statusMessage === reason.label ? 'bg-white text-black border-white shadow-xl' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'}`}
                       >
                          {reason.icon}
@@ -1880,7 +2127,7 @@ export default function MyProfileHub({
                     {[1, 2, 3, 4, 5, 8, 10].map(val => (
                       <button 
                         key={val}
-                        onClick={() => setCapacity(val)}
+                        onClick={() => handleUpdateCapacity(val)}
                         className={`flex-1 py-3 rounded-xl border text-[10px] font-black transition-all ${capacity === val ? 'bg-white text-black border-white shadow-xl scale-110' : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10'}`}
                       >
                         {val}
@@ -1904,7 +2151,7 @@ export default function MyProfileHub({
                           onClick={() => {
                             const next = [...schedule];
                             next[idx].active = !next[idx].active;
-                            setSchedule(next);
+                            handleUpdateSchedule(next);
                           }}
                           className={`w-10 h-10 rounded-xl flex items-center justify-center text-[10px] font-black uppercase transition-all ${item.active ? 'bg-blue-500 text-white shadow-lg' : 'bg-white/5 text-white/20 underline decoration-red-500/50'}`}
                         >
@@ -2071,8 +2318,15 @@ export default function MyProfileHub({
                         likes: selectedPost.likes_count || 0,
                         shares: selectedPost.reposts_count || 0,
                         saves: selectedPost.saves_count || 0,
+                      },
+                      heroMedia: selectedPost.url ? [selectedPost.url] : [],
+                      stockStatus: 'in-stock',
+                      features: [],
+                      priceStructure: {
+                        startingPrice: selectedPost.attached_listing_data.price || 0,
+                        packages: []
                       }
-                    };
+                    } as any;
                   })()}
                   embedCTA={(() => {
                     const listing = selectedPost.attached_listing_data;
@@ -2087,6 +2341,107 @@ export default function MyProfileHub({
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAgencyCenter && (
+          <AgencyCenter onBack={() => setShowAgencyCenter(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Agent Application Modal */}
+      <AnimatePresence>
+        {showAgentApplication && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAgentApplication(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-sm bg-[#0c0c0c] border border-white/10 rounded-[3rem] p-8 shadow-2xl overflow-hidden"
+            >
+              {!applicationSubmitted ? (
+                <>
+                  <div className="flex flex-col items-center text-center gap-2 mb-8">
+                    <div className="w-16 h-16 rounded-[1.5rem] bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-2">
+                       <Award size={32} />
+                    </div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter italic">Agency Status</h3>
+                    <p className="text-[10px] text-white/40 font-medium px-4 leading-relaxed uppercase tracking-widest">Scale your operations by managing multiple specialists and earning commission split.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Agency Name</label>
+                      <input 
+                        type="text"
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-xs text-white placeholder:text-white/20 outline-none focus:border-blue-500 transition-all font-black uppercase tracking-widest"
+                        placeholder="e.g. Nexus Talent Group"
+                        value={agencyFormData.name}
+                        onChange={(e) => setAgencyFormData({ ...agencyFormData, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black uppercase tracking-[0.2em] text-white/20 ml-2">Experience / Bio</label>
+                      <textarea 
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-xs text-white placeholder:text-white/20 outline-none focus:border-blue-500 transition-all font-black uppercase tracking-widest h-24 resize-none"
+                        placeholder="Why should specialists trust your agency?"
+                        value={agencyFormData.bio}
+                        onChange={(e) => setAgencyFormData({ ...agencyFormData, bio: e.target.value })}
+                      />
+                    </div>
+
+                    <button 
+                      onClick={async () => {
+                        if (!agencyFormData.name) return;
+                        try {
+                          await submitAgentApplication(agencyFormData.name, agencyFormData.bio);
+                          setApplicationSubmitted(true);
+                        } catch (e) {
+                          console.error("Application failed:", e);
+                        }
+                      }}
+                      disabled={!agencyFormData.name || isAgentLoading}
+                      className={`w-full h-14 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] mt-4 shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                        !agencyFormData.name || isAgentLoading ? 'bg-white/5 text-white/20' : 'bg-white text-black'
+                      }`}
+                    >
+                      {isAgentLoading ? 'Processing...' : 'Submit Application'}
+                    </button>
+                    <button 
+                      onClick={() => setShowAgentApplication(false)}
+                      className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-white transition-colors"
+                    >
+                       Maybe Later
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center text-center gap-6 py-8">
+                  <div className="w-20 h-20 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                     <CheckCircle2 size={40} className="animate-bounce" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter italic mb-2">Application Sent</h3>
+                    <p className="text-[10px] text-white/40 font-medium px-4 leading-relaxed uppercase tracking-widest">Our governance team will review your application. You'll be notified once approved.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowAgentApplication(false)}
+                    className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] text-white"
+                  >
+                    Got It
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

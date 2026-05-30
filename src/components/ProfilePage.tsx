@@ -89,6 +89,30 @@ export default function ProfilePage({ hustler, onBack, onStartChat }: ProfilePag
   );
 
   useEffect(() => {
+    if (!hustler?.creator?.id) return;
+    
+    const channel = supabase
+      .channel(`public:profiles:id=eq.${hustler.creator.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${hustler.creator.id}`,
+        },
+        (payload) => {
+          setRealProfile(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [hustler?.creator?.id]);
+
+  useEffect(() => {
     const fetchData = async () => {
       if (!hustler?.creator?.id) return;
       setIsLoading(true);
@@ -785,6 +809,8 @@ export default function ProfilePage({ hustler, onBack, onStartChat }: ProfilePag
         {showReport && (
           <ReportSheet
             entityName={realProfile?.full_name || hustler.creator.name}
+            targetId={hustler.creator.id}
+            targetType="profile"
             onClose={() => setShowReport(false)}
           />
         )}

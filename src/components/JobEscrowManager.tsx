@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint, MessageSquare, Phone, FileText } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, Clock, ShieldCheck, User, Lock, Info, Fingerprint, MessageSquare, Phone, FileText, CheckCircle2 } from "lucide-react";
 import { Booking, MilestoneStatus } from "../features/bookings/types";
 import EscrowCard from "./EscrowCard";
 import MilestoneTimeline from "./MilestoneTimeline";
@@ -135,6 +135,13 @@ export default function JobEscrowManager({
      }
   };
 
+  const paymentState = (() => {
+      if (booking.escrow_status === 'released') return 'RELEASED';
+      if (booking.escrow_status === 'refunded') return 'REFUNDED';
+      if (booking.escrow_status === 'held') return 'IN_ESCROW';
+      return 'PENDING_PAYMENT';
+  })();
+
   const isReleaseRequested = activeMilestone?.status === MilestoneStatus.AWAITING_APPROVAL;
 
   return (
@@ -150,16 +157,85 @@ export default function JobEscrowManager({
             <header className="mb-8">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-3xl font-display font-black tracking-tight">
-                      {computedIsClient ? "Escrow Vault" : "Earnings Secure"}
+                      {paymentState === 'REFUNDED' ? "Payment Refunded" : computedIsClient ? "Escrow Vault" : "Earnings Secure"}
                   </h2>
                   <TrustBadge type="escrow_protected" size="xs" />
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase tracking-widest bg-white/[0.02] border border-white/5 w-max px-3 py-1 rounded-lg">
-                   <Lock size={10} className="text-blue-400" />
-                   <span>ProjectID:</span>
-                   <span className="text-white">{booking.id}</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-[10px] text-white/40 font-bold uppercase tracking-widest bg-white/[0.02] border border-white/5 w-max px-3 py-1 rounded-lg">
+                     <Lock size={10} className="text-blue-400" />
+                     <span>ProjectID:</span>
+                     <span className="text-white">{booking.id.slice(0, 8)}</span>
+                  </div>
+                  <div className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg ${
+                    paymentState === 'RELEASED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                    paymentState === 'REFUNDED' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                    paymentState === 'IN_ESCROW' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                    'bg-white/5 text-white/40 border border-white/5'
+                  }`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      paymentState === 'RELEASED' ? 'bg-emerald-500' :
+                      paymentState === 'REFUNDED' ? 'bg-red-500' :
+                      paymentState === 'IN_ESCROW' ? 'bg-blue-500 animate-pulse' :
+                      'bg-white/20'
+                    }`} />
+                    {paymentState.replace('_', ' ')}
+                  </div>
                 </div>
             </header>
+
+            {/* Payment Flow State Machine Visualization */}
+            <div className="mb-8 p-6 rounded-[32px] bg-white/[0.02] border border-white/5 relative overflow-hidden">
+                <div className="flex justify-between items-center relative z-10">
+                    {[
+                      { id: 'PENDING_PAYMENT', label: 'Initiated', icon: FileText },
+                      { id: 'IN_ESCROW', label: 'Escrow', icon: Lock },
+                      { id: 'RELEASED', label: 'Settled', icon: CheckCircle2 }
+                    ].map((step, idx, arr) => {
+                        const isCompleted = paymentState === 'RELEASED' || 
+                                          (paymentState === 'IN_ESCROW' && (idx < 1)) ||
+                                          (paymentState === 'PENDING_PAYMENT' && idx === 0);
+                        const isActive = paymentState === step.id;
+                        const isRefunded = paymentState === 'REFUNDED' && step.id !== 'RELEASED';
+                        
+                        return (
+                          <div key={step.id} className="flex flex-col items-center gap-2 relative flex-1">
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 border ${
+                                  isActive ? 'bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/40' :
+                                  isRefunded ? 'bg-red-500/20 border-red-500/40 text-red-400' :
+                                  isCompleted ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-500' :
+                                  'bg-white/5 border-white/10 text-white/20'
+                              }`}>
+                                  {isCompleted && !isActive ? <Check size={18} /> : 
+                                   isRefunded && idx === 1 ? <AlertCircle size={18} /> :
+                                   <step.icon size={18} />}
+                              </div>
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${
+                                  isActive ? 'text-blue-400' : 
+                                  isRefunded ? 'text-red-400' :
+                                  isCompleted ? 'text-emerald-500/60' : 
+                                  'text-white/20'
+                              }`}>
+                                  {paymentState === 'REFUNDED' && idx === 1 ? 'Refunded' : step.label}
+                              </span>
+                              
+                              {idx < arr.length - 1 && (
+                                <div className="absolute top-5 left-1/2 w-full h-[1px] bg-white/5 -z-10 overflow-hidden">
+                                  <motion.div 
+                                    initial={false}
+                                    animate={{ 
+                                      x: isCompleted ? "0%" : "-100%",
+                                      backgroundColor: isRefunded ? "#EF4444" : isCompleted ? "#10B981" : "#3B82F6"
+                                    }}
+                                    className="w-full h-full"
+                                  />
+                                </div>
+                              )}
+                          </div>
+                        );
+                    })}
+                </div>
+            </div>
 
             {/* Escrow Reassurance Banner */}
             <div className="mb-8 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-4 italic shadow-lg shadow-blue-500/5">
@@ -192,6 +268,43 @@ export default function JobEscrowManager({
                 )}
 
                 <EscrowCard booking={booking} isClient={computedIsClient} />
+                
+                {/* Project Brief Section */}
+                <div className="p-6 rounded-[24px] bg-white/[0.02] border border-white/5">
+                   <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 flex items-center gap-2">
+                         <FileText size={12} /> Project Briefing
+                      </h3>
+                      <div className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-black text-emerald-500 uppercase tracking-widest">
+                         Verified Scope
+                      </div>
+                   </div>
+                   <div className="space-y-4">
+                      <div>
+                         <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">Listing Title</p>
+                         <p className="text-sm font-bold text-white/80">{booking.listing_title || "Standard Service Booking"}</p>
+                      </div>
+                      {booking.notes && (
+                        <div>
+                           <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">Project Notes / Instructions</p>
+                           <p className="text-[11px] text-white/40 leading-relaxed line-clamp-3">{booking.notes}</p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/5">
+                         <div>
+                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">Agreed Value</p>
+                            <p className="text-sm font-black text-emerald-500">${booking.total_price.toLocaleString()}</p>
+                         </div>
+                         <div>
+                            <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-1">Client Security</p>
+                            <div className="flex items-center gap-1">
+                               <ShieldCheck size={12} className="text-blue-400" />
+                               <span className="text-[10px] font-bold text-blue-400/80">Protected</span>
+                            </div>
+                         </div>
+                      </div>
+                   </div>
+                </div>
                 
                 <div className="pt-4">
                     <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
@@ -250,7 +363,7 @@ export default function JobEscrowManager({
                       </>
                    ) : booking.status === 'pending' ? (
                      <button 
-                          onClick={() => onAcceptedRedirect?.(booking)}
+                          onClick={() => onViewDetails?.(booking)}
                           className="w-full h-16 bg-white text-black rounded-[24px] font-black uppercase tracking-widest text-xs font-display flex items-center justify-center gap-2 transition-all shadow-xl shadow-white/5"
                      >
                           <FileText size={18} /> Review Booking Details

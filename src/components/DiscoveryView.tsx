@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useDiscoveryStore } from "../features/feed/stores/useDiscoveryStore";
-import {
+import { useLiveStore } from "../stores/useLiveStore";
+import { useApprenticeshipStore } from "../stores/useApprenticeshipStore";
+import LivePlayer from "./live/LivePlayer";
+import { ApprenticeshipCard } from "./apprenticeship/ApprenticeshipCard";
+import { ApprenticeshipDetail } from "./apprenticeship/ApprenticeshipDetail";
+import { 
+  Radio, 
+  Users,
   Search,
   MapPin,
   Star,
@@ -31,6 +38,8 @@ import {
   Map as MapIcon,
 } from "lucide-react";
 import NearbyMap from "./NearbyMap";
+import { useAuthStore } from "../features/auth/stores/useAuthStore";
+import { convertCurrency, formatCurrency, Currency } from "../lib/currency";
 
 interface DiscoveryViewProps {
   onProfileSelect: (hustler: any) => void;
@@ -133,7 +142,8 @@ const RECOMMENDATIONS = [
     jobs: 88,
     avatar: "M",
     location: "Online",
-    price: "$45/hr",
+    priceVal: 45,
+    priceSuffix: "/hr",
     type: "hustler",
     is_hustler: true,
   },
@@ -146,7 +156,8 @@ const RECOMMENDATIONS = [
     jobs: 124,
     avatar: "A",
     location: "0.5km away",
-    price: "From $120",
+    priceVal: 120,
+    pricePrefix: "From ",
     type: "service",
     is_hustler: true,
   },
@@ -173,6 +184,9 @@ export default function DiscoveryView({
     fetchSuggestedCreators
   } = useDiscoveryStore();
   
+  const { profile } = useAuthStore();
+  const displayCurrency = (profile?.display_currency || 'USD') as Currency;
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [activeIntent, setActiveIntent] = useState<SearchIntent>("any");
@@ -189,10 +203,19 @@ export default function DiscoveryView({
     if (hour < 12) setMomentGreeting("Morning Grind");
     else if (hour < 18) setMomentGreeting("Afternoon Hustle");
     else setMomentGreeting("Evening Vibe");
-    
+  }, []);
+
+  const { activeSessions, fetchActiveSessions } = useLiveStore();
+  const { availablePrograms, fetchAvailablePrograms } = useApprenticeshipStore();
+  const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<any | null>(null);
+
+  useEffect(() => {
+    fetchActiveSessions();
     fetchTrending();
     fetchSuggestedCreators();
-  }, [fetchTrending, fetchSuggestedCreators]);
+    fetchAvailablePrograms();
+  }, [fetchActiveSessions, fetchTrending, fetchSuggestedCreators, fetchAvailablePrograms]);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -243,7 +266,12 @@ export default function DiscoveryView({
     const name = type === 'hustler' ? (profiles.hustle_name || profiles.full_name) : item.title;
     const creatorName = profiles.hustle_name || profiles.full_name || "Creator";
     const avatar = profiles.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profiles.id}`;
-    const price = type === 'hustler' ? "Profile" : `$${item.base_price || item.price || 0}`;
+    
+    // Currency Conversion for Search Results
+    const rawPrice = Number(item.base_price || item.price || 0);
+    const convertedPrice = convertCurrency(rawPrice, 'USD', displayCurrency);
+    const price = type === 'hustler' ? "Profile" : formatCurrency(convertedPrice, displayCurrency);
+    
     const desc = type === 'hustler' ? profiles.primary_skill : (item.category || item.product_type || "Marketplace");
     const actionLabel = type === 'hustler' ? "View Profile" : 
                        type === 'service' ? "Book Service" :
@@ -555,6 +583,88 @@ export default function DiscoveryView({
               </div>
             </section>
 
+            {/* Live Now Section */}
+            {activeSessions.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-12 overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                       <Radio size={18} className="text-red-500" />
+                       <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                    </div>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Live Showcases</h4>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-6 px-6">
+                   {activeSessions.map((session) => (
+                      <motion.div
+                        key={`disco-live-${session.id}`}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setViewingSessionId(session.id)}
+                        className="relative min-w-[240px] aspect-[16/10] rounded-[2.5rem] bg-[#0c0c0c] overflow-hidden border border-white/5 active:border-red-500/30 transition-colors shadow-2xl group"
+                      >
+                         {session.thumbnail_url ? (
+                           <img src={session.thumbnail_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-60" alt={session.title} />
+                         ) : (
+                           <div className="w-full h-full flex items-center justify-center opacity-10">
+                              <Radio size={40} />
+                           </div>
+                         )}
+                         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20" />
+                         
+                         <div className="absolute top-4 left-4 bg-red-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded shadow-lg flex items-center gap-1.5 transition-all group-hover:scale-105">
+                            <span className="w-1 h-1 bg-white rounded-full animate-pulse" /> Live
+                         </div>
+                         <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md text-white text-[8px] font-black px-2 py-1 rounded flex items-center gap-1.5 shadow-xl">
+                            <Users size={8} className="text-white/60" /> {session.current_viewers || 0}
+                         </div>
+
+                         <div className="absolute bottom-4 left-4 right-4">
+                            <h4 className="text-xs font-black text-white line-clamp-1 mb-1.5 uppercase tracking-tight">{session.title}</h4>
+                            <div className="flex items-center gap-2">
+                               <div className="w-5 h-5 rounded-full border border-white/20 overflow-hidden shrink-0">
+                                  <img 
+                                    src={session.host_profiles?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.host_id}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                               </div>
+                               <span className="text-[9px] font-black text-white/40 uppercase tracking-widest truncate">{session.host_profiles?.hustle_name || 'Professional'}</span>
+                            </div>
+                         </div>
+                      </motion.div>
+                   ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Apprenticeships / Fellowships Section */}
+            {availablePrograms.length > 0 && (
+              <section className="mb-12 overflow-hidden">
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap size={18} className="text-brand-primary" />
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 italic">Open Fellowships</h4>
+                  </div>
+                </div>
+                
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-6 px-6">
+                  {availablePrograms.map((program) => (
+                    <div key={program.id} className="min-w-[280px]">
+                      <ApprenticeshipCard 
+                        program={program} 
+                        onClick={() => setSelectedProgram(program)} 
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Smart Category Exploration */}
             <section className="mb-12">
               <div className="flex justify-between items-center mb-6 px-1">
@@ -648,11 +758,11 @@ export default function DiscoveryView({
                               className="text-yellow-500 fill-yellow-500"
                             />
                             <span className="text-[10px] font-black text-white">
-                              {rec.rating_average ? rec.rating_average.toFixed(1) : (rec.review_count > 0 ? "4.9" : "New")}
+                              {rec.rating_average ? rec.rating_average.toFixed(1) : (rec.review_count && rec.review_count > 0 ? "4.9" : "New")}
                             </span>
                           </div>
                           <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">
-                            {rec.followers_count || 0} Followers
+                            {rec.follower_count || 0} Followers
                           </span>
                         </div>
                       </div>
@@ -761,6 +871,18 @@ export default function DiscoveryView({
               setIsMapOpen(false);
             }}
             onClose={() => setIsMapOpen(false)}
+          />
+        )}
+        {viewingSessionId && (
+          <LivePlayer 
+            sessionId={viewingSessionId} 
+            onClose={() => setViewingSessionId(null)} 
+          />
+        )}
+        {selectedProgram && (
+          <ApprenticeshipDetail 
+            program={selectedProgram}
+            onClose={() => setSelectedProgram(null)}
           />
         )}
         {showFilters && (

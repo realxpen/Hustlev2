@@ -126,7 +126,7 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
           category: category || "Tech",
           product_type: deliveryMethod === "Instant" ? "digital" : "physical",
           price: priceNum,
-          inventory_count: 100,
+          inventory_count: capacity,
           media: finalMedia
         });
       } else if (offeringType === "Training") {
@@ -700,8 +700,12 @@ export default function CreateOfferingFlow({ onClose, onSuccess }: CreateOfferin
 
                  <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-black text-white tracking-tight">Active Capacity</h4>
-                      <p className="text-[10px] font-medium text-white/40 mt-1 uppercase tracking-widest">Auto-pause when full</p>
+                      <h4 className="text-sm font-black text-white tracking-tight">
+                        {offeringType === "Product" ? "Stock Inventory" : "Active Capacity"}
+                      </h4>
+                      <p className="text-[10px] font-medium text-white/40 mt-1 uppercase tracking-widest">
+                        {offeringType === "Product" ? "Total items available" : "Auto-pause when full"}
+                      </p>
                     </div>
                     <div className="flex items-center gap-3">
                        <button type="button" onClick={() => setCapacity(Math.max(1, capacity - 1))} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-semibold hover:bg-white/20">-</button>

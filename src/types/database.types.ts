@@ -27,6 +27,45 @@ export interface Database {
         }
         Relationships: []
       }
+      buyer_restrictions: {
+        Row: {
+          id: string
+          seller_id: string
+          buyer_id: string
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          seller_id: string
+          buyer_id: string
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          seller_id?: string
+          buyer_id?: string
+          reason?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buyer_restrictions_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buyer_restrictions_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -55,6 +94,19 @@ export interface Database {
           review_count: number | null
           rating_average: number | null
           has_reviews: boolean | null
+          follower_count: number | null
+          following_count: number | null
+          mutual_count: number | null
+          is_available: boolean | null
+          availability_status: string | null
+          capacity: number | null
+          schedule: Json[] | null
+          default_currency: string | null
+          display_currency: string | null
+          location_country: string | null
+          is_agent: boolean
+          agency_name: string | null
+          managed_hustlers_count: number
         }
         Insert: {
           avatar_url?: string | null
@@ -83,6 +135,19 @@ export interface Database {
           review_count?: number | null
           rating_average?: number | null
           has_reviews?: boolean | null
+          follower_count?: number | null
+          following_count?: number | null
+          mutual_count?: number | null
+          is_available?: boolean | null
+          availability_status?: string | null
+          capacity?: number | null
+          schedule?: Json[] | null
+          default_currency?: string | null
+          display_currency?: string | null
+          location_country?: string | null
+          is_agent?: boolean
+          agency_name?: string | null
+          managed_hustlers_count?: number
         }
         Update: {
           avatar_url?: string | null
@@ -111,6 +176,19 @@ export interface Database {
           review_count?: number | null
           rating_average?: number | null
           has_reviews?: boolean | null
+          follower_count?: number | null
+          following_count?: number | null
+          mutual_count?: number | null
+          is_available?: boolean | null
+          availability_status?: string | null
+          capacity?: number | null
+          schedule?: Json[] | null
+          default_currency?: string | null
+          display_currency?: string | null
+          location_country?: string | null
+          is_agent?: boolean
+          agency_name?: string | null
+          managed_hustlers_count?: number
         }
         Relationships: [
           {
@@ -143,6 +221,92 @@ export interface Database {
           id?: string
         }
         Relationships: []
+      }
+      app_events: {
+        Row: {
+          id: string
+          event_type: string
+          actor_id: string | null
+          target_id: string | null
+          entity_id: string | null
+          entity_type: string | null
+          payload: Json | null
+          idempotency_key: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_type: string
+          actor_id?: string | null
+          target_id?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          payload?: Json | null
+          idempotency_key?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          event_type?: string
+          actor_id?: string | null
+          target_id?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          payload?: Json | null
+          idempotency_key?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_events_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      activity_log: {
+        Row: {
+          id: string
+          profile_id: string
+          action_type: string
+          description: string
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          action_type: string
+          description: string
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          action_type?: string
+          description?: string
+          metadata?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       reviews: {
         Row: {
@@ -1453,6 +1617,176 @@ export interface Database {
             columns: ["collection_id"]
             isOneToOne: false
             referencedRelation: "collections"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_applications: {
+        Row: {
+          id: string
+          user_id: string
+          agency_name: string
+          status: 'pending' | 'approved' | 'rejected'
+          submission_metadata: Json | null
+          submitted_at: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          agency_name: string
+          status?: 'pending' | 'approved' | 'rejected'
+          submission_metadata?: Json | null
+          submitted_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          agency_name?: string
+          status?: 'pending' | 'approved' | 'rejected'
+          submission_metadata?: Json | null
+          submitted_at?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_applications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      hustler_agents: {
+        Row: {
+          id: string
+          hustler_id: string
+          agent_id: string
+          status: 'pending' | 'active' | 'revoked'
+          commission_percentage: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          hustler_id: string
+          agent_id: string
+          status?: 'pending' | 'active' | 'revoked'
+          commission_percentage?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          hustler_id?: string
+          agent_id?: string
+          status?: 'pending' | 'active' | 'revoked'
+          commission_percentage?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hustler_agents_hustler_id_fkey"
+            columns: ["hustler_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hustler_agents_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_permissions: {
+        Row: {
+          id: string
+          relationship_id: string
+          manage_bookings: boolean
+          manage_listings: boolean
+          message_clients: boolean
+          analytics_access: boolean
+        }
+        Insert: {
+          id?: string
+          relationship_id: string
+          manage_bookings?: boolean
+          manage_listings?: boolean
+          message_clients?: boolean
+          analytics_access?: boolean
+        }
+        Update: {
+          id?: string
+          relationship_id?: string
+          manage_bookings?: boolean
+          manage_listings?: boolean
+          message_clients?: boolean
+          analytics_access?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_permissions_relationship_id_fkey"
+            columns: ["relationship_id"]
+            isOneToOne: true
+            referencedRelation: "hustler_agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      agent_commissions: {
+        Row: {
+          id: string
+          booking_id: string
+          agent_id: string
+          hustler_id: string
+          commission_amount: number
+          status: 'pending' | 'paid'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          agent_id: string
+          hustler_id: string
+          commission_amount: number
+          status?: 'pending' | 'paid'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          agent_id?: string
+          hustler_id?: string
+          commission_amount?: number
+          status?: 'pending' | 'paid'
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_commissions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_commissions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_commissions_hustler_id_fkey"
+            columns: ["hustler_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           }
         ]

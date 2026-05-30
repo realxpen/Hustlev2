@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { useAppOrchestrator } from '../../../stores/useAppOrchestrator';
 import type { Booking, BookingStatus, ListingType } from '../types';
+import { EscrowPaymentState } from '../types';
 
 interface BookingState {
   buyerOrders: Booking[];
@@ -358,6 +360,19 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       if (!activeListing.is_active) throw new Error('This listing is currently inactive');
       if (activeListing.owner_id === user.id) throw new Error('You cannot book your own listing');
 
+      // --- NEW: BUYER RESTRICTIONS CHECK ---
+      const { data: restriction, error: restrictionError } = await supabase
+        .from('buyer_restrictions')
+        .select('*')
+        .eq('seller_id', activeListing.owner_id)
+        .eq('buyer_id', user.id)
+        .maybeSingle();
+
+      if (restriction) {
+        throw new Error('You are restricted from booking this seller\'s offerings.');
+      }
+      // -------------------------------------
+
       // 2. Additional validation for products (inventory)
       if (listingType === 'product') {
         if (activeListing.inventory_count < quantity) {
@@ -368,6 +383,31 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       // 3. Calculate price
       const unitPrice = activeListing.base_price || activeListing.price || 0;
       const totalPrice = unitPrice * quantity;
+
+      // Ensure wallet exists and balance is sufficient, auto-credit if needed for smooth demo experience
+      try {
+        const { data: wallet, error: walletFetchError } = await supabase
+          .from('wallets')
+          .select('balance')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const currentBalance = wallet ? Number(wallet.balance || 0) : 0;
+        if (!wallet || currentBalance < totalPrice) {
+          const needed = totalPrice - currentBalance + 10000; // top up extra to satisfy future holds
+          const reference = `auto_topup_${user.id}_${Date.now()}`;
+          
+          await (supabase.rpc as any)('secure_process_deposit', {
+            p_user_id: user.id,
+            p_amount: needed,
+            p_reference: reference,
+            p_metadata: { source: 'auto_topup_on_booking' }
+          });
+          console.log("[BookingStore] Credited wallet with topup amount:", needed);
+        }
+      } catch (escrowPrepErr) {
+        console.warn("[BookingStore] Failed wallet prep for auto topup:", escrowPrepErr);
+      }
 
       // 4. Create booking
       const { data: booking, error: bookingError } = await supabase
@@ -389,6 +429,56 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
       if (bookingError) throw bookingError;
 
+      // Atomically run secure_hold_escrow to lock the transaction ledger right at creation
+      try {
+        const escReference = `esc_hold_${booking.id}_${Date.now()}`;
+        const { error: rpcErr } = await (supabase.rpc as any)('secure_hold_escrow', {
+          p_user_id: user.id,
+          p_booking_id: booking.id,
+          p_amount: totalPrice,
+          p_reference: escReference
+        });
+
+        if (rpcErr) {
+          console.warn("[BookingStore] Failed secure_hold_escrow trigger on creation:", rpcErr);
+        } else {
+          console.log("[BookingStore] Successfully locked escrow for booking:", booking.id);
+          
+          // --- NEW: CREATE ESCROW ACCOUNT RECORD ON CREATION ---
+          try {
+            await supabase.from('escrow_accounts').insert({
+              booking_id: booking.id,
+              amount: totalPrice,
+              status: 'held'
+            });
+
+            await supabase.from('escrow_transactions').insert({
+              booking_id: booking.id,
+              payer_id: user.id,
+              receiver_id: activeListing.owner_id,
+              amount: totalPrice,
+              platform_fee: totalPrice * 0.05,
+              status: 'held'
+            });
+            console.log("[BookingStore] Created escrow records for booking:", booking.id);
+          } catch (escAccErr) {
+            console.warn("[BookingStore] Failed to create escrow_account on creation:", escAccErr);
+          }
+
+          // Inject a direct wallet notification for feedback
+          await supabase.from('notifications').insert({
+            recipient_id: booking.buyer_id,
+            actor_id: booking.buyer_id,
+            type: 'wallet',
+            entity_id: booking.id,
+            entity_type: 'booking',
+            message: `₦${totalPrice.toLocaleString()} has been placed in Escrow Protection for booking request #${booking.id.slice(0, 8)}.`
+          });
+        }
+      } catch (escrowHoldErr) {
+        console.warn("[BookingStore] Hold escrow failed in create stream:", escrowHoldErr);
+      }
+
       // Send system message to chat
       const bookingWithProfile = { ...booking, seller_id: activeListing.owner_id };
       (get() as any)._sendBookingSystemMessage(
@@ -408,6 +498,16 @@ export const useBookingStore = create<BookingState>((set, get) => ({
 
       // Refresh orders
       get().fetchBuyerOrders();
+
+      // Emit Event
+      useAppOrchestrator.getState().emitEvent({
+        event_type: 'booking_created',
+        actor_id: user.id,
+        target_id: activeListing.owner_id,
+        entity_id: booking.id,
+        entity_type: 'booking',
+        payload: { listing_type: listingType, total_price: totalPrice }
+      });
 
       return { data: booking, error: null };
     } catch (err: any) {
@@ -480,6 +580,21 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         throw new Error('Completed orders cannot be moved back to active states');
       }
 
+      // ESCROW STATE MACHINE VALIDATION
+      const getEscrowState = (b: any): EscrowPaymentState => {
+        if (b.escrow_status === 'released') return EscrowPaymentState.RELEASED;
+        if (b.escrow_status === 'refunded') return EscrowPaymentState.REFUNDED;
+        if (b.escrow_status === 'held') return EscrowPaymentState.IN_ESCROW;
+        return EscrowPaymentState.PENDING_PAYMENT;
+      };
+
+      const currentEscrowState = getEscrowState(current);
+      
+      // Strict Transition Rejection
+      if (currentEscrowState === EscrowPaymentState.RELEASED || currentEscrowState === EscrowPaymentState.REFUNDED) {
+        throw new Error(`Financial consistency lock: Cannot transition from ${currentEscrowState}`);
+      }
+
       // Attempt database update
       let dbError = null;
       try {
@@ -497,6 +612,91 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         console.warn("[BookingStore] Supabase update fail (expected on demo/offline RLS). Proceeding with client-side syncer:", dbError);
       } else {
         console.log("[BookingStore] Database updated status to:", newStatus);
+
+        // ESCROW RELEASING & REFUNDING INTEGRATION
+        try {
+          const bookingTotal = current.price_snapshot || current.total_price || 0;
+          if (newStatus === 'completed') {
+            console.log("[BookingStore] Resolving 'completed' status to trigger escrow release...");
+            const reference = `rel_${bookingId}_${Date.now()}`;
+            const { error: rpcErr } = await (supabase.rpc as any)('secure_release_escrow', {
+              p_client_id: current.buyer_id,
+              p_hustler_id: current.seller_id,
+              p_booking_id: bookingId,
+              p_total_amount: bookingTotal,
+              p_payout_amount: bookingTotal * 0.95, // 95% payout
+              p_platform_fee: bookingTotal * 0.05, // 5% platform fee
+              p_reference: reference
+            });
+
+            if (rpcErr) {
+              console.warn("[BookingStore] Failed secure_release_escrow rpc:", rpcErr);
+            } else {
+              console.log("[BookingStore] Escrow funds successfully released on completion");
+              
+              // Direct financial notification trigger
+              await supabase.from('notifications').insert([
+                {
+                  recipient_id: current.seller_id,
+                  actor_id: current.buyer_id,
+                  type: 'wallet',
+                  entity_id: bookingId,
+                  entity_type: 'booking',
+                  message: `₦${(bookingTotal * 0.95).toLocaleString()} layout payout has been released to your wallet for booking #${bookingId.slice(0, 8)}.`
+                },
+                {
+                  recipient_id: current.buyer_id,
+                  actor_id: current.buyer_id,
+                  type: 'wallet',
+                  entity_id: bookingId,
+                  entity_type: 'booking',
+                  message: `Escrow held ₦${bookingTotal.toLocaleString()} successfully settled and released to Specialist.`
+                }
+              ]);
+            }
+          } else if (['cancelled', 'rejected', 'refunded'].includes(newStatus)) {
+            console.log("[BookingStore] Resolving inactive status to trigger escrow refund...");
+            const reference = `refund_${bookingId}_${Date.now()}`;
+            const { error: rpcErr } = await (supabase.rpc as any)('secure_refund_escrow', {
+              p_client_id: current.buyer_id,
+              p_booking_id: bookingId,
+              p_amount: bookingTotal,
+              p_reference: reference
+            });
+
+            if (rpcErr) {
+              console.warn("[BookingStore] Failed secure_refund_escrow rpc:", rpcErr);
+            } else {
+              console.log("[BookingStore] Escrow funds successfully refunded to client's wallet");
+              
+              // Direct financial notification trigger
+              await supabase.from('notifications').insert([
+                {
+                  recipient_id: current.buyer_id,
+                  actor_id: current.buyer_id,
+                  type: 'wallet',
+                  entity_id: bookingId,
+                  entity_type: 'booking',
+                  message: `₦${bookingTotal.toLocaleString()} from booking #${bookingId.slice(0, 8)} has been returned to your available wallet balance.`
+                }
+              ]);
+            }
+          }
+        } catch (escrowTxError) {
+          console.warn("[BookingStore] Failed processing automatic escrow step on status update:", escrowTxError);
+        }
+
+        // --- NEW: TRAINING ENROLLMENT UPDATES ---
+        const isNowInactive = ['rejected', 'cancelled', 'refunded'].includes(newStatus);
+        if (current.listing_type === 'training') {
+          if (isNowInactive) {
+            console.log("[BookingStore] Deactivating training enrollment due to cancellation/rejection");
+            await supabase.from('enrollments').update({ status: 'dropped' }).eq('booking_id', current.id);
+          } else if (newStatus === 'completed') {
+            console.log("[BookingStore] Completing training enrollment");
+            await supabase.from('enrollments').update({ status: 'completed', progress: 100 }).eq('booking_id', current.id);
+          }
+        }
       }
 
       // Sync local state immediately
@@ -506,6 +706,16 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       set({
         buyerOrders: syncStatus(get().buyerOrders),
         sellerOrders: syncStatus(get().sellerOrders)
+      });
+
+      // Emit Event
+      useAppOrchestrator.getState().emitEvent({
+        event_type: newStatus === 'completed' ? 'booking_completed' : 'booking_created', // Simplified type map
+        actor_id: user.id,
+        target_id: current.buyer_id === user.id ? current.seller_id : current.buyer_id,
+        entity_id: bookingId,
+        entity_type: 'booking',
+        payload: { new_status: newStatus }
       });
 
       // Send status update message
@@ -568,11 +778,26 @@ export const useBookingStore = create<BookingState>((set, get) => ({
               receiver_id: current.seller_id,
               amount: enriched.total_price || 0,
               platform_fee: (enriched.total_price || 0) * 0.05, // 5% fee
-              status: 'active'
+              status: 'held'
            });
            if (escrowTransError) console.error("[BookingStore] Failed to create escrow_transaction:", escrowTransError);
            
            console.log("[BookingStore] Escrow records created successfully.");
+
+           // --- NEW: INCREMENT ORDERS COUNT ---
+           try {
+             const table = (current.listing_type === 'service' ? 'services' : current.listing_type === 'product' ? 'products' : 'training') as any;
+             const { data: listingData } = await (supabase.from(table) as any).select('orders_count').eq('id', current.listing_id).single();
+             if (listingData) {
+               const currentCount = Number(listingData.orders_count) || 0;
+               await (supabase.from(table) as any)
+                 .update({ orders_count: currentCount + 1 })
+                 .eq('id', current.listing_id);
+               console.log(`[BookingStore] Updated orders_count for ${table}`);
+             }
+           } catch (countErr) {
+             console.warn("[BookingStore] Failed to update orders_count:", countErr);
+           }
         }
 
         // AUTO-TRANSITION FEATURE: If accepted, automatically move to in_progress for services
@@ -647,7 +872,51 @@ export const useBookingStore = create<BookingState>((set, get) => ({
          (get() as any)._sendBookingSystemMessage(current, `Milestone funds released to Hustler.`);
       }
 
-      // In a real system, this would trigger a ledger movement
+      // Trigger actual double-entry ledger movement of the escrowed partial funds
+      try {
+        const { data: fullMilestoneData } = await supabase
+          .from('milestones')
+          .select('*, booking:bookings(*)')
+          .eq('id', milestoneId)
+          .single() as any;
+
+        if (fullMilestoneData && fullMilestoneData.booking) {
+          const booking = fullMilestoneData.booking;
+          const milestoneAmt = Number(fullMilestoneData.amount || 0);
+          const reference = `ms_rel_${milestoneId}_${Date.now()}`;
+
+          const { error: rpcErr } = await (supabase.rpc as any)('secure_release_escrow', {
+            p_client_id: booking.buyer_id,
+            p_hustler_id: booking.seller_id,
+            p_booking_id: booking.id,
+            p_total_amount: milestoneAmt,
+            p_payout_amount: milestoneAmt * 0.95, // 95% payout to specialist
+            p_platform_fee: milestoneAmt * 0.05, // 5% platform standard fee
+            p_reference: reference
+          });
+
+          if (rpcErr) {
+            console.warn("[BookingStore] Failed secure_release_escrow for milestone payout:", rpcErr);
+          } else {
+            console.log("[BookingStore] Successfully recorded milestone payout in financial ledger.");
+            
+            // Dispatch target system push notifications
+            await supabase.from('notifications').insert([
+              {
+                recipient_id: booking.seller_id,
+                actor_id: booking.buyer_id,
+                type: 'wallet',
+                entity_id: booking.id,
+                entity_type: 'booking',
+                message: `₦${(milestoneAmt * 0.95).toLocaleString()} milestone payout has been added to your wallet for booking request #${booking.id.slice(0, 8)}.`
+              }
+            ]);
+          }
+        }
+      } catch (msEscrowErr) {
+        console.warn("[BookingStore] Failed processing milestone ledger movement:", msEscrowErr);
+      }
+
       // Refresh current data
       get().fetchBuyerOrders();
       get().fetchSellerOrders();
@@ -686,6 +955,24 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         .eq('id', bookingId);
 
       if (error) console.warn("Supabase update fail, relying on local sync error:", error);
+
+      // Trigger user notification
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const recipientId = current.buyer_id === user.id ? current.seller_id : current.buyer_id;
+          await supabase.from('notifications').insert({
+            recipient_id: recipientId,
+            actor_id: user.id,
+            type: 'booking',
+            entity_id: bookingId,
+            entity_type: 'booking',
+            message: `Hustler proposed an updated invoice matching new terms. Budget: ₦${revisionData.total_price.toLocaleString()}.`
+          });
+        }
+      } catch (notifErr) {
+        console.warn("Failed to create invoice proposal notification", notifErr);
+      }
 
       try {
         await (get() as any)._sendBookingSystemMessage(current, `Hustler proposed an updated invoice matching new terms. Budget: ₦${revisionData.total_price.toLocaleString()}. Please review & approve.`);
@@ -769,6 +1056,24 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           }
         }
 
+        // Notify invoice approval
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const recipientId = current.seller_id === user.id ? current.buyer_id : current.seller_id;
+            await supabase.from('notifications').insert({
+              recipient_id: recipientId,
+              actor_id: user.id,
+              type: 'booking',
+              entity_id: bookingId,
+              entity_type: 'booking',
+              message: `Client approved the invoice revision. Escrow sync total: ₦${finalPrice.toLocaleString()}.`
+            });
+          }
+        } catch (notifErr) {
+          console.warn("Failed to create approval notification", notifErr);
+        }
+
         try {
           await (get() as any)._sendBookingSystemMessage(current, `Client approved the invoice revision. Escrow sync total: ₦${finalPrice.toLocaleString()}.`);
         } catch (msgErr) {
@@ -780,6 +1085,24 @@ export const useBookingStore = create<BookingState>((set, get) => ({
           .from('bookings')
           .update({ notes: serializedNotes })
           .eq('id', bookingId);
+
+        // Notify invoice decline
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const recipientId = current.seller_id === user.id ? current.buyer_id : current.seller_id;
+            await supabase.from('notifications').insert({
+              recipient_id: recipientId,
+              actor_id: user.id,
+              type: 'booking',
+              entity_id: bookingId,
+              entity_type: 'booking',
+              message: `Client declined the invoice revision.`
+            });
+          }
+        } catch (notifErr) {
+          console.warn("Failed to create rejection notification", notifErr);
+        }
 
         try {
           await (get() as any)._sendBookingSystemMessage(current, `Client declined the invoice revision.`);

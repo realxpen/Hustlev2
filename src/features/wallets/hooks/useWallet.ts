@@ -12,7 +12,8 @@ export function useWallet() {
     fetchWallet, 
     refreshBalance, 
     initiateDeposit, 
-    initiateWithdrawal 
+    initiateWithdrawal,
+    swapFunds
   } = useWalletStore();
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function useWallet() {
     fetchWallet,
     refreshBalance,
     depositFunds: initiateDeposit,
-    withdrawFunds: initiateWithdrawal
+    withdrawFunds: initiateWithdrawal,
+    swapFunds
   };
 }

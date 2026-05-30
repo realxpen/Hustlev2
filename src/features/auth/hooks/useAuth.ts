@@ -13,6 +13,7 @@ export function useAuth() {
     isInitialized,
     isRecoveryMode,
     initialize,
+    updateProfile,
     setError,
     setLoading,
     setRecoveryMode
@@ -110,6 +111,7 @@ export function useAuth() {
     signOut,
     resetPassword,
     updatePassword,
+    updateProfile,
     setRecoveryMode,
     initialize,
     setError,

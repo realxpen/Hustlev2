@@ -21,10 +21,15 @@ import {
   Calendar,
   UserPlus,
   UserCheck,
+  ShieldCheck,
+  TrendingUp,
+  Gift,
+  Flag,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import DetailScreen from "./DetailScreen";
 import FullscreenMediaViewer from "./FullscreenMediaViewer";
+import ReportSheet from "./ReportSheet";
 import { Maximize2 } from "lucide-react";
 import { DetailData } from "../types";
 import { useFeedStore } from "../features/feed/stores/useFeedStore";
@@ -32,6 +37,8 @@ import { usePostActions } from "../features/feed/hooks/usePostActions";
 import { useAuthStore } from "../features/auth/stores/useAuthStore";
 import { FollowButton } from './social/FollowButton';
 import { supabase } from "../lib/supabase";
+import { convertCurrency, formatCurrency, Currency } from "../lib/currency";
+import { useAppOrchestrator } from "../stores/useAppOrchestrator";
 
 export interface EmbedCTA {
   type: "book" | "buy" | "apply" | "ad";
@@ -129,6 +136,7 @@ export default function FeedCard({
   const [selectedDetail, setSelectedDetail] = useState<DetailData | null>(null);
   const [showImmersiveDetail, setShowImmersiveDetail] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
   const [showCtaFlow, setShowCtaFlow] = useState(false);
   // Normalize details and CTAs into arrays
   const details = Array.isArray(detailData)
@@ -177,7 +185,7 @@ export default function FeedCard({
     copyPostLink: copyDbPostLink,
     sharePostToUser: shareDbPostToUser,
   } = usePostActions();
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const store = useFeedStore();
   const cardRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -614,6 +622,16 @@ export default function FeedCard({
         setTimeout(() => setShowHeartBreak(false), 1000);
       }
       await toggleDbLike(id as string, isCurrentlyLiked);
+      
+      if (!isCurrentlyLiked) {
+        useAppOrchestrator.getState().emitEvent({
+          event_type: 'post_liked',
+          actor_id: user?.id || 'anonymous',
+          entity_id: id as string,
+          entity_type: 'post',
+          payload: { post_id: id }
+        });
+      }
     } else {
       if (!liked) {
         setLiked(true);
@@ -1100,6 +1118,18 @@ export default function FeedCard({
                     </>
                   )}
                 </div>
+                {creator.is_hustler && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/20 w-fit backdrop-blur-md">
+                      <ShieldCheck size={10} className="text-blue-400" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">LVL 4 TRUSTED MEMBER</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/20 w-fit backdrop-blur-md">
+                      <TrendingUp size={10} className="text-purple-400" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-purple-400">TOP 1% HUSTLER</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1156,7 +1186,7 @@ export default function FeedCard({
                     <span
                       className={`font-black ml-2 ${item.type === "book" ? "text-black/50" : "text-white/50"}`}
                     >
-                      ${item.price}
+                      {formatCurrency(convertCurrency(item.price, 'USD', (profile?.display_currency || 'USD') as Currency), (profile?.display_currency || 'USD') as Currency)}
                     </span>
                   )}
                   {ctas.length === 1 && (
@@ -1277,6 +1307,7 @@ export default function FeedCard({
                 : (stats as any).shares || 0)}
           </span>
         </div>
+
       </div>
 
       {/* Interactive Comment Drawer */}
@@ -2573,52 +2604,68 @@ export default function FeedCard({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    {
-                      icon: <Bookmark size={18} />,
-                      label: "Save",
-                      action: () => {
-                        setSaved(true);
-                        setShowQuickActions(false);
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      {
+                        icon: <Bookmark size={18} />,
+                        label: "Save",
+                        action: () => {
+                          handleSaveToggle();
+                          setShowQuickActions(false);
+                        },
                       },
-                    },
-                    {
-                      icon: <Share2 size={18} />,
-                      label: "Share",
-                      action: () => {
-                        setShowShareSheet(true);
-                        setShowQuickActions(false);
+                      {
+                        icon: <Share2 size={18} />,
+                        label: "Share",
+                        action: () => {
+                          setShowShareSheet(true);
+                          setShowQuickActions(false);
+                        },
                       },
-                    },
-                    {
-                      icon: <MessageSquare size={18} />,
-                      label: "Comment",
-                      action: () => {
-                        setShowComments(true);
-                        setShowQuickActions(false);
+                      {
+                        icon: <MessageSquare size={18} />,
+                        label: "Comment",
+                        action: () => {
+                          setShowComments(true);
+                          setShowQuickActions(false);
+                        },
                       },
-                    },
-                    {
-                      icon: <Calendar size={18} />,
-                      label: "Book",
-                      action: () => {
-                        handleCtaClick();
-                        setShowQuickActions(false);
+                      {
+                        icon: <Calendar size={18} />,
+                        label: "Book",
+                        action: () => {
+                          handleCtaClick();
+                          setShowQuickActions(false);
+                        },
                       },
-                    },
-                  ].map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={item.action}
-                      className="flex flex-col items-center justify-center gap-2 p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 hover:bg-white/10 transition-all active:scale-95 transition-colors"
-                    >
-                      <div className="text-white/60">{item.icon}</div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                        {item.label}
-                      </span>
-                    </button>
-                  ))}
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={item.action}
+                        className="flex flex-col items-center justify-center gap-2 p-5 rounded-[2rem] bg-white/[0.03] border border-white/5 hover:bg-white/10 transition-all active:scale-95 transition-colors"
+                      >
+                        <div className="text-white/60">{item.icon}</div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Prominent High-Visibility Action: Report */}
+                  <button
+                    onClick={() => {
+                      setShowReportSheet(true);
+                      setShowQuickActions(false);
+                    }}
+                    className="mt-2 w-full py-5 rounded-[2rem] bg-red-500/10 border border-red-500/20 flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-red-500/20 group"
+                  >
+                    <Flag size={18} className="text-red-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">
+                      Report Incident
+                    </span>
+                  </button>
                 </div>
 
                 <button
@@ -2649,6 +2696,17 @@ export default function FeedCard({
             />
           );
         })()}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showReportSheet && (
+           <ReportSheet
+              onClose={() => setShowReportSheet(false)}
+              entityName={content.caption.substring(0, 30) + (content.caption.length > 30 ? "..." : "") || "this post"}
+              targetId={id.toString()}
+              targetType="post"
+           />
+        )}
       </AnimatePresence>
     </div>
   );

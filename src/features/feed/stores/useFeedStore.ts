@@ -900,7 +900,7 @@ export const useFeedStore = create<FeedState>()(
           }
 
           // Step 5: Hydrate metadata
-          const hydratedPosts = await hydrateFeed(rawPosts);
+          const hydratedPosts = (await hydrateFeed(rawPosts)).filter((p: any) => p.profiles);
           
           // Step 4: Deduplicate
           const dedupedPosts = dedupeFeed([...posts, ...hydratedPosts]);

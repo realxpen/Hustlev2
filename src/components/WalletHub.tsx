@@ -1,12 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import { 
   X, ArrowUpRight, ArrowDownLeft, ShieldCheck, History, 
   Wallet, DollarSign, CreditCard, Banknote, Landmark, 
   TrendingUp, Clock, CheckCircle2, AlertCircle, ChevronRight,
   Info, Lock, Zap, PieChart, BadgeCheck, FileText, MoreHorizontal,
-  Search, Plus
+  Search, Plus, RotateCw
 } from "lucide-react";
+import { useWallet } from "../features/wallets/hooks/useWallet";
+import { useTransactions } from "../features/wallets/hooks/useTransactions";
+import { useEscrow } from "../features/wallets/hooks/useEscrow";
+import { useBookingStore } from "../features/bookings/stores/useBookingStore";
+import { useAuth } from "../features/auth";
+import { supabase } from "../lib/supabase";
+import DepositFlow from "./DepositFlow";
+import { Toast } from "./HustleUI";
+import CurrencySelector from "./CurrencySelector";
+import { convertCurrency, formatCurrency, Currency, EXCHANGE_RATES } from "../lib/currency";
+
+import JobEscrowManager from "./JobEscrowManager";
+import { Booking } from "../features/bookings/types";
 
 interface WalletHubProps {
   onClose: () => void;
@@ -28,33 +41,340 @@ interface Transaction {
 
 export default function WalletHub({ onClose }: WalletHubProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'escrow' | 'history'>('overview');
+  const [assetTab, setAssetTab] = useState<'fiat' | 'crypto'>('fiat');
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isSwapOpen, setIsSwapOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isTransferSuccess, setIsTransferSuccess] = useState(false);
+  const [selectedBookingForEscrow, setSelectedBookingForEscrow] = useState<Booking | null>(null);
 
   const [isReceiptOpen, setIsReceiptOpen] = useState<Transaction | null>(null);
 
-  const balances = {
-    total: 45280.50,
-    fiat: 12400.00,
-    crypto: 0.85, // ETH or USDT
-    escrow: 8500.00,
-    pending: 1200.00
+  // Dynamic values
+  const { wallet, isLoading: isWalletLoading, fetchWallet, withdrawFunds, swapFunds } = useWallet();
+  const { transactions: dbTransactions, fetchTransactions } = useTransactions();
+  const { escrows: dbEscrows, fetchEscrowAccounts, releaseEscrowFunds, refundEscrowFunds } = useEscrow();
+  const { buyerOrders, sellerOrders } = useBookingStore();
+  const { user, profile } = useAuth();
+
+  const displayCurrency = (profile?.display_currency || 'USD') as Currency;
+
+  // Withdraw fields
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawAccount, setWithdrawAccount] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Transfer fields
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferRecipient, setTransferRecipient] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+
+  // Swap fields
+  const [swapFromCurrency, setSwapFromCurrency] = useState<Currency>('USD');
+  const [swapToCurrency, setSwapToCurrency] = useState<Currency>('BTC');
+  const [swapAmount, setSwapAmount] = useState("");
+  const [isSwapping, setIsSwapping] = useState(false);
+
+  // Real-time Sync & Notification States
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState<string>("Just Now");
+
+  const { fetchBookings } = useBookingStore();
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastMsg(message);
+    setToastType(type);
   };
 
-  const transactions: Transaction[] = [
-    { id: '1', type: 'earning', amount: 450, currency: 'USD', status: 'completed', date: '2h ago', title: 'UI Design Service', sub: 'Released from Escrow' },
-    { id: '2', type: 'payment', amount: -120, currency: 'USD', status: 'escrow', date: '5h ago', title: 'Content Research', sub: 'Held in Escrow' },
-    { id: '3', type: 'tip', amount: 25, currency: 'USD', status: 'completed', date: 'Yesterday', title: 'Livestream Tip', sub: 'from @Felix' },
-    { id: '4', type: 'withdrawal', amount: -1000, currency: 'USD', status: 'pending', date: '2 days ago', title: 'Bank Withdrawal', sub: 'Processing...' },
-  ];
+  const handleSyncBalances = async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([
+        fetchWallet(),
+        fetchTransactions(),
+        fetchEscrowAccounts(),
+        fetchBookings()
+      ]);
+      setLastSynced(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      showToast("Ledgers synced in real-time", "success");
+    } catch (err: any) {
+      showToast("Sync failed: " + (err.message || err), "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
-  const escrows = [
-    { id: 'e1', job: 'Custom Web Development', hustler: '@Felix', amount: 2500, progress: 65, status: 'In Progress', protected: true },
-    { id: 'e2', job: 'Logo Branding Suite', hustler: '@Sarah', amount: 800, progress: 100, status: 'Ready for Release', protected: true },
-  ];
+  useEffect(() => {
+    fetchWallet();
+    fetchTransactions();
+    fetchEscrowAccounts();
+    fetchBookings();
+  }, [fetchWallet, fetchTransactions, fetchEscrowAccounts, fetchBookings]);
+
+  // Derived Values
+  const availableVal = wallet ? Number(wallet.available_balance || 0) : 0;
+  
+  // Calculate Escrow Total from dbEscrows for better real-time accuracy in the UI
+  const ledgerEscrowVal = dbEscrows
+    .filter(e => e.status === 'held')
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  
+  // Also consider "virtual" escrows for bookings that are accepted but maybe not yet in the ledger
+  const activeBookings = [...buyerOrders, ...sellerOrders].filter(b => 
+    b.status === 'accepted' || b.status === 'in_progress'
+  );
+
+  const virtualEscrowVal = activeBookings.reduce((sum, b) => {
+    const isAlreadyInLedger = dbEscrows.some(e => e.booking_id === b.id);
+    if (!isAlreadyInLedger) return sum + Number(b.total_price);
+    return sum;
+  }, 0);
+
+  const escrowVal = ledgerEscrowVal + virtualEscrowVal;
+
+  // Real or mock multi-currency breakdown
+  const fiatAssets = [
+    { id: 'USD', name: 'US Dollar', amount: wallet ? Number(wallet.balance) : 0, symbol: '$', code: 'USD' as Currency },
+    { id: 'NGN', name: 'Naira (Local)', amount: 0.00, symbol: '₦', code: 'NGN' as Currency },
+    { id: 'EUR', name: 'Euro', amount: 0.00, symbol: '€', code: 'EUR' as Currency }
+  ].map(a => ({
+    ...a,
+    estValue: convertCurrency(a.amount, a.code, displayCurrency)
+  }));
+
+  const cryptoAssets = [
+    { id: 'USDT', name: 'Tether', amount: 0.00, symbol: '₮', code: 'USD' as Currency },
+    { id: 'BTC', name: 'Bitcoin', amount: 0.00, symbol: '₿', code: 'BTC' as Currency },
+    { id: 'ETH', name: 'Ethereum', amount: 0.00, symbol: 'Ξ', code: 'ETH' as Currency }
+  ].map(a => ({
+    ...a,
+    estValue: convertCurrency(a.amount, a.code, displayCurrency)
+  }));
+
+  const fiatTotalUserCurr = fiatAssets.reduce((sum, a) => sum + a.estValue, 0);
+  const cryptoTotalUserCurr = cryptoAssets.reduce((sum, a) => sum + a.estValue, 0);
+  const escrowTotalUserCurr = convertCurrency(escrowVal, 'USD', displayCurrency);
+
+  const balances = {
+    total: fiatTotalUserCurr + cryptoTotalUserCurr + escrowTotalUserCurr,
+    fiat: fiatTotalUserCurr,
+    crypto: cryptoTotalUserCurr,
+    escrow: escrowTotalUserCurr,
+    pending: 0.0
+  };
+
+  const transactions: Transaction[] = dbTransactions.map(tx => {
+    let typeMapped: 'deposit' | 'withdrawal' | 'earning' | 'payment' | 'tip' = 'payment';
+    if (tx.type === 'deposit') typeMapped = 'deposit';
+    else if (tx.type === 'withdrawal') typeMapped = 'withdrawal';
+    else if (tx.type === 'escrow_release') typeMapped = 'earning';
+    else if (tx.type === 'escrow_hold') typeMapped = 'payment';
+
+    // Format fields beautifully
+    const dateStr = tx.created_at ? new Date(tx.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'recent';
+    let title = 'Transaction';
+    let sub = tx.reference_id ? `Ref: ${tx.reference_id.slice(0, 8)}` : 'System Ledger';
+
+    if (tx.type === 'deposit') {
+      title = 'Deposit Confirmed';
+      sub = 'Hustle Secure Gateway';
+    } else if (tx.type === 'withdrawal') {
+      title = 'Bank Withdrawal';
+      sub = tx.status === 'completed' ? 'Transfer Settled' : 'Pending Verification';
+    } else if (tx.type === 'escrow_hold') {
+      title = 'Funds Protected in Escrow';
+      sub = `Booking: #${tx.reference_id?.slice(0, 8) || ''}`;
+    } else if (tx.type === 'escrow_release') {
+      title = 'Escrow Funds Credited';
+      sub = `Booking: #${tx.reference_id?.slice(0, 8) || ''}`;
+    } else if (tx.type === 'refund') {
+      title = 'Security Refund Received';
+      sub = 'Returned to Fiat Account';
+    }
+
+    return {
+      id: tx.id,
+      type: typeMapped,
+      amount: tx.type === 'withdrawal' || tx.type === 'escrow_hold' ? -Math.abs(tx.amount) : Math.abs(tx.amount), // show sign properly
+      currency: displayCurrency,
+      status: tx.status as any,
+      date: dateStr,
+      title: title,
+      sub: sub
+    };
+  });
+
+  const escrows = dbEscrows.map(escrow => {
+    return {
+      id: escrow.id,
+      job: `Project Booking #${escrow.booking_id.slice(0, 8)}`,
+      hustler: escrow.status === 'held' ? '@Hustler Escrow' : `Status: ${escrow.status}`,
+      amount: convertCurrency(Number(escrow.amount), 'USD', displayCurrency),
+      progress: escrow.status === 'released' ? 100 : escrow.status === 'refunded' ? 0 : 70,
+      status: escrow.status === 'held' ? 'Protected Escrow' : escrow.status === 'released' ? 'Released Successfully' : 'Refunded',
+      protected: true,
+      bookingId: escrow.booking_id
+    };
+  });
+
+  activeBookings.forEach(booking => {
+    const alreadyPresent = escrows.some(e => e.bookingId === booking.id);
+    if (!alreadyPresent) {
+      escrows.push({
+        id: `virtual-${booking.id}`,
+        job: booking.listing_title || `Project Booking #${booking.id.slice(0, 8)}`,
+        hustler: `@Hustler (Pending Sync)`,
+        amount: convertCurrency(Number(booking.total_price), 'USD', displayCurrency),
+        progress: 50,
+        status: 'Awaiting Validation',
+        protected: true,
+        bookingId: booking.id
+      });
+    }
+  });
+
+  const handleWithdrawSubmit = async () => {
+    setIsWithdrawing(true);
+    try {
+      // Input amount is in the user's selected display currency
+      const inputAmountValue = Number(withdrawAmount);
+      // Convert back to USD (base unit) for the backend
+      const amountUSD = convertCurrency(inputAmountValue, displayCurrency, 'USD');
+      
+      const res = await withdrawFunds(amountUSD, withdrawAccount);
+      if (res.success) {
+        setIsWithdrawOpen(false);
+        setWithdrawAmount("");
+        setWithdrawAccount("");
+        showToast(`Withdrawal of ${formatCurrency(inputAmountValue, displayCurrency)} processed successfully`, "success");
+      } else {
+        showToast("Withdrawal failed: " + res.error, "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "An error occurred", "error");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  const handleSwapSubmit = async () => {
+    setIsSwapping(true);
+    try {
+      const inputFromAmount = Number(swapAmount);
+      if (!inputFromAmount || inputFromAmount <= 0) {
+          throw new Error("Invalid swap amount");
+      }
+      
+      const toAmount = convertCurrency(inputFromAmount, swapFromCurrency, swapToCurrency);
+      
+      const res = await swapFunds(inputFromAmount, swapFromCurrency, toAmount, swapToCurrency);
+      if (res.success) {
+        setIsSwapOpen(false);
+        setSwapAmount("");
+        showToast(`Swap of ${formatCurrency(inputFromAmount, swapFromCurrency)} to ${swapToCurrency} completed`, "success");
+      } else {
+        showToast("Swap failed: " + res.error, "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "An error occurred", "error");
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  const handleTransferSubmit = async () => {
+    setIsTransferring(true);
+    try {
+      const inputAmountValue = Number(transferAmount);
+      const amountUSD = convertCurrency(inputAmountValue, displayCurrency, 'USD');
+      const recipient = transferRecipient || 'Simulated Recipient';
+      
+      const res = await withdrawFunds(amountUSD, `Transfer to ${recipient}`);
+      if (res.success) {
+        setIsTransferSuccess(true);
+        setTransferAmount("");
+        setTransferRecipient("");
+        showToast(`Transfer of ${formatCurrency(inputAmountValue, displayCurrency)} sent successfully`, "success");
+      } else {
+        showToast("Transfer failed: " + res.error, "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "An error occurred", "error");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  const handleReleaseEscrow = async (escrowObj: any) => {
+    try {
+      const { data: booking, error: bErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', escrowObj.bookingId)
+        .single();
+        
+      if (bErr || !booking) {
+        showToast("Associated booking details could not be found.", "error");
+        return;
+      }
+
+      const payout = booking.total_price * 0.95; // 95% payout
+      const fee = booking.total_price * 0.05; // 5% fee
+      
+      const success = await releaseEscrowFunds(
+        booking.id, 
+        booking.buyer_id, 
+        booking.seller_id, 
+        booking.total_price, 
+        payout, 
+        fee
+      );
+      if (success) {
+        fetchEscrowAccounts();
+        fetchWallet();
+        fetchTransactions();
+        showToast("Escrow funds released safely to the hustler", "success");
+      } else {
+        showToast("Failed to release escrow funds", "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "An error occurred releasing funds", "error");
+    }
+  };
+
+  const handleRefundEscrow = async (escrowObj: any) => {
+    try {
+      const { data: booking, error: bErr } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', escrowObj.bookingId)
+        .single();
+        
+      if (bErr || !booking) {
+        showToast("Associated booking details could not be found.", "error");
+        return;
+      }
+
+      const success = await refundEscrowFunds(
+        booking.id, 
+        booking.buyer_id, 
+        booking.total_price
+      );
+      if (success) {
+        fetchEscrowAccounts();
+        fetchWallet();
+        fetchTransactions();
+        showToast("Escrow funds refunded back to your wallet", "success");
+      } else {
+        showToast("Failed to refund escrow funds", "error");
+      }
+    } catch (e: any) {
+      showToast(e.message || "An error occurred refunding funds", "error");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[110] bg-[#050505] text-white flex flex-col font-sans overflow-hidden">
@@ -72,16 +392,26 @@ export default function WalletHub({ onClose }: WalletHubProps) {
              <h1 className="text-sm font-black uppercase tracking-tight italic">Hustle Financial</h1>
              <div className="flex items-center gap-1.5">
                 <ShieldCheck size={10} className="text-emerald-400" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Secure & Verified</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Secure & Verified • Synced {lastSynced}</span>
              </div>
           </div>
         </div>
-        <button 
-          onClick={onClose}
-          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
-        >
-          <X size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            disabled={isSyncing}
+            onClick={handleSyncBalances}
+            className="w-10 h-15 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white/60 hover:text-white disabled:opacity-40"
+            title="Force Real-time Sync"
+          >
+            <RotateCw size={15} className={isSyncing ? "animate-spin text-emerald-400" : "text-white/60"} />
+          </button>
+          <button 
+            onClick={onClose}
+            className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </header>
 
       {/* Internal Navigation */}
@@ -127,35 +457,137 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                 <div className="relative z-10">
                   <div className="flex justify-between items-start mb-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Consolidated Assets</p>
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-                       <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-                       <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Live Rates Active</span>
+                    <div className="flex items-center gap-3">
+                      <CurrencySelector />
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                         <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                         <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Live Rates Active</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-baseline gap-2 mb-8">
-                     <span className="text-2xl font-black text-white/40">$</span>
+                  <div className="flex items-baseline gap-2 mb-2">
+                     <span className="text-2xl font-black text-white/40">{EXCHANGE_RATES[displayCurrency].symbol}</span>
                      <h2 className="text-6xl font-display font-black tracking-tighter italic">
-                       {balances.total.toLocaleString()}
+                       {balances.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                      </h2>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="bg-white/5 border border-white/5 rounded-3xl p-5 hover:bg-white/10 transition-colors">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">Fiat Account (NGN)</p>
-                        <div className="flex items-center justify-between">
-                           <span className="text-lg font-black tracking-tighter">₦{ (balances.fiat * 1600).toLocaleString() }</span>
-                           <Zap size={14} className="text-yellow-500 opacity-60" />
-                        </div>
-                     </div>
-                     <div className="bg-white/5 border border-white/5 rounded-3xl p-5 hover:bg-white/10 transition-colors">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-white/30 mb-2">Crypto (USDT)</p>
-                        <div className="flex items-center justify-between">
-                           <span className="text-lg font-black tracking-tighter">{ (balances.crypto * 1000).toLocaleString() } USDT</span>
-                           <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                              <DollarSign size={10} className="text-emerald-500" />
-                           </div>
-                        </div>
-                     </div>
+                  <div className="flex items-center gap-4 mb-8">
+                    <button 
+                      onClick={() => setAssetTab('fiat')}
+                      className={`flex flex-col text-left transition-all hover:scale-105 active:scale-95 ${assetTab === 'fiat' ? 'opacity-100' : 'opacity-40'}`}
+                    >
+                       <span className="text-[8px] font-black uppercase text-white/20 tracking-widest">Fiat Account</span>
+                       <span className="text-sm font-black text-white">{EXCHANGE_RATES[displayCurrency].symbol}{balances.fiat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </button>
+                    <div className="w-[1px] h-4 bg-white/10" />
+                    <button 
+                      onClick={() => setAssetTab('crypto')}
+                      className={`flex flex-col text-left transition-all hover:scale-105 active:scale-95 ${assetTab === 'crypto' ? 'opacity-100' : 'opacity-40'}`}
+                    >
+                       <span className="text-[8px] font-black uppercase text-white/20 tracking-widest">Crypto Portfolio</span>
+                       <span className="text-sm font-black text-white">{EXCHANGE_RATES[displayCurrency].symbol}{balances.crypto.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </button>
+                    <div className="w-[1px] h-4 bg-white/10" />
+                    <button 
+                      onClick={() => setActiveTab('escrow')}
+                      className="flex flex-col text-left transition-all hover:scale-105 active:scale-95 opacity-100"
+                    >
+                       <span className="text-[8px] font-black uppercase text-white/20 tracking-widest">In Escrow</span>
+                       <span className="text-sm font-black text-emerald-500">${balances.escrow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-6">
+                    {/* Asset Tabs Switcher */}
+                    <div className="flex items-center gap-6 border-b border-white/5">
+                      <button 
+                        onClick={() => setAssetTab('fiat')}
+                        className={`pb-3 text-[10px] font-black uppercase tracking-widest relative transition-colors ${assetTab === 'fiat' ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
+                      >
+                        Fiat Accounts
+                        {assetTab === 'fiat' && (
+                          <motion.div layoutId="activeAssetTab" className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-emerald-500" />
+                        )}
+                      </button>
+                      <button 
+                        onClick={() => setAssetTab('crypto')}
+                        className={`pb-3 text-[10px] font-black uppercase tracking-widest relative transition-colors ${assetTab === 'crypto' ? 'text-white' : 'text-white/20 hover:text-white/40'}`}
+                      >
+                        Crypto Assets
+                        {assetTab === 'crypto' && (
+                          <motion.div layoutId="activeAssetTab" className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-emerald-500" />
+                        )}
+                      </button>
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                      {assetTab === 'fiat' ? (
+                        <motion.div 
+                          key="fiat-list"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-center justify-between px-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-white/30 italic">Total Fiat Value</span>
+                            <span className="text-sm font-black tracking-tighter text-emerald-500">{EXCHANGE_RATES[displayCurrency].symbol}{balances.fiat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                             {fiatAssets.map(asset => (
+                               <div key={asset.id} className="bg-white/5 border border-white/5 rounded-3xl p-4 hover:bg-white/10 transition-colors flex items-center justify-between group/asset">
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-white/40 group-hover/asset:bg-emerald-500 group-hover/asset:text-white transition-colors">
+                                       {asset.id === 'NGN' ? <Banknote size={16} /> : asset.id === 'EUR' ? <Landmark size={16} /> : <DollarSign size={16} />}
+                                    </div>
+                                    <div>
+                                       <p className="text-[9px] font-black uppercase tracking-widest text-white/30">{asset.name}</p>
+                                       <span className="text-sm font-black tracking-tighter">{asset.symbol}{asset.amount.toLocaleString(undefined, { minimumFractionDigits: asset.id === 'USD' ? 2 : 0 })}</span>
+                                    </div>
+                                 </div>
+                                 <div className="text-right">
+                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest">Est. {displayCurrency}</p>
+                                    <span className="text-[10px] font-black text-white/40">{EXCHANGE_RATES[displayCurrency].symbol}{asset.estValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                 </div>
+                               </div>
+                             ))}
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          key="crypto-list"
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-center justify-between px-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-white/30 italic">Total Crypto Value</span>
+                            <span className="text-sm font-black tracking-tighter text-emerald-500">{EXCHANGE_RATES[displayCurrency].symbol}{balances.crypto.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-2">
+                             {cryptoAssets.map(asset => (
+                               <div key={asset.id} className="bg-white/5 border border-white/5 rounded-3xl p-4 hover:bg-white/10 transition-colors flex items-center justify-between group/asset">
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-emerald-500/40 group-hover/asset:bg-emerald-500 group-hover/asset:text-white transition-colors">
+                                       {asset.id === 'BTC' ? <Zap size={16} /> : asset.id === 'ETH' ? <PieChart size={16} /> : <DollarSign size={16} />}
+                                    </div>
+                                    <div>
+                                       <p className="text-[9px] font-black uppercase tracking-widest text-white/30">{asset.name}</p>
+                                       <span className="text-sm font-black tracking-tighter">{asset.amount.toFixed(asset.id === 'BTC' || asset.id === 'ETH' ? 8 : 2)} {asset.id}</span>
+                                    </div>
+                                 </div>
+                                 <div className="text-right">
+                                    <p className="text-[9px] font-black text-white/20 uppercase tracking-widest">Est. {displayCurrency}</p>
+                                    <span className="text-[10px] font-black text-white/40">{EXCHANGE_RATES[displayCurrency].symbol}{asset.estValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                 </div>
+                               </div>
+                             ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               </section>
@@ -207,20 +639,19 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                        </div>
                        <div>
                           <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-1">Escrow Balance</p>
-                          <h4 className="text-2xl font-black tracking-tighter">${balances.escrow.toLocaleString()}</h4>
+                          <h4 className="text-2xl font-black tracking-tighter">{EXCHANGE_RATES[displayCurrency].symbol}{balances.escrow.toLocaleString(undefined, { minimumFractionDigits: 2 })}</h4>
                        </div>
                     </div>
-                    <div className="text-right">
-                       <p className="text-[10px] font-bold text-white/40 uppercase mb-1">2 Active Jobs</p>
-                       <div className="flex -space-x-2 justify-end">
-                          <div className="w-6 h-6 rounded-full border-2 border-black bg-white/10 overflow-hidden">
-                             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" />
-                          </div>
-                          <div className="w-6 h-6 rounded-full border-2 border-black bg-white/10 overflow-hidden">
-                             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" alt="User" />
-                          </div>
-                       </div>
-                    </div>
+                     <div className="text-right">
+                        <p className="text-[10px] font-bold text-white/40 uppercase mb-1">{escrows.length} Active Jobs</p>
+                        <div className="flex -space-x-2 justify-end">
+                           {escrows.slice(0, 3).map((e, idx) => (
+                             <div key={idx} className="w-6 h-6 rounded-full border-2 border-black bg-white/10 overflow-hidden">
+                                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${e.hustler}`} alt="User" />
+                             </div>
+                           ))}
+                        </div>
+                     </div>
                  </div>
               </section>
 
@@ -262,7 +693,7 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                              </div>
                           </div>
                           <div className="text-right">
-                             <span className="text-lg font-black tracking-tighter">${item.amount.toLocaleString()}</span>
+                             <span className="text-lg font-black tracking-tighter">{EXCHANGE_RATES[displayCurrency].symbol}{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                              <div className="flex items-center gap-1 justify-end mt-1">
                                 <Clock size={10} className="text-blue-400" />
                                 <span className="text-[8px] font-black uppercase text-blue-400">{item.status}</span>
@@ -285,12 +716,35 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                           </div>
                        </div>
 
-                       <div className="flex gap-3">
-                          <button className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">View Details</button>
-                          {item.progress === 100 ? (
-                            <button className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active-scale">Release Funds</button>
+                        <div className="flex gap-3">
+                          <button 
+                              onClick={() => {
+                                 const b = [...buyerOrders, ...sellerOrders].find(b => b.id === item.bookingId);
+                                 if (b) setSelectedBookingForEscrow(b);
+                                 else showToast("Consulting secure ledger for booking details...", "info");
+                              }} 
+                              className="flex-1 py-3 rounded-2xl bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors"
+                           >
+                              Manage & View Details
+                           </button>
+                          {item.progress === 100 || item.status === 'Protected Escrow' ? (
+                            <button 
+                              onClick={() => {
+                                const b = [...buyerOrders, ...sellerOrders].find(b => b.id === item.bookingId);
+                                if (b) setSelectedBookingForEscrow(b);
+                                else handleReleaseEscrow(item);
+                              }} 
+                              className="flex-1 py-3 rounded-2xl bg-emerald-500 text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active-scale hover:brightness-110 transition-all"
+                           >
+                              {activeBookings.find(b => b.id === item.bookingId)?.buyer_id === user?.id ? 'Release Funds' : 'Request Release'}
+                           </button>
                           ) : (
-                            <button className="flex-1 py-3 rounded-2xl bg-white text-black text-[9px] font-black uppercase tracking-widest active-scale">Dispute</button>
+                            <button 
+                              onClick={() => handleRefundEscrow(item)} 
+                              className="flex-1 py-3 rounded-2xl bg-red-500/20 text-red-500 hover:bg-red-550 border border-red-500/10 text-[9px] font-black uppercase tracking-widest active-scale transition-colors"
+                           >
+                              Refund Client
+                           </button>
                           )}
                        </div>
                     </div>
@@ -352,7 +806,7 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                           </div>
                           <div className="text-right">
                              <div className={`text-md font-black tracking-tighter ${tx.amount > 0 ? 'text-emerald-400' : 'text-white'}`}>
-                                {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toLocaleString()}
+                                {tx.amount > 0 ? '+' : ''}{EXCHANGE_RATES[displayCurrency].symbol}{Math.abs(tx.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                              </div>
                              <div className={`text-[8px] font-black uppercase tracking-widest ${
                                tx.status === 'completed' ? 'text-emerald-500/60' : 
@@ -372,31 +826,48 @@ export default function WalletHub({ onClose }: WalletHubProps) {
       </main>
 
       {/* Persistent Summary Footer */}
-      <footer className="px-6 py-8 bg-black/80 backdrop-blur-3xl border-t border-white/5 flex justify-between items-center safe-bottom relative z-[120]">
-        <div className="flex items-center gap-4">
-           <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40">
-              <Zap size={24} />
-           </div>
-           <div>
-              <p className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-1">Instant Payout Available</p>
-              <div className="flex items-center gap-2">
-                 <span className="text-xs font-black italic tracking-tighter text-emerald-400">$1,240.00 REVENUE READY</span>
-                 <ArrowRight size={14} className="text-emerald-400" />
-              </div>
-           </div>
-        </div>
-        <button 
-           onClick={() => setIsTransferOpen(true)}
-           className="px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest active-scale"
-        >
-           Transfer
-        </button>
-      </footer>
+      {!isDepositOpen && !isWithdrawOpen && !isSwapOpen && !isTransferOpen && !isReceiptOpen && (
+        <footer className="px-6 py-8 bg-black/80 backdrop-blur-3xl border-t border-white/5 flex justify-between items-center safe-bottom relative z-[120]">
+          <div className="flex items-center gap-4">
+             <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40">
+                <Zap size={24} />
+             </div>
+             <div>
+                <p className="text-[10px] font-black uppercase text-white/40 tracking-widest mb-1">Instant Payout Available</p>
+                <div className="flex items-center gap-2">
+                   <span className="text-xs font-black italic tracking-tighter text-emerald-400">{EXCHANGE_RATES[displayCurrency].symbol}{convertCurrency(1240, 'USD', displayCurrency).toLocaleString(undefined, { minimumFractionDigits: 2 })} REVENUE READY</span>
+                   <ArrowRight size={14} className="text-emerald-400" />
+                </div>
+             </div>
+          </div>
+          <button 
+             onClick={() => setIsTransferOpen(true)}
+             className="px-6 py-3 rounded-full bg-white text-black text-[10px] font-black uppercase tracking-widest active-scale"
+          >
+             Transfer
+          </button>
+        </footer>
+      )}
+
+      {/* Escrow Command Center Modal */}
+      <AnimatePresence>
+        {selectedBookingForEscrow && (
+          <JobEscrowManager 
+            booking={selectedBookingForEscrow}
+            onClose={() => setSelectedBookingForEscrow(null)}
+            onViewDetails={(b) => {
+              // Note: You could navigate to dedicated booking page here if preferred
+              showToast("Opening project briefing...", "info");
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Simple Modals for Deposit/Withdraw */}
       <AnimatePresence>
         {isReceiptOpen && (
           <motion.div 
+            key="receipt-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -470,6 +941,7 @@ export default function WalletHub({ onClose }: WalletHubProps) {
 
         {isTransferOpen && (
           <motion.div 
+            key="transfer-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -524,13 +996,13 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                              </button>
                           </motion.div>
                        ) : (
-                          <motion.div key="form" className="space-y-6">
+                          <motion.form key="form" onSubmit={(e) => { e.preventDefault(); if (!isTransferring && transferAmount && transferRecipient) handleTransferSubmit(); }} className="space-y-6">
                              {/* Search Recipient */}
                              <div className="relative">
                                 <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20" />
                                 <input 
                                   type="text" 
-                                  placeholder="Search @hustler tag or Wallet ID..." 
+                                  placeholder="Search @hustler tag or Wallet ID..." value={transferRecipient} onChange={e => setTransferRecipient(e.target.value)} 
                                   className="w-full h-16 bg-white/5 border border-white/5 rounded-[1.75rem] pl-14 pr-6 text-sm font-medium focus:outline-none focus:border-brand-primary/40 transition-colors"
                                 />
                              </div>
@@ -557,26 +1029,26 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                              <div className="bg-white/5 border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-2 group transition-all focus-within:border-brand-primary/30">
                                 <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">Transfer Amount</span>
                                 <div className="flex items-center gap-3">
-                                   <span className="text-3xl font-black text-white/40">$</span>
+                                   <span className="text-3xl font-black text-white/40">₦</span>
                                    <input 
                                      type="number" 
                                      placeholder="0.00"
-                                     className="bg-transparent border-none focus:outline-none text-5xl font-black italic tracking-tighter w-40 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                     value={transferAmount} onChange={e => setTransferAmount(e.target.value)} className="bg-transparent border-none focus:outline-none text-5xl font-black italic tracking-tighter w-48 text-center text-white focus:ring-0 placeholder:text-white/20"
                                    />
                                 </div>
                                 <div className="mt-4 px-4 py-1.5 bg-black/40 rounded-full border border-white/5">
-                                   <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available: ${balances.fiat.toLocaleString()}</span>
+                                   <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available: ₦{(availableVal).toLocaleString()}</span>
                                 </div>
                              </div>
 
                              <button 
-                                onClick={() => setIsTransferSuccess(true)}
+                                onClick={handleTransferSubmit} disabled={isTransferring || !transferAmount || !transferRecipient}
                                 className="w-full h-18 bg-brand-primary text-white rounded-[1.75rem] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-brand-primary/40 active-scale transition-all hover:brightness-110"
                              >
-                                <span className="text-[11px] font-black uppercase tracking-[0.2em]">Send Funds Now</span>
+                                <span className="text-[11px] font-black uppercase tracking-[0.2em]">{isTransferring ? 'Relaying Transfer...' : 'Send Funds Now'}</span>
                                 <span className="text-[8px] font-bold text-white/60 uppercase">Instant Settlement • Protected</span>
                              </button>
-                          </motion.div>
+                          </motion.form>
                        )}
                     </AnimatePresence>
                 </div>
@@ -589,13 +1061,16 @@ export default function WalletHub({ onClose }: WalletHubProps) {
           </motion.div>
         )}
 
-        {(isDepositOpen || isWithdrawOpen || isSwapOpen) && (
+        <DepositFlow isOpen={isDepositOpen} onClose={() => setIsDepositOpen(false)} />
+
+        {(isWithdrawOpen || isSwapOpen) && (
           <motion.div 
+            key="withdraw-swap-modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[150] bg-black/90 backdrop-blur-md flex items-end justify-center px-6 pb-12"
-            onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); setIsSwapOpen(false); }}
+            onClick={() => { setIsWithdrawOpen(false); setIsSwapOpen(false); }}
           >
              <motion.div 
                 initial={{ y: 100 }}
@@ -606,9 +1081,9 @@ export default function WalletHub({ onClose }: WalletHubProps) {
              >
                 <div className="flex justify-between items-center">
                    <h3 className="text-2xl font-black tracking-tighter italic uppercase">
-                     {isDepositOpen ? 'Deposit Funds' : isWithdrawOpen ? 'Withdraw' : 'Instant Swap'}
+                     {isWithdrawOpen ? 'Withdraw Funds' : 'Instant Swap'}
                    </h3>
-                   <button onClick={() => { setIsDepositOpen(false); setIsWithdrawOpen(false); setIsSwapOpen(false); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                   <button onClick={() => { setIsWithdrawOpen(false); setIsSwapOpen(false); }} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
                       <X size={16} />
                    </button>
                 </div>
@@ -617,14 +1092,29 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                   <div className="space-y-4">
                      <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
                         <div className="flex justify-between items-center mb-2">
-                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">From Fiat</span>
-                           <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Balance: ₦12M</span>
+                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">From</span>
+                           <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400">Balance: {formatCurrency(convertCurrency(availableVal, 'USD', swapFromCurrency), swapFromCurrency)}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                           <span className="text-2xl font-black italic tracking-tighter">₦ 450,000</span>
-                           <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
-                              <span className="text-xs font-black">NGN</span>
+                        <div className="flex justify-between items-center gap-4">
+                           <div className="flex items-center gap-2 flex-1">
+                              <span className="text-2xl font-black text-white/40">{EXCHANGE_RATES[swapFromCurrency].symbol}</span>
+                              <input 
+                                type="number" 
+                                placeholder="0.00"
+                                value={swapAmount}
+                                onChange={(e) => setSwapAmount(e.target.value)}
+                                className="bg-transparent border-none outline-none text-2xl md:text-3xl font-black tracking-tighter w-full max-w-[200px]"
+                              />
                            </div>
+                           <select 
+                             value={swapFromCurrency}
+                             onChange={(e) => setSwapFromCurrency(e.target.value as Currency)}
+                             className="bg-zinc-900 border border-white/10 rounded-full px-3 py-2 text-xs font-black outline-none"
+                           >
+                             {Object.keys(EXCHANGE_RATES).map((curr) => (
+                               <option key={curr} value={curr}>{curr}</option>
+                             ))}
+                           </select>
                         </div>
                      </div>
 
@@ -636,22 +1126,29 @@ export default function WalletHub({ onClose }: WalletHubProps) {
 
                      <div className="bg-white/5 border border-emerald-500/20 rounded-3xl p-6">
                         <div className="flex justify-between items-center mb-2">
-                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">To Crypto</span>
+                           <span className="text-[8px] font-black uppercase tracking-widest text-white/40">To</span>
                            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">Est. Outcome</span>
                         </div>
                         <div className="flex justify-between items-center">
-                           <span className="text-2xl font-black italic tracking-tighter">281.25</span>
-                           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 rounded-full border border-emerald-500/20">
-                              <DollarSign size={12} className="text-emerald-500" />
-                              <span className="text-xs font-black">USDT</span>
-                           </div>
+                           <span className="text-2xl font-black italic tracking-tighter truncate max-w-[200px]" style={{width: '200px', display: 'inline-block'}}>
+                             {swapAmount ? convertCurrency(Number(swapAmount), swapFromCurrency, swapToCurrency).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : '0.00'}
+                           </span>
+                           <select 
+                             value={swapToCurrency}
+                             onChange={(e) => setSwapToCurrency(e.target.value as Currency)}
+                             className="bg-zinc-900 border border-emerald-500/20 rounded-full px-3 py-2 text-xs font-black text-emerald-500 outline-none"
+                           >
+                             {Object.keys(EXCHANGE_RATES).map((curr) => (
+                               <option key={curr} value={curr}>{curr}</option>
+                             ))}
+                           </select>
                         </div>
                      </div>
 
                      <div className="flex items-center justify-between px-2 py-4 border-t border-white/5">
                         <div className="flex flex-col">
                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Live Rate</span>
-                           <span className="text-[10px] font-bold">1 USDT = ₦1,600.00</span>
+                           <span className="text-[10px] font-bold">1 {swapToCurrency} = {EXCHANGE_RATES[swapFromCurrency].symbol}{convertCurrency(1, swapToCurrency, swapFromCurrency).toLocaleString()}</span>
                         </div>
                         <div className="flex flex-col text-right">
                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Fee</span>
@@ -659,29 +1156,52 @@ export default function WalletHub({ onClose }: WalletHubProps) {
                         </div>
                      </div>
 
-                     <button className="w-full h-16 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale">
-                        Confirm Conversion
+                     <button 
+                       onClick={handleSwapSubmit}
+                       disabled={isSwapping || !swapAmount}
+                       className="w-full h-16 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest active-scale disabled:opacity-50"
+                     >
+                        {isSwapping ? 'Processing...' : 'Confirm Conversion'}
                      </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                        <Landmark size={24} className="text-blue-400" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Bank Transfer</span>
-                    </button>
-                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                        <CreditCard size={24} className="text-purple-400" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Debit Card</span>
-                    </button>
-                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                        <Zap size={24} className="text-emerald-400" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">Crypto (USDT)</span>
-                    </button>
-                    <button className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex flex-col items-center gap-4 group hover:bg-white/10 transition-colors">
-                        <Banknote size={24} className="text-yellow-500" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">USDC Direct</span>
-                    </button>
-                  </div>
+                  <form onSubmit={(e) => { e.preventDefault(); if (!isWithdrawing && withdrawAmount && withdrawAccount) handleWithdrawSubmit(); }} className="space-y-6">
+                     <div className="bg-white/5 border border-white/5 rounded-3xl p-6 flex flex-col items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20">Withdraw Amount ({displayCurrency})</span>
+                        <div className="flex items-center gap-3">
+                           <span className="text-3xl font-black text-white/40">{EXCHANGE_RATES[displayCurrency].symbol}</span>
+                           <input 
+                             type="number" 
+                             placeholder="0.00"
+                             value={withdrawAmount}
+                             onChange={e => setWithdrawAmount(e.target.value)}
+                             className="bg-transparent border-none focus:outline-none text-4xl font-black italic tracking-tighter w-52 text-center text-white focus:ring-0 placeholder:text-white/20"
+                           />
+                        </div>
+                        <div className="mt-4 px-4 py-1 bg-black/40 rounded-full border border-white/5">
+                           <span className="text-[9px] font-bold text-white/40 tracking-widest uppercase">Available: {formatCurrency(convertCurrency(availableVal, 'USD', displayCurrency), displayCurrency)}</span>
+                        </div>
+                     </div>
+
+                     <div className="space-y-2">
+                        <label className="text-[8px] font-black uppercase tracking-widest text-white/40 ml-2">Destination Bank & Account Info</label>
+                        <input 
+                          type="text" 
+                          placeholder="Access Bank • 0122345678"
+                          value={withdrawAccount}
+                          onChange={e => setWithdrawAccount(e.target.value)}
+                          className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl px-6 text-sm font-medium focus:outline-none focus:border-emerald-500/40 transition-colors text-white"
+                        />
+                     </div>
+
+                     <button 
+                        type="submit"
+                        disabled={isWithdrawing || !withdrawAmount || !withdrawAccount}
+                        className="w-full h-16 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 active-scale hover:brightness-110 transition-all flex items-center justify-center disabled:opacity-50"
+                     >
+                        {isWithdrawing ? "Processing Withdrawal..." : "Confirm Withdrawal"}
+                     </button>
+                  </form>
                 )}
 
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-3xl flex items-center gap-3">
@@ -692,6 +1212,13 @@ export default function WalletHub({ onClose }: WalletHubProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <Toast 
+         message={toastMsg || ""} 
+         type={toastType} 
+         isOpen={!!toastMsg} 
+         onClose={() => setToastMsg(null)} 
+      />
     </div>
   );
 }

@@ -41,3 +41,6 @@ export type StoryView = Database['public']['Tables']['story_views']['Row'];
 export type Collection = Database['public']['Tables']['collections']['Row'];
 export type SavedPost = Database['public']['Tables']['saved_posts']['Row'];
 export type PostShare = Database['public']['Tables']['post_shares']['Row'];
+
+export * from './agent';
+

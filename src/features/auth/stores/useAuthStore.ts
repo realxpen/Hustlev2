@@ -16,6 +16,7 @@ interface AuthState {
   setSession: (session: Session | null) => void;
   setUser: (user: User | null) => void;
   setProfile: (profile: Profile | null) => void;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   setInitialized: (isInitialized: boolean) => void;
@@ -41,6 +42,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setSession: (session) => set({ session }),
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
+  updateProfile: async (updates) => {
+    const { user, profile } = get();
+    if (!user || !profile) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      set({ profile: data as Profile });
+      
+      // Sync with profile store
+      import('../../profile/stores/useProfileStore').then(m => {
+        m.useProfileStore.getState().setProfile(data as Profile);
+      });
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      set({ profile: { ...profile, ...updates } }); // Optimistic fallback
+    }
+  },
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setInitialized: (isInitialized) => set({ isInitialized }),
@@ -162,7 +187,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (session?.user) {
-        get().fetchProfile(session.user.id).catch(err => {
+        get().fetchProfile(session.user.id).then(() => {
+          // Detect location and set default currency if not present
+          const currentProfile = get().profile;
+          if (currentProfile && !currentProfile.default_currency) {
+            // In a real app we might use an IP-to-location API here
+            // For now, let's mock it based on profile location or default to USD
+            import('../../../lib/currency').then(m => {
+              const suggested = m.getCurrencyForCountry(); // Defaults to USD without accurate IP info
+              get().updateProfile({ 
+                default_currency: suggested, 
+                display_currency: suggested 
+              });
+            });
+          }
+        }).catch(err => {
           console.warn("Retrying fetch profile failure:", err);
         });
       }
@@ -184,7 +223,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (session?.user) {
-        get().fetchProfile(session.user.id).catch(err => {
+        get().fetchProfile(session.user.id).then(() => {
+          const currentProfile = get().profile;
+          if (currentProfile && !currentProfile.default_currency) {
+            import('../../../lib/currency').then(m => {
+              const suggested = m.getCurrencyForCountry();
+              get().updateProfile({ default_currency: suggested, display_currency: suggested });
+            });
+          }
+        }).catch(err => {
           console.warn("AuthState fallback profile applied:", err);
         });
       } else {

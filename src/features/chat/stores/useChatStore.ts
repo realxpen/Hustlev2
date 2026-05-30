@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
+import { useAppOrchestrator } from '../../../stores/useAppOrchestrator';
 import type { Conversation, Message, Profile } from '../../../types';
 
 export interface ChatParticipant extends Profile {}
@@ -10,9 +11,9 @@ export interface ChatConversation extends Conversation {
   disappearing_messages_duration?: string | null;
 }
 
-export interface ChatMessage extends Omit<Message, 'message_type'> {
+export interface ChatMessage extends Omit<Message, 'message_type' | 'media_metadata'> {
   sender?: ChatParticipant | null;
-  media_metadata?: any;
+  media_metadata?: any | null;
   delivered_at?: string | null;
   expires_at?: string | null;
   message_type: 'text' | 'image' | 'video' | 'file' | 'voice' | 'shared_post' | 'reply' | 'system';
@@ -406,6 +407,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    const conversation = get().conversations.find(c => c.id === conversationId);
+    const otherUserId = conversation?.otherParticipant?.id;
+
+    if (otherUserId) {
+      const { data: restriction } = await supabase
+        .from('buyer_restrictions')
+        .select('*')
+        .eq('seller_id', otherUserId)
+        .eq('buyer_id', user.id)
+        .maybeSingle();
+
+      if (restriction) {
+        throw new Error('You are restricted from messaging this user.');
+      }
+    }
+
     const messageType = payload.message_type || 'text';
     const content = payload.content || '';
     
@@ -529,6 +546,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           messages: { ...state.messages, [conversationId]: updatedMessages },
           messagesMap: { ...state.messagesMap, [conversationId]: updatedMessages }
         };
+      });
+
+      // Emit Event
+      useAppOrchestrator.getState().emitEvent({
+        event_type: 'message_sent',
+        actor_id: user.id,
+        target_id: otherUserId || undefined,
+        entity_id: realMsg.id,
+        entity_type: 'message',
+        payload: { conversation_id: conversationId, message_type: messageType }
       });
 
       return realMsg;

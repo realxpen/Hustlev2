@@ -10,6 +10,7 @@ import AuthScreen from "./components/AuthScreen";
 import EntryTransition from "./components/EntryTransition";
 import MockHome from "./components/MockHome";
 import { useAuth } from "./features/auth";
+import { useAppOrchestrator } from "./stores/useAppOrchestrator";
 import { OnboardingGuard } from "./features/onboarding";
 import ProfileCompletionPopup from "./features/profile/components/ProfileCompletionPopup";
 
@@ -18,10 +19,18 @@ type AppState = "splash" | "auth" | "transition" | "home";
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
   const { session, isInitialized, initialize, isRecoveryMode } = useAuth();
+  const { initializeRealtime } = useAppOrchestrator();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    if (session) {
+      const cleanup = initializeRealtime() as unknown as () => void;
+      return () => cleanup?.();
+    }
+  }, [session, initializeRealtime]);
 
   const handleSplashComplete = () => {
     // If initialized and we have a session, skip auth screen (unless in recovery mode)
