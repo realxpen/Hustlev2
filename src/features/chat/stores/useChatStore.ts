@@ -225,7 +225,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
 
-      const conversationIds = Array.from(new Set(participations.map(p => p.conversation_id)));
+      const conversationIds = Array.from(new Set(participations.map(p => p.conversation_id as string)));
 
       const { data: convData, error: convError } = await supabase
         .from('conversations')
@@ -257,7 +257,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const unreadCountsMap: Record<string, number> = {};
       conversationIds.forEach(cid => {
-        unreadCountsMap[cid] = 0;
+        unreadCountsMap[cid as string] = 0;
       });
 
       if (!unreadError && unreadData) {

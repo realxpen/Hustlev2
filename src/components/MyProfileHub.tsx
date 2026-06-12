@@ -4,7 +4,7 @@ import {
   Briefcase, Info, Calendar, Edit2, ChevronLeft, X, ArrowRight,
   ShoppingBag, BookOpen, Clock, Heart, Camera, Settings, Plus, Play, Link as LinkIcon,
   ShieldCheck, ShieldAlert, Check, AlertCircle, TrendingUp, CreditCard, User, History, Zap, ChevronRight, RefreshCcw,
-  Bookmark, Repeat, Users, Award, GraduationCap
+  Bookmark, Repeat, Users, Award, GraduationCap, Smartphone, Mail, Globe, Gift
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import BookingFlow from "./BookingFlow";
@@ -14,6 +14,9 @@ import CreateOfferingFlow from "./CreateOfferingFlow";
 import ServiceDetailModal from "./ServiceDetailModal";
 import ImageEditorModal from "./ImageEditorModal";
 import AgencyCenter from "./AgencyCenter";
+import VerificationCenter from "./VerificationCenter";
+import LearningHub from "./LearningHub";
+import ReferralHub from "./ReferralHub";
 import { LearnerWorkspace } from "./apprenticeship/LearnerWorkspace";
 import { MentorDashboard } from "./apprenticeship/MentorDashboard";
 import { useProfileStore } from "../features/profile/stores/useProfileStore";
@@ -95,6 +98,11 @@ export default function MyProfileHub({
   const [showAvailabilityManager, setShowAvailabilityManager] = useState(false);
   const [statusMessage, setStatusMessage] = useState(realProfile?.availability_status || "Open for Bookings");
   const [reviewFilter, setReviewFilter] = useState<"received" | "given">("received");
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [copiedFeedback, setCopiedFeedback] = useState(false);
+  const [showVerificationCenter, setShowVerificationCenter] = useState(false);
+  const [showLearningHub, setShowLearningHub] = useState(false);
+  const [showReferralHub, setShowReferralHub] = useState(false);
   const [imageEditorState, setImageEditorState] = useState<{isOpen: boolean, type: 'avatar' | 'cover' | null}>({ isOpen: false, type: null });
 
   useEffect(() => {
@@ -436,15 +444,14 @@ export default function MyProfileHub({
 
 
   const tabs = [
-    { id: "posts", label: "Posts", icon: <Grid size={14} /> },
-    { id: "academy", label: "Academy", icon: <GraduationCap size={14} /> },
+    { id: "posts", label: "Content", icon: <Grid size={14} /> },
     ...(hustlerMode ? [
-      { id: "fellowships", label: "Fellowships", icon: <Award size={14} /> },
       { id: "services", label: "Services", icon: <Briefcase size={14} /> },
-      { id: "products", label: "Products", icon: <ShoppingBag size={14} /> },
-      { id: "trainings", label: "Trainings", icon: <BookOpen size={14} /> },
       { id: "reviews", label: "Reviews", icon: <Star size={14} /> },
     ] : []),
+    { id: "verification", label: "Verification", icon: <ShieldCheck size={14} /> },
+    { id: "learning", label: "Academy", icon: <GraduationCap size={14} /> },
+    { id: "referral", label: "Partner Team", icon: <Gift size={14} /> },
     { id: "about", label: "About", icon: <Info size={14} /> },
   ];
 
@@ -623,54 +630,57 @@ export default function MyProfileHub({
               {/* Display Headers */}
               <div className="mt-6 text-center w-full">
                 <div className="flex flex-col items-center transition-all">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      className="text-2xl font-display font-black tracking-tighter text-center text-white bg-white/5 border border-white/20 rounded-xl px-4 py-2 uppercase outline-none focus:border-blue-500 max-w-[280px]"
-                      value={profile.name}
-                      onChange={(e) => updateProfile({ full_name: e.target.value })}
-                      onBlur={() => setIsEditing(false)}
-                      autoFocus
-                    />
-                  ) : (
-                    <motion.h1 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-4xl font-display font-black tracking-tighter flex items-center gap-3 text-white uppercase group cursor-pointer"
-                      onClick={() => setIsEditing(true)}
-                    >
-                      {profile.name}
-                      <Edit2 size={16} className="text-white/20 group-hover:text-blue-400 transition-colors" />
-                    </motion.h1>
-                  )}
-                  
-                  {/* trust rating micro-indicators */}
-                  {hustlerMode && trustMetrics.totalJobs > 0 ? (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.1 }}
-                      className="flex items-center gap-3 mt-2 animate-fade-in"
-                    >
-                      <div className="flex items-center gap-1">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} size={10} className={s <= Math.floor(trustMetrics.rating) ? "fill-yellow-500 text-yellow-500" : "text-white/10"} />
-                        ))}
-                        <span className="text-[10px] font-black text-white ml-1">{trustMetrics.rating}</span>
+                  <div className="flex items-center gap-2 group">
+                    <h1 className="text-3xl font-bold tracking-tight text-white uppercase">{realProfile?.full_name || "Member Owner"}</h1>
+                    {realProfile?.verified && (
+                      <div className="inline-flex items-center justify-center bg-blue-500/10 border border-blue-500/30 text-blue-400 p-0.5 rounded-full" title="Government ID Verified">
+                        <CheckCircle2 size={16} className="fill-blue-500/10" />
                       </div>
-                      <div className="h-3 w-px bg-white/10" />
-                      <span className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em]">{profile.username}</span>
-                    </motion.div>
-                  ) : (
-                    <motion.div 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.1 }}
-                      className="flex items-center gap-3 mt-2"
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-500 mt-0.5">@{realProfile?.username || "owner"}</p>
+                  
+                  {/* Location and Join Date */}
+                  <div className="flex items-center justify-center gap-4 mt-2.5 text-xs text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <MapPin size={13} className="text-red-400" />
+                      {realProfile?.location || "Miami, FL"}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar size={13} className="text-[#3b82f6]" />
+                      {(() => {
+                        const dateStr = realProfile?.created_at;
+                        if (!dateStr) return "Joined June 2026";
+                        try {
+                          return `Joined ${new Date(dateStr).toLocaleString("en-US", { month: "long", year: "numeric" })}`;
+                        } catch {
+                          return "Joined June 2026";
+                        }
+                      })()}
+                    </span>
+                  </div>
+
+                  {/* Edit/Share Profile Buttons */}
+                  <div className="flex items-center justify-center gap-2 mt-4 w-full px-6">
+                    <button
+                      onClick={() => setShowEditProfileModal(true)}
+                      className="flex-1 max-w-[150px] h-10 rounded-xl bg-white text-black text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 hover:bg-neutral-200"
                     >
-                      <span className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em]">{profile.username}</span>
-                    </motion.div>
-                  )}
+                      <Edit2 size={12} /> Edit Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        const profileUrl = `${window.location.origin}/profile/${realProfile?.username || "owner"}`;
+                        navigator.clipboard.writeText(profileUrl).then(() => {
+                          setCopiedFeedback(true);
+                          setTimeout(() => setCopiedFeedback(false), 3000);
+                        });
+                      }}
+                      className="flex-1 max-w-[155px] h-10 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95"
+                    >
+                      Share Profile
+                    </button>
+                  </div>
                 </div>
 
                 {/* Social Counts */}
@@ -1818,100 +1828,184 @@ export default function MyProfileHub({
               </motion.div>
             )}
 
-            {/* 6. ACADEMY & LEARNING SYSTEM */}
-            {activeTab === "academy" && (
+            {/* 6. VERIFICATION TAB */}
+            {activeTab === "verification" && (
               <motion.div
-                key="academy"
+                key="verification"
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.02 }}
                 className="flex flex-col gap-6"
               >
-                <div className="flex items-center justify-between px-2 mb-2">
-                   <div className="flex flex-col">
-                      <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Academy Workspace</h3>
-                      <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-black mt-1">Real-world skill building</p>
-                   </div>
+                <div className="px-1 mb-2">
+                  <h3 className="text-xs uppercase tracking-widest text-[#3b82f6] font-bold">Verification Center</h3>
+                  <p className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-tight">Verified safety milestones build absolute trust with hiring clients.</p>
                 </div>
-                <LearnerWorkspace />
+
+                <div 
+                  onClick={() => setShowVerificationCenter(true)}
+                  className="p-6 rounded-3xl bg-gradient-to-br from-[#121215] to-[#1a1b23] border border-white/5 flex flex-col gap-4 cursor-pointer hover:border-blue-500/30 transition-all group relative overflow-hidden"
+                >
+                  <div className="absolute -right-6 -top-6 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all" />
+                  
+                  <div className="flex items-start justify-between relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+                        <ShieldCheck size={24} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white mb-1">Trust Profile</h4>
+                        <div className="flex gap-2">
+                          <span className="text-[10px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Verified</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 group-hover:text-white group-hover:bg-white/10 transition-colors">
+                      <ArrowRight size={14} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-medium leading-relaxed text-white/50 border-t border-white/5 pt-4">
+                    Open Verification Center to complete ID, phone, address, and business checks. Full verification required for top-tier payouts.
+                  </p>
+                </div>
               </motion.div>
             )}
 
-            {/* 7. FELLOWSHIPS & MENTOR SYSTEM */}
-            {activeTab === "fellowships" && (
+            {/* ACADEMY TAB GATING PANEL */}
+            {activeTab === "learning" && (
               <motion.div
-                key="fellowships"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                key="learning-tab"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
                 className="flex flex-col gap-6"
               >
-                <div className="flex items-center justify-between px-2 mb-2">
-                   <div className="flex flex-col">
-                      <h3 className="text-xl font-black text-white uppercase tracking-tighter italic">Fellowships Hub</h3>
-                      <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] font-black mt-1">Manage your apprenticeships</p>
-                   </div>
+                <div className="px-1 mb-2 text-left">
+                  <h3 className="text-xs uppercase tracking-widest text-[#3b82f6] font-bold">Hustle Trade Academy</h3>
+                  <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Expand your active skillset pathways directly from trade video lessons.</p>
                 </div>
-                <MentorDashboard />
+
+                <div 
+                  onClick={() => setShowLearningHub(true)}
+                  className="p-6 rounded-3xl bg-gradient-to-br from-[#121215] to-[#121927] border border-blue-500/10 hover:border-blue-500/30 flex flex-col gap-4 cursor-pointer transition-all group relative overflow-hidden"
+                >
+                  <div className="absolute -right-6 -top-6 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all" />
+                  
+                  <div className="flex items-start justify-between relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+                        <GraduationCap size={24} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white mb-1">Academy Arena</h4>
+                        <div className="flex gap-2">
+                          <span className="text-[10px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Skill Paths Available</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 group-hover:text-white group-hover:bg-white/10 transition-colors">
+                      <ArrowRight size={14} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-medium leading-relaxed text-white/50 border-t border-white/5 pt-4 text-left">
+                    Open Academy Hub to follow structured paths (Beginner → Intermediate → Advanced), bookmark masterclasses, track progression, and earn verified skill experience.
+                  </p>
+                </div>
               </motion.div>
             )}
 
-            {/* ABOUT & TRUST */}
+            {/* REFERRAL TAB GATING PANEL */}
+            {activeTab === "referral" && (
+              <motion.div
+                key="referral-tab"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.02 }}
+                className="flex flex-col gap-6"
+              >
+                <div className="px-1 mb-2 text-left">
+                  <h3 className="text-xs uppercase tracking-widest text-[#10b981] font-bold">Partner Referral Network</h3>
+                  <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tight">Invite peers and unlock split cash payouts ($20 + $20).</p>
+                </div>
+
+                <div 
+                  onClick={() => setShowReferralHub(true)}
+                  className="p-6 rounded-3xl bg-gradient-to-br from-[#121215] to-[#041611] border border-emerald-500/10 hover:border-emerald-500/30 flex flex-col gap-4 cursor-pointer transition-all group relative overflow-hidden"
+                >
+                  <div className="absolute -right-6 -top-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all" />
+                  
+                  <div className="flex items-start justify-between relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                        <Gift size={24} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white mb-1">Referral Hub</h4>
+                        <div className="flex gap-2">
+                          <span className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Double-Sided Cash rewards</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 group-hover:text-white group-hover:bg-white/10 transition-colors">
+                      <ArrowRight size={14} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-medium leading-relaxed text-white/50 border-t border-white/5 pt-4 text-left">
+                    Invite other tradespeople to join Hustle. Track sent campaigns, successful registrations, pending signups, and seamlessly withdraw cash awards straight to your bank account or card.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ABOUT TAB */}
             {activeTab === "about" && (
               <motion.div
                 key="about"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
-                className="flex flex-col gap-10 pb-12"
+                className="flex flex-col gap-8 pb-12"
               >
                 <div>
-                  <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-5 flex items-center gap-3"><User size={12} className="text-blue-500/50" /> Biography</h3>
-                  <p className="text-white/70 leading-relaxed font-light text-sm bg-white/[0.02] p-6 rounded-3xl border border-white/5 shadow-inner">
-                    {profile.bio} Over 8 years of experience in the design industry, I've worked with startups and Fortune 500 companies alike to deliver award-winning products. I specialize in bridging the gap between business goals and user needs. My approach is data-driven yet aesthetically bold.
+                  <h3 className="text-xs uppercase tracking-widest text-[#3b82f6] font-bold mb-3 flex items-center gap-2"><User size={14} className="text-blue-500/60" /> Biography</h3>
+                  <p className="text-gray-300 leading-relaxed font-light text-sm bg-white/[0.01] p-5 rounded-2xl border border-white/5 shadow-inner">
+                    {profile.bio}
                   </p>
                 </div>
 
-                {/* 11. MERIT & TRUST BADGES (Proof of Work) */}
                 <div>
-                   <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-6 flex items-center gap-3">
-                     <ShieldCheck size={12} className="text-purple-500/50" /> Identity verification
-                   </h3>
-                   <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { title: "Verified Identity", icon: <CheckCircle2 className="text-blue-500" /> },
-                        { title: "Escrow Eligible", icon: <ShieldCheck className="text-green-500" /> },
-                        { title: "Background Checked", icon: <ShieldCheck className="text-purple-500" /> },
-                        { title: "Fast Responder", icon: <Clock className="text-yellow-500" /> },
-                      ].map((badge, bi) => (
-                        <div key={bi} className="flex items-center gap-4 p-5 rounded-[1.5rem] bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-all">
-                           <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center shadow-inner">
-                              {badge.icon}
-                           </div>
-                           <span className="text-[9px] font-black uppercase tracking-widest text-white/60">{badge.title}</span>
-                        </div>
-                      ))}
-                   </div>
+                  <h3 className="text-xs uppercase tracking-widest text-emerald-400 font-bold mb-3 flex items-center gap-2"><Globe size={14} className="text-emerald-500/60" /> Languages Spoken</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.isArray(profile.secondaryHustles) ? profile.secondaryHustles.filter((item: string) => item.toLowerCase().includes("lang") || item.toLowerCase().includes("english") || item.toLowerCase().includes("spanish") || item.toLowerCase().includes("french")).map((lang: string, li: number) => (
+                      <span key={li} className="px-3 py-1.5 rounded-xl bg-emerald-500/5 text-emerald-300 border border-emerald-500/10 text-xs font-medium">
+                        {lang}
+                      </span>
+                    )) : null}
+                    {(!Array.isArray(profile.secondaryHustles) || profile.secondaryHustles.length === 0) && (
+                      <>
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/5 text-emerald-300 border border-emerald-500/10 text-xs font-medium">English (Native)</span>
+                        <span className="px-3 py-1.5 rounded-xl bg-emerald-500/5 text-emerald-300 border border-emerald-500/10 text-xs font-medium">Spanish (Fluent)</span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 px-2">
-                  <div>
-                    <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-5">Languages</h3>
-                    <div className="flex flex-col gap-3">
-                      <span className="text-[11px] font-black text-white/80 flex items-center gap-2"><CheckCircle2 size={12} className="text-green-500/60" /> English (Native)</span>
-                      <span className="text-[11px] font-black text-white/80 flex items-center gap-2"><CheckCircle2 size={12} className="text-green-500/60" /> Spanish (Fluent)</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-[10px] uppercase tracking-[0.3em] font-black text-white/20 mb-5">Links</h3>
-                    <div className="flex flex-col gap-4">
-                      <a href="#" className="text-[10px] font-black uppercase tracking-widest flex items-center gap-3 text-white/40 hover:text-white transition-colors group">
-                        <LinkIcon size={14} className="group-hover:text-blue-400 transition-colors" /> Personal Site
-                      </a>
-                      <a href="#" className="text-[10px] font-black uppercase tracking-widest flex items-center gap-3 text-white/40 hover:text-white transition-colors group">
-                        <LinkIcon size={14} className="group-hover:text-purple-400 transition-colors" /> Instagram
-                      </a>
-                    </div>
+                <div>
+                  <h3 className="text-xs uppercase tracking-widest text-purple-400 font-bold mb-3 flex items-center gap-2"><Award size={14} className="text-purple-500/60" /> Skills Tags</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.secondaryHustles && profile.secondaryHustles.length > 0 ? profile.secondaryHustles.map((skill: string, si: number) => (
+                      <span key={si} className="px-3 py-1.5 rounded-xl bg-purple-500/5 text-purple-300 border border-purple-500/10 text-xs font-semibold uppercase font-mono">
+                        {skill}
+                      </span>
+                    )) : (
+                      <>
+                        <span className="px-3 py-1.5 rounded-xl bg-purple-500/5 text-purple-300 border border-purple-500/10 text-xs font-semibold uppercase font-mono">Customer Relations</span>
+                        <span className="px-3 py-1.5 rounded-xl bg-purple-500/5 text-purple-300 border border-purple-500/10 text-xs font-semibold uppercase font-mono">Online Work</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -2442,6 +2536,135 @@ export default function MyProfileHub({
               )}
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Redesigned Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditProfileModal && (
+          <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditProfileModal(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 30 }}
+              className="relative w-full max-w-md bg-[#0c0c0e] border border-white/10 rounded-[2.5rem] p-6 shadow-2xl overflow-y-auto max-h-[85vh] text-left text-gray-100"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold uppercase tracking-tight text-white">Edit My Profile</h3>
+                <button
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Edit form fields */}
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Full Name</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-semibold"
+                    value={realProfile?.full_name || ""}
+                    onChange={(e) => updateProfile({ full_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Username</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-mono"
+                    value={realProfile?.username || ""}
+                    onChange={(e) => updateProfile({ username: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Location</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-semibold"
+                    placeholder="e.g. Miami, FL"
+                    value={realProfile?.location || ""}
+                    onChange={(e) => updateProfile({ location: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Biography / About Me</label>
+                  <textarea
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-light h-24 resize-none leading-relaxed"
+                    value={realProfile?.bio || ""}
+                    onChange={(e) => updateProfile({ bio: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Languages (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-semibold"
+                    placeholder="e.g. English (Native), Spanish (Fluent)"
+                    value={Array.isArray(realProfile?.secondary_skills) ? realProfile.secondary_skills.filter((s: string) => s.toLowerCase().includes("lang") || s.toLowerCase().includes("english") || s.toLowerCase().includes("spanish") || s.toLowerCase().includes("french")).join(", ") : "English (Native), Spanish (Fluent)"}
+                    onChange={(e) => {
+                      const list = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                      const otherSkills = Array.isArray(realProfile?.secondary_skills) ? realProfile.secondary_skills.filter((s: string) => !s.toLowerCase().includes("lang") && !s.toLowerCase().includes("english") && !s.toLowerCase().includes("spanish") && !s.toLowerCase().includes("french")) : [];
+                      updateProfile({ secondary_skills: [...list, ...otherSkills], interests: [...list, ...otherSkills] } as any);
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Skills Tags (comma-separated)</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white outline-none focus:border-blue-500 transition-all font-mono"
+                    placeholder="e.g. House Painting, Carpentry, Plumbing"
+                    value={Array.isArray(realProfile?.secondary_skills) ? realProfile.secondary_skills.filter((s: string) => !s.toLowerCase().includes("lang") && !s.toLowerCase().includes("english") && !s.toLowerCase().includes("spanish") && !s.toLowerCase().includes("french")).join(", ") : ""}
+                    onChange={(e) => {
+                      const skills = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                      const langSkills = Array.isArray(realProfile?.secondary_skills) ? realProfile.secondary_skills.filter((s: string) => s.toLowerCase().includes("lang") || s.toLowerCase().includes("english") || s.toLowerCase().includes("spanish") || s.toLowerCase().includes("french")) : [];
+                      updateProfile({ secondary_skills: [...langSkills, ...skills], interests: [...langSkills, ...skills] } as any);
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="w-full h-12 bg-white text-black font-bold uppercase tracking-[0.2em] rounded-xl text-xs transition-all active:scale-95 shadow-xl hover:bg-neutral-200 mt-6"
+                >
+                  Save & Finish
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showVerificationCenter && (
+          <VerificationCenter onClose={() => setShowVerificationCenter(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showLearningHub && (
+          <LearningHub onBack={() => setShowLearningHub(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showReferralHub && (
+          <ReferralHub onBack={() => setShowReferralHub(false)} />
         )}
       </AnimatePresence>
     </div>

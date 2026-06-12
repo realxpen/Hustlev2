@@ -1,4 +1,4 @@
-export type BookingStatus = 'pending' | 'accepted' | 'rejected' | 'in_progress' | 'completed' | 'cancelled' | 'refunded';
+export type BookingStatus = 'pending' | 'accepted' | 'rejected' | 'in_progress' | 'delivered' | 'completed' | 'cancelled' | 'refunded' | 'disputed';
 export type ListingType = 'service' | 'product' | 'training';
 export type PaymentStatus = 'unpaid' | 'paid' | 'failed' | 'refunded';
 export type EscrowStatus = 'none' | 'held' | 'released' | 'refunded';
@@ -13,17 +13,19 @@ export enum MilestoneStatus {
 }
 
 export enum EscrowPaymentState {
-  PENDING_PAYMENT = 'PENDING_PAYMENT',
-  IN_ESCROW = 'IN_ESCROW',
+  AWAITING_PAYMENT = 'AWAITING PAYMENT',
+  FUNDED = 'FUNDED',
   RELEASED = 'RELEASED',
-  REFUNDED = 'REFUNDED'
+  REFUNDED = 'REFUNDED',
+  DISPUTED = 'DISPUTED'
 }
 
 export const getEscrowPaymentState = (booking: Booking): EscrowPaymentState => {
-  if (booking.escrow_status === 'released') return EscrowPaymentState.RELEASED;
-  if (booking.escrow_status === 'refunded') return EscrowPaymentState.REFUNDED;
-  if (booking.escrow_status === 'held') return EscrowPaymentState.IN_ESCROW;
-  return EscrowPaymentState.PENDING_PAYMENT;
+  if (booking.status === 'disputed') return EscrowPaymentState.DISPUTED;
+  if (booking.status === 'cancelled' || booking.status === 'rejected' || booking.escrow_status === 'refunded') return EscrowPaymentState.REFUNDED;
+  if (booking.status === 'completed' || booking.escrow_status === 'released') return EscrowPaymentState.RELEASED;
+  if (['accepted', 'in_progress', 'delivered'].includes(booking.status) || booking.escrow_status === 'held') return EscrowPaymentState.FUNDED;
+  return EscrowPaymentState.AWAITING_PAYMENT;
 };
 
 export interface Milestone {

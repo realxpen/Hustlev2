@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Camera, Video, Briefcase, X, Sparkles, Image as ImageIcon, ShoppingBag, Play } from "lucide-react";
+import { Camera, Video, Briefcase, X, Sparkles, Image as ImageIcon, ShoppingBag, Play, CheckCircle2 } from "lucide-react";
 
 interface CreateMenuProps {
   isOpen: boolean;
@@ -10,58 +10,58 @@ interface CreateMenuProps {
 
 const CREATE_OPTIONS = [
   {
-    id: "post",
-    title: "Post Content",
-    description: "Share your latest work or story",
+    id: "record_video",
+    title: "1. Record Video",
+    description: "Shoot a quick demo or intro with your camera",
+    icon: <Camera className="text-red-400" />,
+    color: "bg-red-500/10",
+    borderColor: "border-red-500/20",
+    template: "camera_flow"
+  },
+  {
+    id: "upload_video",
+    title: "2. Upload Video",
+    description: "Select and share an existing video from your device",
     icon: <Video className="text-blue-400" />,
     color: "bg-blue-500/10",
     borderColor: "border-blue-500/20",
     template: "video_flow"
   },
   {
-    id: "live",
-    title: "Go Live",
-    description: "Launch real-time sales & demo",
-    icon: <Sparkles className="text-red-400" />,
-    color: "bg-red-500/10",
-    borderColor: "border-red-500/20",
-    template: "live_studio"
+    id: "upload_images",
+    title: "3. Upload Images",
+    description: "Share high-quality photos of your process",
+    icon: <ImageIcon className="text-emerald-400" />,
+    color: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/20",
+    template: "image_flow"
   },
   {
-    id: "service",
-    title: "Add Service",
-    description: "New booking option for clients",
+    id: "create_service",
+    title: "4. Create Service",
+    description: "Offer a new commercial booking option",
     icon: <Briefcase className="text-purple-400" />,
     color: "bg-purple-500/10",
     borderColor: "border-purple-500/20",
     template: "service_wizard"
   },
   {
-    id: "product",
-    title: "Add Product",
-    description: "List a new physical item",
-    icon: <ShoppingBag className="text-emerald-400" />,
-    color: "bg-emerald-500/10",
-    borderColor: "border-emerald-500/20",
-    template: "product_listing"
-  },
-  {
-    id: "training",
-    title: "Create Training",
-    description: "Tutorial or group session",
-    icon: <Play className="text-yellow-400" />,
+    id: "share_project",
+    title: "5. Share Project",
+    description: "Show off a finished project and case study",
+    icon: <Sparkles className="text-yellow-400" />,
     color: "bg-yellow-500/10",
     borderColor: "border-yellow-500/20",
-    template: "course_builder"
+    template: "promotion_engine"
   },
   {
-    id: "offer",
-    title: "Post Offer",
-    description: "Flash sale or time-limited deal",
-    icon: <Sparkles size={20} className="text-brand-primary" />,
-    color: "bg-brand-primary/10",
-    borderColor: "border-brand-primary/20",
-    template: "promotion_engine"
+    id: "share_customer_result",
+    title: "6. Share Customer Result",
+    description: "Post before & after proof of your hard work",
+    icon: <CheckCircle2 className="text-pink-400" />,
+    color: "bg-pink-500/10",
+    borderColor: "border-pink-500/20",
+    template: "testimonial_engine"
   }
 ];
 

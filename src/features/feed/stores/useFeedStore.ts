@@ -66,6 +66,9 @@ interface FeedState {
   activeCollectionId: string | null;
   isLoadingSaves: boolean;
 
+  // Reporting & Hiding
+  markNotInterested: (postId: string) => Promise<void>;
+  
   // Real-time State
   activeSubscriptions: any[];
   lastRealtimeEvent: any;
@@ -188,6 +191,28 @@ export const useFeedStore = create<FeedState>()(
       setError: (error) => set({ error }),
       setHasMore: (hasMore) => set({ hasMore }),
       setCursor: (cursor) => set({ cursor }),
+
+      markNotInterested: async (postId: string) => {
+        set((state) => ({
+          posts: state.posts.filter((p) => p.id !== postId)
+        }));
+        try {
+          // Fire and forget via the REST API or supabase (mocking via REST fetch since backend supports it)
+          const token = localStorage.getItem("hustle_auth_token");
+          if (token) {
+            await fetch("/api/feed/not-interested", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({ postId })
+            });
+          }
+        } catch (e) {
+          console.error("Failed to mark post as not interested", e);
+        }
+      },
       
       addPostOptimistically: (post) => set((state) => {
         const { dedupeFeed } = get();

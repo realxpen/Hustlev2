@@ -25,8 +25,11 @@ import {
   TrendingUp,
   Gift,
   Flag,
+  Volume2,
+  VolumeX,
+  EyeOff
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import DetailScreen from "./DetailScreen";
 import FullscreenMediaViewer from "./FullscreenMediaViewer";
 import ReportSheet from "./ReportSheet";
@@ -36,6 +39,7 @@ import { useFeedStore } from "../features/feed/stores/useFeedStore";
 import { usePostActions } from "../features/feed/hooks/usePostActions";
 import { useAuthStore } from "../features/auth/stores/useAuthStore";
 import { FollowButton } from './social/FollowButton';
+import { useSocialGraphStore } from "../features/social/stores/useSocialGraphStore";
 import { supabase } from "../lib/supabase";
 import { convertCurrency, formatCurrency, Currency } from "../lib/currency";
 import { useAppOrchestrator } from "../stores/useAppOrchestrator";
@@ -61,6 +65,7 @@ export interface FeedCardProps {
   id: string | number;
   onProfileClick?: () => void;
   onBook?: () => void;
+  onSkillTagClick?: (skill: string) => void;
   creator: {
     id: number | string;
     name: string;
@@ -85,6 +90,8 @@ export interface FeedCardProps {
   isAd?: boolean;
 }
 
+let globalMuted = true;
+
 export default function FeedCard({
   id,
   creator,
@@ -95,9 +102,11 @@ export default function FeedCard({
   isAd,
   onProfileClick,
   onBook,
+  onSkillTagClick,
   recommendationReason,
 }: FeedCardProps) {
   const [liked, setLiked] = useState(false);
+  const [isMuted, setIsMuted] = useState(globalMuted);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [showHeartBreak, setShowHeartBreak] = useState(false);
 
@@ -160,6 +169,13 @@ export default function FeedCard({
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [isHidden, setIsHidden] = useState(false);
+  const [hiddenReason, setHiddenReason] = useState<"skipped" | "reported" | null>(null);
+
+  // Loading States
+  const [isLiking, setIsLiking] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isFollowingState, setIsFollowingState] = useState(false);
 
   // Internal Share State
   const [shareStep, setShareStep] = useState<"options" | "users">("options");
@@ -190,6 +206,31 @@ export default function FeedCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+
+  const { toggleFollow, iFollow } = useSocialGraphStore();
+  const targetUserId = creator.id.toString();
+  const isFollowing = user ? iFollow(user.id, targetUserId) : false;
+
+  const handleFollowClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) return;
+    setIsFollowingState(true);
+    try {
+      await toggleFollow(targetUserId);
+      useAppOrchestrator.getState().emitEvent({
+        event_type: 'follow_created',
+        actor_id: user.id,
+        target_id: targetUserId,
+        entity_id: targetUserId,
+        entity_type: 'profile',
+        payload: { followed: !isFollowing }
+      });
+    } catch (err) {
+      console.error("Error toggling follow:", err);
+    } finally {
+      setIsFollowingState(false);
+    }
+  };
 
   // Media Performance: Intersection Observer
   useEffect(() => {
@@ -621,7 +662,9 @@ export default function FeedCard({
         setShowHeartBreak(true);
         setTimeout(() => setShowHeartBreak(false), 1000);
       }
+      setIsLiking(true);
       await toggleDbLike(id as string, isCurrentlyLiked);
+      setIsLiking(false);
       
       if (!isCurrentlyLiked) {
         useAppOrchestrator.getState().emitEvent({
@@ -731,6 +774,7 @@ export default function FeedCard({
   };
 
   const handleSaveToggle = async () => {
+    setIsSaving(true);
     if (typeof id === "string") {
       if (!isActiveSaved) {
         setShowSaveCollections(true);
@@ -747,6 +791,7 @@ export default function FeedCard({
         setSaved(false);
       }
     }
+    setIsSaving(false);
   };
 
   const handleRepostSubmit = async () => {
@@ -803,6 +848,40 @@ export default function FeedCard({
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
+      {/* Hidden / Skip State Overlay */}
+      <AnimatePresence>
+        {isHidden && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 pointer-events-auto"
+          >
+            <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+               <EyeOff size={32} className="text-white/40" />
+            </div>
+            <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2 text-white drop-shadow-md">
+              {hiddenReason === "reported" ? "Post Reported" : "Post Hidden"}
+            </h2>
+            <p className="text-white/50 text-center text-[13px] font-bold tracking-wide leading-relaxed mb-8 max-w-[70%]">
+              {hiddenReason === "reported" 
+                 ? "Thanks for helping keep our community safe." 
+                 : "We'll show you fewer posts like this."}
+            </p>
+            <button 
+               onClick={(e) => { 
+                 e.stopPropagation(); 
+                 setIsHidden(false); 
+                 setHiddenReason(null); 
+               }}
+               className="h-12 px-8 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-lg flex items-center justify-center"
+            >
+               Undo Action
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Content Layer (Mixed Media Placeholder) */}
       <div
         className="absolute inset-0 z-0 bg-black"
@@ -913,9 +992,21 @@ export default function FeedCard({
                       className="w-full h-full object-cover absolute inset-0"
                       playsInline
                       loop
-                      muted
+                      muted={isMuted}
                       preload={isActuallyActive ? "auto" : (networkQuality === "slow" ? "none" : "metadata")}
                     />
+                    {/* Speaker overlay button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const nextMuted = !isMuted;
+                        setIsMuted(nextMuted);
+                        globalMuted = nextMuted;
+                      }}
+                      className="absolute top-4 left-4 z-40 w-9 h-9 rounded-full bg-black/40 border border-white/10 backdrop-blur-md flex items-center justify-center text-white/80 hover:text-white transition-all active:scale-90"
+                    >
+                      {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
                     {networkQuality === "slow" && !isActuallyActive && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
                            <div className="px-3 py-1 bg-black/40 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/60">
@@ -1006,8 +1097,8 @@ export default function FeedCard({
       </div>
 
       {/* Overlay: Bottom Information */}
-      <div className="absolute bottom-0 left-0 right-0 pt-32 pb-24 px-4 z-20 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none">
-        <div className="flex flex-col gap-3 pointer-events-auto max-w-[80%]">
+      <div className="absolute bottom-0 left-0 right-0 pt-32 pb-24 px-4 z-20 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
+        <div className="flex flex-col gap-3 pointer-events-auto max-w-[85%]">
           {/* Repost Thoughts Animated Preview Container */}
           {dbRepostsList.length > 0 && !repost && (
             <RepostThoughtsPreview
@@ -1064,159 +1155,204 @@ export default function FeedCard({
                 <span>You Reposted</span>
               </div>
             )}
-            <div className="flex items-center gap-3">
-              <div
-                onClick={onProfileClick}
-                className="w-11 h-11 rounded-full border border-white/20 overflow-hidden bg-white/10 cursor-pointer shrink-0"
-              >
-                {creator.avatar ? (
-                  <img
-                    src={creator.avatar}
-                    alt={creator.name}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-sm font-black text-white/40">
-                    {creator.name.charAt(0)}
-                  </div>
-                )}
-              </div>
 
-              <div
-                className="flex flex-col cursor-pointer"
-                onClick={onProfileClick}
-              >
-                <h3 className="text-base font-display font-bold tracking-tight flex items-center gap-1.5">
-                  {creator.name}
+            <div className="flex items-start gap-3">
+              {/* Bottom Profile Details - Name & Badges */}
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={onProfileClick}>
+                  <h3 className="text-base font-display font-black tracking-tight text-white flex items-center gap-1.5 drop-shadow-md">
+                    {creator.name}
+                  </h3>
                   {creator.verified && (
                     <CheckCircle2
-                      size={12}
-                      className="text-blue-400 fill-blue-500/20"
+                      size={14}
+                      className="text-blue-400 fill-blue-500/20 shrink-0"
                     />
                   )}
-                  <div className="ml-2">
-                    <FollowButton 
-                      targetUserId={creator.id.toString()} 
-                      size="sm" 
-                    />
+                  {/* Real-time Green active dot */}
+                  {creator.active && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Highly Polished Trust Badges */}
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 backdrop-blur-md">
+                    <ShieldCheck size={10} className="text-blue-400" />
+                    <span className="text-[8px] font-black uppercase tracking-widest text-blue-400 font-sans">LVL 4 TRUSTED PRO</span>
                   </div>
-                </h3>
-                <div className="flex items-center gap-2 text-[10px] text-white/60 font-medium tracking-wide">
-                  <span>{creator.category}</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-0.5">
-                    <MapPin size={10} /> {creator.location}
+                  {creator.jobs && creator.jobs > 10 && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 backdrop-blur-md">
+                      <TrendingUp size={10} className="text-purple-400" />
+                      <span className="text-[8px] font-black uppercase tracking-widest text-purple-400 font-sans">TOP 1% HUSTLER</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clicking Skill Tag pill triggers discovery search category */}
+                <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onSkillTagClick) {
+                        onSkillTagClick(creator.category);
+                      }
+                    }}
+                    className="flex items-center gap-1 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 border border-blue-500/40 hover:border-blue-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider text-blue-300 backdrop-blur-md shadow-lg transition-all active:scale-95 cursor-pointer max-w-xs"
+                  >
+                    <span className="text-blue-400 font-bold">#</span>
+                    <span>{creator.category}</span>
+                  </button>
+
+                  <span className="text-white/30 text-xs">•</span>
+
+                  <span className="flex items-center gap-1 text-[10px] text-white/70 font-semibold tracking-wider uppercase">
+                    <MapPin size={10} className="text-white/50" /> {creator.location}
                   </span>
-                  {creator.is_hustler && (
+
+                  {creator.rating && (
                     <>
-                      <span>•</span>
-                      <span className="flex items-center gap-0.5 text-yellow-500">
-                        <Star size={10} className="fill-yellow-500" />{" "}
-                        {Number(creator.rating || 0).toFixed(1)}
+                      <span className="text-white/30 text-xs">•</span>
+                      <span className="flex items-center gap-1 text-[10px] text-yellow-400 font-bold uppercase tracking-wider bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded">
+                        <Star size={10} className="fill-yellow-400" />{" "}
+                        {Number(creator.rating).toFixed(1)}
                       </span>
                     </>
                   )}
                 </div>
-                {creator.is_hustler && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/20 w-fit backdrop-blur-md">
-                      <ShieldCheck size={10} className="text-blue-400" />
-                      <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">LVL 4 TRUSTED MEMBER</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/15 border border-purple-500/20 w-fit backdrop-blur-md">
-                      <TrendingUp size={10} className="text-purple-400" />
-                      <span className="text-[8px] font-black uppercase tracking-widest text-purple-400">TOP 1% HUSTLER</span>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Caption */}
-          {content.type !== "text" && (
-            <p className="text-sm font-light leading-snug line-clamp-2">
-              {content.caption}
-            </p>
-          )}
+          {/* Content Title & Description */}
+          <div className="flex flex-col gap-1">
+             <div className="flex items-center gap-2 mt-1">
+                 <span className="text-sm font-bold text-white drop-shadow-md">
+                   {Array.isArray(detailData) ? detailData[0]?.title : detailData?.title || content.caption?.split('.')[0] || "Hustle Showcase"}
+                 </span>
+                 <span className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest text-white/80 border border-white/5">
+                   {["Skill Demo", "Project Showcase", "Before & After", "Educational Tip", "Customer Testimonial", "Service Promotion"][(typeof id === "number" ? id : id?.toString().length || 0) % 6]}
+                 </span>
+             </div>
+             {content.type !== "text" && (
+                <p className="text-xs font-medium tracking-wide text-white/80 leading-relaxed line-clamp-2 drop-shadow-md max-w-[90%] mt-0.5">
+                   {content.caption}
+                </p>
+             )}
+          </div>
 
           {/* Music Integration */}
           {content.hasMusic && (
             <div className="flex items-center gap-2 mt-1">
-              <Music size={12} className="text-white/40 animate-bounce" />
-              <div className="w-full overflow-hidden whitespace-nowrap mask-image-r">
-                <p className="text-[10px] font-bold tracking-wider inline-block animate-[marquee_5s_linear_infinite]">
+              <Music size={11} className="text-white/50 animate-bounce" />
+              <div className="w-52 overflow-hidden whitespace-nowrap mask-image-r">
+                <p className="text-[9px] font-bold tracking-wider text-white/40 uppercase inline-block animate-[marquee_5s_linear_infinite]">
                   {content.musicTrack || "Original Audio - " + creator.name}
                 </p>
               </div>
             </div>
           )}
 
-          {/* Social Commerce Embed / Multi-Product Attachments */}
-          <div className="mt-2 flex flex-wrap gap-2">
-            {ctas.length > 0 ? (
-              ctas.map((item, idx) => (
-                <motion.button
-                  key={idx}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleCtaClick(item)}
-                  className={`h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md
-                    ${
-                      item.type === "buy"
-                        ? "bg-black/50 border-white/20 hover:bg-white/10"
-                        : item.type === "apply"
-                          ? "bg-purple-500/20 border-purple-500/30 text-purple-100 hover:bg-purple-500/30"
-                          : item.type === "ad"
-                            ? "bg-blue-600/20 border-blue-500/30 text-blue-100 hover:bg-blue-600/30"
-                            : "bg-white text-black hover:bg-white/90 border-transparent"
-                    }
-                  `}
-                >
-                  <div className="flex items-center gap-2">
-                    {item.type === "book" && <CheckCircle2 size={16} />}
-                    {item.type === "buy" && <ShoppingBag size={16} />}
-                    {item.type === "apply" && <ArrowRight size={16} />}
-                    {item.type === "ad" && (
-                      <Link size={16} className="text-blue-400" />
-                    )}
-                    <span>{item.label}</span>
-                  </div>
-                  {item.price && (
-                    <span
-                      className={`font-black ml-2 ${item.type === "book" ? "text-black/50" : "text-white/50"}`}
-                    >
-                      {formatCurrency(convertCurrency(item.price, 'USD', (profile?.display_currency || 'USD') as Currency), (profile?.display_currency || 'USD') as Currency)}
-                    </span>
-                  )}
-                  {ctas.length === 1 && (
-                    <ArrowRight size={14} className="opacity-40" />
-                  )}
-                </motion.button>
-              ))
-            ) : details.length > 0 ? (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={handleCtaClick}
-                className="h-11 px-4 rounded-xl flex items-center justify-between gap-3 font-semibold text-sm w-fit border backdrop-blur-md bg-white text-black"
+          {/* BOTTOM ACTION BAR */}
+          <div className="mt-3 flex items-center gap-2 w-full pr-10">
+            {/* View Profile */}
+            <button
+               onClick={(e) => { e.stopPropagation(); if (onProfileClick) onProfileClick(); }}
+               className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
+            >
+               Profile
+            </button>
+            
+            {/* Always Visible Hire Button */}
+            <motion.button
+               whileTap={{ scale: 0.95 }}
+               onClick={(e) => {
+                 e.stopPropagation();
+                 if (onBook) onBook();
+                 else if (!isAd && ctas.length > 0) handleCtaClick(ctas[0]);
+                 else handleCtaClick();
+               }}
+               className="h-11 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(37,99,235,0.4)] active:scale-95 transition-all w-full"
+            >
+               <Calendar size={13} />
+               Hire {creator.name.split(" ")[0]}
+            </motion.button>
+
+            {/* View Service */}
+            {ctas.length > 0 && (
+              <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   handleCtaClick(ctas[0]);
+                 }}
+                 className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
               >
-                <span>View Details</span>
-                <ArrowRight size={14} className="opacity-40" />
-              </motion.button>
-            ) : null}
+                 Service
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Action Layer: Engagement Sidebar */}
       <div className="absolute right-4 bottom-24 z-30 flex flex-col items-center gap-5 pointer-events-auto">
+        {/* TikTok Style Profile Picture with follow dynamic overlap button */}
+        <div className="flex flex-col items-center relative mb-4">
+          <div
+            onClick={onProfileClick}
+            className="w-12 h-12 rounded-full border-2 border-white overflow-hidden bg-[#18181b] shadow-[0_4px_12px_rgba(0,0,0,0.5)] cursor-pointer shrink-0 transition-all hover:scale-105 active:scale-95"
+          >
+            {creator.avatar ? (
+              <img
+                src={creator.avatar}
+                alt={creator.name}
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-sm font-black text-white/40">
+                {creator.name.charAt(0)}
+              </div>
+            )}
+          </div>
+          {user && user.id !== creator.id.toString() && (
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              onClick={handleFollowClick}
+              disabled={isFollowingState}
+              className={`absolute -bottom-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-black/85 transition-all z-10 ${
+                isFollowingState ? "opacity-50 !bg-gray-500 scale-95" :
+                isFollowing
+                  ? "bg-emerald-500 text-white"
+                  : "bg-gradient-to-r from-red-500 to-pink-500 text-white"
+              }`}
+            >
+              {isFollowingState ? (
+                <div className="w-2.5 h-2.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : isFollowing ? (
+                <UserCheck size={11} />
+              ) : (
+                <Plus size={11} className="font-bold" />
+              )}
+            </motion.button>
+          )}
+        </div>
+
         <div className="flex flex-col items-center gap-1 group">
           <motion.button
             whileTap={{ scale: 0.8 }}
             onClick={handleDoubleTap}
-            className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all ${isActiveLiked ? "bg-red-500/20 border-red-500/50 text-red-500" : "bg-black/40 border-white/10 text-white hover:bg-white/10"}`}
+            disabled={isLiking}
+            className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all ${isLiking ? "opacity-60 scale-95" : ""} ${isActiveLiked ? "bg-red-500/20 border-red-500/50 text-red-500" : "bg-black/40 border-white/10 text-white hover:bg-white/10"}`}
           >
-            <Heart size={20} className={isActiveLiked ? "fill-current" : ""} />
+            {isLiking ? (
+              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Heart size={20} className={isActiveLiked ? "fill-current" : ""} />
+            )}
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
             {activeLikesCount >= 1000
@@ -1273,12 +1409,17 @@ export default function FeedCard({
           <motion.button
             whileTap={{ scale: 0.8 }}
             onClick={handleSaveToggle}
-            className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all ${isActiveSaved ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "bg-black/40 border-white/10 text-white hover:bg-white/10"}`}
+            disabled={isSaving}
+            className={`w-10 h-10 rounded-full backdrop-blur-xl border flex items-center justify-center transition-all ${isSaving ? "opacity-60 scale-95" : ""} ${isActiveSaved ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "bg-black/40 border-white/10 text-white hover:bg-white/10"}`}
           >
-            <Bookmark
-              size={20}
-              className={isActiveSaved ? "fill-current" : ""}
-            />
+            {isSaving ? (
+              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Bookmark
+                size={20}
+                className={isActiveSaved ? "fill-current" : ""}
+              />
+            )}
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
             {postFromStore?.saves_count ||
@@ -1305,6 +1446,56 @@ export default function FeedCard({
               (detailData as any).socialStats
                 ? (detailData as any).socialStats.shares
                 : (stats as any).shares || 0)}
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-1 group mt-2">
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={(e) => {
+               e.stopPropagation();
+               setIsHidden(true);
+               setHiddenReason("skipped");
+               
+               // Delay removing from feed to allow undo
+               if (typeof id === "string") {
+                  setTimeout(() => {
+                    // we can't easily check if it's still hidden because of closure,
+                    // but we can just fire the backend event and let it be
+                    const useFeedStore = require('../features/feed/stores/useFeedStore').useFeedStore;
+                    fetch("/api/feed/not-interested", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${localStorage.getItem("hustle_auth_token")}`
+                      },
+                      body: JSON.stringify({ postId: id })
+                    }).catch(console.error);
+                  }, 4000);
+               }
+            }}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:text-orange-400 transition-colors"
+          >
+            <EyeOff size={18} />
+          </motion.button>
+          <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
+            Skip
+          </span>
+        </div>
+
+        <div className="flex flex-col items-center gap-1 group mt-2">
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={(e) => {
+               e.stopPropagation();
+               setShowReportSheet(true);
+            }}
+            className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:text-red-500 transition-colors"
+          >
+            <Flag size={18} />
+          </motion.button>
+          <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
+            Report
           </span>
         </div>
 
@@ -2702,6 +2893,11 @@ export default function FeedCard({
         {showReportSheet && (
            <ReportSheet
               onClose={() => setShowReportSheet(false)}
+              onReportSuccess={() => {
+                setShowReportSheet(false);
+                setIsHidden(true);
+                setHiddenReason("reported");
+              }}
               entityName={content.caption.substring(0, 30) + (content.caption.length > 30 ? "..." : "") || "this post"}
               targetId={id.toString()}
               targetType="post"

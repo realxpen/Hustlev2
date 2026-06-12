@@ -149,10 +149,15 @@ export default function PaymentFlow({ onClose, onSuccess, bookingData }: Payment
 
               {/* Legal / Trust */}
               <div className="flex items-start gap-4 mb-8 px-2">
-                 <ShieldCheck size={20} className="text-emerald-400 shrink-0 mt-1" />
-                 <p className="text-[9px] text-white/40 leading-relaxed font-medium capitalize">
-                    Your payment is protected by Hustle Trust System. Funds are only released to the hustler when you confirm satisfaction or milestone completion.
-                 </p>
+                 <ShieldCheck size={24} className="text-emerald-400 shrink-0 mt-1" />
+                 <div>
+                    <h4 className="text-[11px] font-bold text-white mb-1">Your payment is protected by Hustle Escrow.</h4>
+                    <ul className="text-[9px] text-white/50 leading-relaxed font-medium list-disc pl-4 space-y-1">
+                       <li>Money is held securely in our vault.</li>
+                       <li>The provider gets paid after completion.</li>
+                       <li>Dispute protection available.</li>
+                    </ul>
+                 </div>
               </div>
 
               <button 

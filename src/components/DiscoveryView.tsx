@@ -35,11 +35,18 @@ import {
   Grid,
   User,
   ArrowRight,
+  Heart,
   Map as MapIcon,
 } from "lucide-react";
 import NearbyMap from "./NearbyMap";
 import { useAuthStore } from "../features/auth/stores/useAuthStore";
 import { convertCurrency, formatCurrency, Currency } from "../lib/currency";
+import { ServiceCard } from "./discovery/ServiceCard";
+import { ServiceDetailsModal } from "./discovery/ServiceDetailsModal";
+import { HireFlowModal } from "./discovery/HireFlowModal";
+import { HireSuccessModal } from "./discovery/HireSuccessModal";
+import { ServiceDiscoveryFilters, FilterState } from "./discovery/ServiceDiscoveryFilters";
+import { useMarketplaceStore } from "../features/marketplace/stores/useMarketplaceStore";
 
 interface DiscoveryViewProps {
   onProfileSelect: (hustler: any) => void;
@@ -187,6 +194,262 @@ export default function DiscoveryView({
   const { profile } = useAuthStore();
   const displayCurrency = (profile?.display_currency || 'USD') as Currency;
   
+  const { services, fetchMarketplaceListings } = useMarketplaceStore();
+  const [activeMainTab, setActiveMainTab] = useState<"feed" | "services" | "saved">("feed");
+  const [filters, setFilters] = useState<FilterState>({
+    category: "all",
+    priceMin: 0,
+    priceMax: 1000,
+    location: "all",
+    verifiedOnly: false,
+    availableOnly: false,
+  });
+
+  const [savedServiceIds, setSavedServiceIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("saved-service-ids");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleSaveToggle = (serviceId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSavedServiceIds(prev => {
+      const updated = prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId];
+      localStorage.setItem("saved-service-ids", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const [selectedService, setSelectedService] = useState<any | null>(null);
+  const [hiringService, setHiringService] = useState<any | null>(null);
+  const [recentCreatedBooking, setRecentCreatedBooking] = useState<any | null>(null);
+  
+  // High-fidelity local premium fallback dataset for instant search, filtering and recommendation
+  const PREMIUM_SERVICES_POOL = [
+    {
+      id: "premium-s1",
+      owner_id: "demo-hustler-id-1",
+      title: "Signature Clean Fade & Beard Grooming",
+      description: "Premium precision barbershop experience. Includes hot towel shaves, razor outline work, custom style counseling, hydration sprays, and head massage. Recommended to book in advance.",
+      category: "Barbers",
+      pricing_type: "fixed",
+      base_price: 45,
+      delivery_time: "1 Hour",
+      media: [{ url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Barber", "Fade", "Shave", "Grooming"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 4.9,
+      reviews_count: 42,
+      completion_rate: 100,
+      location_mode: "local",
+      distance_km: 0.4,
+      verified: true,
+      available_now: true,
+      profiles: {
+        id: "demo-hustler-id-1",
+        full_name: "Ade Benson",
+        hustle_name: "Ade's Cuts",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=AdeCuts",
+        verified: true,
+        primary_skill: "Master Barber",
+        rating_average: 4.9,
+        review_count: 42
+      }
+    },
+    {
+      id: "premium-s2",
+      owner_id: "demo-hustler-id-2",
+      title: "Custom Traditional Ankara & Lace Gowns",
+      description: "Bespoke high-fashion tailoring for premium events, weddings, and traditional functions. Includes measurement audit, fabric consultation, custom embroidery overlays, and express adjustments.",
+      category: "Tailors",
+      pricing_type: "custom",
+      base_price: 320,
+      delivery_time: "7 Days",
+      media: [{ url: "https://images.unsplash.com/photo-1549064482-6779ba3292fe?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Tailoring", "Traditional", "Ankara", "Fashion"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 5.0,
+      reviews_count: 67,
+      completion_rate: 98,
+      location_mode: "local",
+      distance_km: 2.1,
+      verified: true,
+      available_now: false,
+      profiles: {
+        id: "demo-hustler-id-2",
+        full_name: "Chioma Okereke",
+        hustle_name: "Chioma Couture",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Chioma",
+        verified: true,
+        primary_skill: "Premium Fashion Designer",
+        rating_average: 5.0,
+        review_count: 67
+      }
+    },
+    {
+      id: "premium-s3",
+      owner_id: "demo-hustler-id-3",
+      title: "Minimalist Brand Visual Identity & Pitchdeck",
+      description: "Designing high-end modern corporate identities, logos, font bundles, style manuals, and investor pitch boards. Complete digital files package with vector sources, style guides, and commercial usage certificates included.",
+      category: "Designers",
+      pricing_type: "fixed",
+      base_price: 450,
+      delivery_time: "4 Days",
+      media: [{ url: "https://images.unsplash.com/photo-1561070791-26c113006238?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Design", "Branding", "Pitchdeck", "Logo"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 4.8,
+      reviews_count: 19,
+      completion_rate: 100,
+      location_mode: "remote",
+      distance_km: 0,
+      verified: true,
+      available_now: true,
+      profiles: {
+        id: "demo-hustler-id-3",
+        full_name: "Kofi Mensah",
+        hustle_name: "Kofi Visuals",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Kofi",
+        verified: true,
+        primary_skill: "Lead Visual Designer",
+        rating_average: 4.8,
+        review_count: 19
+      }
+    },
+    {
+      id: "premium-s4",
+      owner_id: "demo-hustler-id-4",
+      title: "High-Volume Mobile Commerce Apps",
+      description: "Native-quality React Native and Flutter mobile stores. Featuring secure stripe checkout portals, real-time sync with firebase db, item catalogs, push notifications systems, and dashboard graphs.",
+      category: "Devs",
+      pricing_type: "hourly",
+      base_price: 85,
+      delivery_time: "14 Days",
+      media: [{ url: "https://images.unsplash.com/photo-1551650975-87deedd944c3?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Developer", "Mobile", "Apps", "React Native"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 4.9,
+      reviews_count: 31,
+      completion_rate: 96,
+      location_mode: "remote",
+      distance_km: 0,
+      verified: false,
+      available_now: true,
+      profiles: {
+        id: "demo-hustler-id-4",
+        full_name: "Tobi Alao",
+        hustle_name: "Alao Devs",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tobi",
+        verified: false,
+        primary_skill: "Fullstack Mobile Dev",
+        rating_average: 4.9,
+        review_count: 31
+      }
+    },
+    {
+      id: "premium-s5",
+      owner_id: "demo-hustler-id-5",
+      title: "Studio Fashion Photoshoot & Post-Processing",
+      description: "Professional high-end fashion and urban streetwear photography. Includes 3-hour studio setup, lighting triggers, model coaching, 15 fully retouched digital exposures, and social-media dimensions package.",
+      category: "Photo",
+      pricing_type: "fixed",
+      base_price: 250,
+      delivery_time: "3 Days",
+      media: [{ url: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Photography", "Studio", "Retouching", "Fashion"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 5.0,
+      reviews_count: 14,
+      completion_rate: 100,
+      location_mode: "local",
+      distance_km: 1.2,
+      verified: true,
+      available_now: true,
+      profiles: {
+        id: "demo-hustler-id-5",
+        full_name: "Yasmine Touré",
+        hustle_name: "Touré Studios",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Yasmine",
+        verified: true,
+        primary_skill: "Editorial Photographer",
+        rating_average: 5.0,
+        review_count: 14
+      }
+    },
+    {
+      id: "premium-s6",
+      owner_id: "demo-hustler-id-6",
+      title: "Premium Bridal Glam & Airbrush Makeup",
+      description: "Exclusive makeup application specializing in bridal, red-carpet, and high-contrast video formats. Uses premium luxury products. Includes false lash extension attachment and setting spray lock.",
+      category: "Makeup",
+      pricing_type: "fixed",
+      base_price: 180,
+      delivery_time: "3 Hours",
+      media: [{ url: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Makeup", "Bridal", "Glam", "Airbrush"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 4.7,
+      reviews_count: 24,
+      completion_rate: 95,
+      location_mode: "local",
+      distance_km: 4.8,
+      verified: false,
+      available_now: false,
+      profiles: {
+        id: "demo-hustler-id-6",
+        full_name: "Zainab Balogun",
+        hustle_name: "Glam by Zainab",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Zainab",
+        verified: false,
+        primary_skill: "Bridal Makeup Artist",
+        rating_average: 4.7,
+        review_count: 24
+      }
+    },
+    {
+      id: "premium-s7",
+      owner_id: "demo-hustler-id-7",
+      title: "SEO Copywriting & Landing Page Scripts",
+      description: "Write conversion-focused copy for startups and tech brands. Includes deep market research, competitor audits, wireframe copy guides, headlines variations, and search engine integration strategies.",
+      category: "Writers",
+      pricing_type: "fixed",
+      base_price: 150,
+      delivery_time: "2 Days",
+      media: [{ url: "https://images.unsplash.com/photo-1455390582262-044cdead277a?q=80&w=600&auto=format&fit=crop", type: "image" }],
+      tags: ["Writing", "SEO", "Copywriting", "Landing Page"],
+      is_active: true,
+      is_archived: false,
+      rating_average: 4.9,
+      reviews_count: 8,
+      completion_rate: 100,
+      location_mode: "remote",
+      distance_km: 0,
+      verified: true,
+      available_now: true,
+      profiles: {
+        id: "demo-hustler-id-7",
+        full_name: "Efe Lawson",
+        hustle_name: "Efe Writes",
+        avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Efe",
+        verified: true,
+        primary_skill: "Conversion Copywriter",
+        rating_average: 4.9,
+        review_count: 8
+      }
+    }
+  ];
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [activeIntent, setActiveIntent] = useState<SearchIntent>("any");
@@ -215,7 +478,8 @@ export default function DiscoveryView({
     fetchTrending();
     fetchSuggestedCreators();
     fetchAvailablePrograms();
-  }, [fetchActiveSessions, fetchTrending, fetchSuggestedCreators, fetchAvailablePrograms]);
+    fetchMarketplaceListings();
+  }, [fetchActiveSessions, fetchTrending, fetchSuggestedCreators, fetchAvailablePrograms, fetchMarketplaceListings]);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -259,6 +523,63 @@ export default function DiscoveryView({
                   (searchResults.training?.length || 0) + 
                   (searchResults.hustlers?.length || 0);
     return `${total} Matches Found`;
+  };
+
+  const getFilteredServices = () => {
+    const dbServicesFormatted = (services || []).map((s: any) => {
+      return {
+        ...s,
+        rating_average: s.rating_average || 4.9,
+        reviews_count: s.reviews_count || 5,
+        completion_rate: s.completion_rate || 100,
+        location_mode: s.location_mode || "remote",
+        distance_km: s.distance_km || 0,
+        verified: s.verified || false,
+        available_now: s.available_now || true,
+        profiles: s.profiles || {
+          hustle_name: s.creator_name || "Hustle Partner",
+          full_name: s.creator_name || "Hustle Partner",
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.owner_id || s.id}`,
+          verified: false
+        }
+      };
+    });
+
+    const allPool = [...dbServicesFormatted, ...PREMIUM_SERVICES_POOL];
+
+    let result = allPool;
+    if (searchQuery.trim().length > 0) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => 
+        s.title.toLowerCase().includes(q) || 
+        (s.description || "").toLowerCase().includes(q) ||
+        s.tags.some((t: string) => t.toLowerCase().includes(q)) ||
+        (s.profiles?.hustle_name || "").toLowerCase().includes(q) ||
+        (s.profiles?.full_name || "").toLowerCase().includes(q)
+      );
+    }
+
+    if (filters.category !== "all") {
+      result = result.filter(s => s.category?.toLowerCase() === filters.category.toLowerCase());
+    }
+
+    result = result.filter(s => Number(s.base_price || 0) <= filters.priceMax);
+
+    if (filters.location === "local") {
+      result = result.filter(s => s.location_mode === "local" || s.distance_km <= 5);
+    } else if (filters.location === "remote") {
+      result = result.filter(s => s.location_mode === "remote" || s.distance_km === 0);
+    }
+
+    if (filters.verifiedOnly) {
+      result = result.filter(s => s.profiles?.verified || s.verified);
+    }
+
+    if (filters.availableOnly) {
+      result = result.filter(s => s.available_now);
+    }
+
+    return result;
   };
 
   const renderResultCard = (item: any, type: 'service' | 'product' | 'training' | 'hustler', i: number) => {
@@ -474,6 +795,53 @@ export default function DiscoveryView({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* High-Fidelity Service Discovery Tabs */}
+        <div className="flex gap-5 border-b border-white/5 mt-4">
+          <button
+            onClick={() => {
+              setActiveMainTab("feed");
+              setIsSearching(false);
+            }}
+            className={`pb-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+              activeMainTab === "feed" ? "text-white" : "text-white/40 hover:text-white"
+            }`}
+          >
+            Match Feed
+            {activeMainTab === "feed" && (
+              <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 inset-x-0 h-0.5 bg-blue-500" />
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setActiveMainTab("services");
+              setIsSearching(false);
+            }}
+            className={`pb-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative flex items-center gap-1.5 ${
+              activeMainTab === "services" ? "text-cyan-400" : "text-white/40 hover:text-white"
+            }`}
+          >
+            <Zap size={10} className="fill-current" />
+            Discover Services
+            {activeMainTab === "services" && (
+              <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 inset-x-0 h-0.5 bg-cyan-400" />
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setActiveMainTab("saved");
+              setIsSearching(false);
+            }}
+            className={`pb-3 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative flex items-center gap-1.5 ${
+              activeMainTab === "saved" ? "text-red-400" : "text-white/40 hover:text-white"
+            }`}
+          >
+            Saved ({savedServiceIds.length})
+            {activeMainTab === "saved" && (
+              <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 inset-x-0 h-0.5 bg-red-400" />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Suggestion Overlay */}
@@ -551,7 +919,7 @@ export default function DiscoveryView({
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {!isSearching ? (
+        {!isSearching && activeMainTab === "feed" ? (
           <motion.div
             key="default-discovery"
             initial={{ opacity: 0, y: 10 }}
@@ -801,6 +1169,112 @@ export default function DiscoveryView({
               </div>
             </section>
           </motion.div>
+        ) : !isSearching && activeMainTab === "services" ? (
+          <motion.div
+            key="services-discovery"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-8"
+          >
+            {/* Inline Filter Panel */}
+            <ServiceDiscoveryFilters
+              filters={filters}
+              onFilterChange={(newFilters) => setFilters(newFilters)}
+              isInline={true}
+            />
+
+            {/* List Header stats */}
+            <div className="flex justify-between items-center px-1">
+              <div className="flex flex-col">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">
+                  Recommended Catalogs
+                </h4>
+                <p className="text-[8.5px] font-medium text-white/25 uppercase tracking-widest mt-1">
+                  Showing {getFilteredServices().length} match results
+                </p>
+              </div>
+            </div>
+
+            {/* Services Grid */}
+            {getFilteredServices().length === 0 ? (
+              <div className="py-20 flex flex-col items-center justify-center gap-4 text-center rounded-[2.5rem] bg-white/[0.01] border border-white/5">
+                <Sparkles className="text-white/20" size={32} />
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">No matching services found.</p>
+                  <p className="text-[9px] text-white/20 uppercase font-black mt-1">Try relaxing filters or changing categories.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {getFilteredServices().map((service) => (
+                  <ServiceCard
+                    key={service.id}
+                    service={service}
+                    isSaved={savedServiceIds.includes(service.id)}
+                    onSaveToggle={(id, e) => handleSaveToggle(id, e)}
+                    onView={(s) => setSelectedService(s)}
+                    onHire={(s, e) => {
+                      e.stopPropagation();
+                      setHiringService(s);
+                    }}
+                    displayCurrency={displayCurrency}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.div>
+
+        ) : !isSearching && activeMainTab === "saved" ? (
+          <motion.div
+            key="saved-discovery"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-8"
+          >
+            <div className="flex flex-col px-1">
+              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">
+                Bookmarked Services
+              </h4>
+              <p className="text-[8.5px] font-medium text-white/25 uppercase tracking-widest mt-1">
+                Your pinned professional offerings
+              </p>
+            </div>
+
+            {savedServiceIds.length === 0 ? (
+              <div className="py-24 text-center space-y-4 rounded-[2.5rem] bg-white/[0.01] border border-white/5 flex flex-col items-center justify-center">
+                <Heart size={32} className="text-white/10" />
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">No saved services yet.</p>
+                <button
+                  onClick={() => setActiveMainTab("services")}
+                  className="px-5 h-10 rounded-full border border-white/15 hover:bg-white/5 text-[9px] font-black uppercase tracking-widest text-[#a5f3fc]"
+                >
+                  Browse Catalog
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {getFilteredServices()
+                  .filter((s) => savedServiceIds.includes(s.id))
+                  .map((service) => (
+                    <ServiceCard
+                      key={service.id}
+                      service={service}
+                      isSaved={true}
+                      onSaveToggle={(id, e) => handleSaveToggle(id, e)}
+                      onView={(s) => setSelectedService(s)}
+                      onHire={(s, e) => {
+                        e.stopPropagation();
+                        setHiringService(s);
+                      }}
+                      displayCurrency={displayCurrency}
+                    />
+                  ))}
+              </div>
+            )}
+          </motion.div>
+
         ) : (
           <motion.div
             key="search-results"
@@ -834,7 +1308,20 @@ export default function DiscoveryView({
             {!isLoadingExplore && searchResults && (
               <>
                 {searchResults.hustlers?.map((h, i) => renderResultCard(h, 'hustler', i))}
-                {searchResults.services?.map((s, i) => renderResultCard(s, 'service', i))}
+                {searchResults.services?.map((s, i) => (
+                  <ServiceCard
+                    key={s.id}
+                    service={s}
+                    isSaved={savedServiceIds.includes(s.id)}
+                    onSaveToggle={(id, e) => handleSaveToggle(id, e)}
+                    onView={(val) => setSelectedService(val)}
+                    onHire={(val, e) => {
+                      e.stopPropagation();
+                      setHiringService(val);
+                    }}
+                    displayCurrency={displayCurrency}
+                  />
+                ))}
                 {searchResults.products?.map((p, i) => renderResultCard(p, 'product', i))}
                 {searchResults.training?.map((t, i) => renderResultCard(t, 'training', i))}
                 
@@ -977,6 +1464,73 @@ export default function DiscoveryView({
               </button>
             </motion.div>
           </div>
+        )}
+
+        {/* Global Service Details Drawers */}
+        {selectedService && (
+          <ServiceDetailsModal
+            service={selectedService}
+            isSaved={savedServiceIds.includes(selectedService.id)}
+            onSaveToggle={(id) => handleSaveToggle(id)}
+            onClose={() => setSelectedService(null)}
+            onHire={(s) => {
+              setSelectedService(null);
+              setHiringService(s);
+            }}
+            displayCurrency={displayCurrency}
+          />
+        )}
+
+        {hiringService && (
+          <HireFlowModal
+            service={hiringService}
+            onClose={() => setHiringService(null)}
+            displayCurrency={displayCurrency}
+            onConfirmHire={async (payload) => {
+              try {
+                // Perform direct backend call to register booking and lock escrow
+                const response = await fetch("/api/hire/request", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    serviceId: payload.service.id,
+                    notes: payload.notes,
+                    timeline: payload.timeline
+                  })
+                });
+
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success) {
+                    setRecentCreatedBooking(result.data);
+                  }
+                }
+              } catch (error) {
+                console.error("Failed to submit hire request on server:", error);
+              }
+
+              // Triggers native profile/legacy client-side handshake wizard
+              onProfileSelect({
+                creator: payload.service.profiles || { id: payload.service.owner_id },
+                listing: payload.service,
+                type: 'service',
+                notes: payload.notes,
+                timeline: payload.timeline,
+                attachments: payload.attachments,
+              });
+              setHiringService(null);
+            }}
+          />
+        )}
+
+        {recentCreatedBooking && (
+          <HireSuccessModal
+            booking={recentCreatedBooking}
+            onClose={() => setRecentCreatedBooking(null)}
+            displayCurrency={displayCurrency}
+          />
         )}
       </AnimatePresence>
     </div>

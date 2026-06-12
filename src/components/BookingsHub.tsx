@@ -49,10 +49,14 @@ const MOCK_BOOKINGS = [
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  in_progress: { label: "In Progress", color: "text-blue-400", icon: <Clock size={12} /> },
-  confirmed: { label: "Confirmed", color: "text-purple-400", icon: <CheckCircle2 size={12} /> },
-  completed: { label: "Completed", color: "text-emerald-400", icon: <CheckCircle2 size={12} /> },
   pending: { label: "Pending", color: "text-yellow-400", icon: <AlertCircle size={12} /> },
+  accepted: { label: "Accepted", color: "text-purple-400", icon: <CheckCircle2 size={12} /> },
+  in_progress: { label: "In Progress", color: "text-blue-400", icon: <Clock size={12} /> },
+  delivered: { label: "Delivered", color: "text-indigo-400", icon: <CheckCircle2 size={12} /> },
+  completed: { label: "Completed", color: "text-emerald-400", icon: <CheckCircle2 size={12} /> },
+  cancelled: { label: "Cancelled", color: "text-red-400", icon: <X size={12} /> },
+  disputed: { label: "Disputed", color: "text-amber-500", icon: <AlertCircle size={12} /> },
+  confirmed: { label: "Confirmed", color: "text-purple-400", icon: <CheckCircle2 size={12} /> }, // fallback
 };
 
 export default function BookingsHub({ onBookingSelect, onClose }: BookingsHubProps) {

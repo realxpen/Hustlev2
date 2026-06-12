@@ -179,10 +179,11 @@ export default function JobEscrowList({ onClose, isClient: initialIsClient, onVi
                                                 <div className={`px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter border ${
                                                     pState === EscrowPaymentState.RELEASED ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                                                     pState === EscrowPaymentState.REFUNDED ? 'bg-red-500/10 text-red-500 border-red-500/20' :
-                                                    pState === EscrowPaymentState.IN_ESCROW ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                    pState === EscrowPaymentState.FUNDED ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                                    pState === EscrowPaymentState.DISPUTED ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
                                                     'bg-white/5 text-white/40 border-white/10'
                                                 }`}>
-                                                    {pState.replace('_', ' ')}
+                                                    {pState}
                                                 </div>
                                             );
                                         })()}

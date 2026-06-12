@@ -1,10 +1,12 @@
+import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   ChevronLeft, MoreHorizontal, MessageSquare, Phone, MapPin, Calendar, Clock, 
   CheckCircle2, ChevronRight, Star, ShieldCheck, Plus, Trash, Edit3, Check, X, FileText, AlertCircle, Zap
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import JobEscrowManager from "./JobEscrowManager";
+import ReviewSubmissionModal from "./ReviewSubmissionModal";
 import { useBookingStore } from "../features/bookings/stores/useBookingStore";
 import { useProfileStore } from "../features/profile/stores/useProfileStore";
 import { useAuth } from "../features/auth";
@@ -18,6 +20,7 @@ interface BookingDetailProps {
 export default function BookingDetail({ booking: initialBooking, onBack, onMessage }: BookingDetailProps) {
   const [activeTab, setActiveTab] = useState<"tracking" | "details">("details");
   const [showEscrow, setShowEscrow] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [isEditingInvoice, setIsEditingInvoice] = useState(false);
   const [localLoading, setLocalLoading] = useState(false);
   
@@ -33,6 +36,24 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                   initialBooking;
 
   const isSeller = booking.seller_id === session?.user?.id;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArr = Array.from(e.target.files).map((f: any) => ({
+        name: f.name,
+        size: f.size > 1024 * 1024 
+          ? `${(f.size / (1024 * 1024)).toFixed(1)} MB` 
+          : `${(f.size / 1024).toFixed(0)} KB`,
+        type: f.type || "application/octet-stream"
+      }));
+      setUploadedAttachments(prev => [...prev, ...filesArr]);
+    }
+  };
   const isClient = booking.buyer_id === session?.user?.id;
   const otherUser = isSeller ? booking.buyer : booking.seller;
   const otherUserId = isSeller ? booking.buyer_id : booking.seller_id;
@@ -79,6 +100,13 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
     booking.parsedNotes?.deliverables?.length > 0
       ? booking.parsedNotes.deliverables
       : [{ id: "1", title: "Complete design & prototype mockups", checked: false }]
+  );
+
+  const [uploadedAttachments, setUploadedAttachments] = useState<any[]>(
+    booking.parsedNotes?.attachments || [
+      { name: "creative-brief-v2.pdf", size: "4.2 MB", type: "pdf" },
+      { name: "moodboard-inspiration.jpg", size: "8.1 MB", type: "image/jpeg" }
+    ]
   );
 
   const [editMilestones, setEditMilestones] = useState<Array<{ id: string; title: string; amount: number; status: string }>>(
@@ -186,12 +214,67 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
     }
   };
 
-  const steps = [
-    { id: "pending", label: "Requested", time: new Date(booking.created_at).toLocaleString(), completed: true },
-    { id: "accepted", label: "Confirmed", time: ["accepted", "in_progress", "completed"].includes(booking.status) ? "Hustle Active" : "", completed: ["accepted", "in_progress", "completed"].includes(booking.status) },
-    { id: "in_progress", label: "Hustle Mode", time: "", completed: ["in_progress", "completed"].includes(booking.status) },
-    { id: "completed", label: "Finalized", time: "", completed: booking.status === "completed" }
+  const normalSteps = [
+    { 
+      id: "pending", 
+      label: "Pending Receipt", 
+      description: "Awaiting provider reviews", 
+      time: new Date(booking.created_at).toLocaleString(), 
+      completed: true 
+    },
+    { 
+      id: "accepted", 
+      label: "Accepted", 
+      description: "Hustle confirmed", 
+      time: ["accepted", "in_progress", "delivered", "completed", "disputed"].includes(booking.status) ? "Terms Locked" : "", 
+      completed: ["accepted", "in_progress", "delivered", "completed", "disputed"].includes(booking.status) 
+    },
+    { 
+      id: "in_progress", 
+      label: "In Progress", 
+      description: "Hustle development mode active", 
+      time: ["in_progress", "delivered", "completed"].includes(booking.status) ? "Work Commenced" : "", 
+      completed: ["in_progress", "delivered", "completed"].includes(booking.status) 
+    },
+    { 
+      id: "delivered", 
+      label: "Delivered", 
+      description: "Work artifacts submitted, awaiting client sign-off", 
+      time: ["delivered", "completed"].includes(booking.status) ? "Assets Delivered" : "", 
+      completed: ["delivered", "completed"].includes(booking.status) 
+    },
+    { 
+      id: "completed", 
+      label: "Completed", 
+      description: "Milestones closed & funds released", 
+      time: booking.status === "completed" ? "Sovereign Settlement" : "", 
+      completed: booking.status === "completed" 
+    }
   ];
+
+  const getTimelineSteps = () => {
+    if (booking.status === "cancelled") {
+      return [
+        { id: "pending", label: "Pending Requested", description: "First contract brief logged", time: "", completed: true },
+        { id: "cancelled", label: "Cancelled", description: "Hustle agreement voided & returned", time: "Contract Revoked", completed: true, isError: true }
+      ];
+    }
+    if (booking.status === "rejected") {
+      return [
+        { id: "pending", label: "Pending Requested", description: "First contract brief logged", time: "", completed: true },
+        { id: "rejected", label: "Declined", description: "Declined by Provider", time: "Proposal Closed", completed: true, isError: true }
+      ];
+    }
+    if (booking.status === "disputed") {
+      return [
+        ...normalSteps.filter(s => s.id !== "completed" && s.id !== "delivered"),
+        { id: "disputed", label: "Disputed", description: "Escrow dispute initiated by participant", time: "Pending Arbitration", completed: true, isWarning: true }
+      ];
+    }
+    return normalSteps;
+  };
+
+  const steps = getTimelineSteps();
 
   const parsedNotes = booking.parsedNotes || {};
   const deliverablesList = parsedNotes.deliverables || [];
@@ -300,44 +383,114 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                     </div>
                   </div>
                   <div className="flex flex-col gap-8">
-                     {steps.map((step, idx) => (
-                        <div key={step.id} className="flex gap-6 relative">
-                           {idx !== steps.length - 1 && (
-                              <div className={`absolute left-[13px] top-[26px] w-[2px] h-[calc(100%+32px)] transition-colors duration-500 ${step.completed ? 'bg-blue-500' : 'bg-white/5'}`} />
-                           )}
-                           
-                           <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${
-                              step.completed 
-                              ? 'bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.4)] scale-110' 
-                              : 'bg-white/5 border border-white/10'
-                           }`}>
-                              {step.completed ? <Check size={16} className="text-white" /> : <div className="w-1.5 h-1.5 rounded-full bg-white/20" />}
-                           </div>
+                     {steps.map((step: any, idx: number) => {
+                        const isCurrent = step.id === booking.status;
+                        const circleBg = step.isError 
+                           ? 'bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)] scale-110'
+                           : step.isWarning 
+                           ? 'bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)] scale-110'
+                           : step.completed 
+                           ? 'bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.4)] scale-110' 
+                           : 'bg-white/5 border border-white/10';
 
-                           <div className="flex-1 pt-0.5">
-                              <h4 className={`text-sm font-bold tracking-tight mb-1 transition-colors ${step.completed ? 'text-white' : 'text-white/20'}`}>
-                                 {step.label}
-                              </h4>
-                              {step.time && (
-                                 <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest leading-none">
-                                    {step.time}
-                                 </p>
+                        const lineBg = step.isError 
+                           ? 'bg-red-500'
+                           : step.isWarning 
+                           ? 'bg-amber-500'
+                           : step.completed 
+                           ? 'bg-blue-500' 
+                           : 'bg-white/5';
+
+                        return (
+                           <div key={step.id} className="flex gap-6 relative">
+                              {idx !== steps.length - 1 && (
+                                 <div className={`absolute left-[13px] top-[26px] w-[2px] h-[calc(100%+32px)] transition-colors duration-500 ${lineBg}`} />
                               )}
+                              
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-all duration-500 ${circleBg}`}>
+                                 {step.isError ? (
+                                    <X size={15} className="text-white" />
+                                 ) : step.isWarning ? (
+                                    <AlertCircle size={15} className="text-white" />
+                                 ) : step.completed ? (
+                                    <Check size={16} className="text-white" />
+                                 ) : (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                 )}
+                              </div>
+
+                              <div className="flex-1 pt-0.5">
+                                 <div className="flex items-baseline justify-between gap-2">
+                                    <h4 className={`text-sm font-bold tracking-tight mb-0.5 transition-colors ${
+                                       step.isError ? 'text-red-400 font-extrabold' :
+                                       step.isWarning ? 'text-amber-400 font-extrabold' :
+                                       step.completed ? 'text-white' : 'text-white/20'
+                                    }`}>
+                                       {step.label}
+                                    </h4>
+                                    {isCurrent && (
+                                       <span className="text-[7.5px] font-black uppercase tracking-widest text-[#00ea87] bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md animate-pulse">
+                                          Current
+                                       </span>
+                                    )}
+                                 </div>
+                                 
+                                 {step.description && (
+                                    <p className={`text-[10.5px] mb-1.5 leading-snug font-medium ${step.completed ? 'text-white/50' : 'text-white/10'}`}>
+                                       {step.description}
+                                    </p>
+                                 )}
+
+                                 {step.time && (
+                                    <p className={`text-[9px] font-bold uppercase tracking-widest leading-none ${
+                                       step.isError ? 'text-red-500/60' :
+                                       step.isWarning ? 'text-amber-500/60' : 'text-blue-500/60'
+                                    }`}>
+                                       {step.time}
+                                    </p>
+                                 )}
+                              </div>
                            </div>
-                        </div>
-                     ))}
+                        );
+                     })}
                   </div>
                </section>
 
                {/* Shield Escrow Status Block */}
-               <section className="p-6 rounded-[2.5rem] bg-gradient-to-br from-blue-900/20 via-[#0a0a0a] to-transparent border border-blue-500/10 flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0 border border-blue-500/20 shadow-glow-blue">
-                     <ShieldCheck size={24} />
+               <section className="p-6 rounded-[2.5rem] bg-gradient-to-br from-blue-900/10 via-[#0a0a0a] to-transparent border border-blue-500/10 flex items-start gap-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5">
+                     <ShieldCheck size={100} />
                   </div>
-                  <div>
-                     <span className="text-[9px] uppercase font-black tracking-widest text-blue-400">Security Guarantee</span>
-                     <p className="text-[11px] text-white/70 font-medium mt-1 leading-relaxed">
-                        Funds for this hustle are safely secured in our Nigerian-compliant escrow vault. No payout is processed without verified proof of work or explicit buyer release.
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0 border border-blue-500/20 shadow-glow-blue z-10">
+                     <ShieldCheck size={20} />
+                  </div>
+                  <div className="z-10">
+                     <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[9px] uppercase font-black tracking-widest text-blue-400">Escrow Status:</span>
+                        <div className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                           booking.status === 'pending' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                           ['accepted', 'in_progress', 'delivered'].includes(booking.status) ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                           booking.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                           ['rejected', 'cancelled'].includes(booking.status) ? 'bg-white/10 text-white/50 border border-white/10' :
+                           'bg-red-500/10 text-red-400 border border-red-500/20'
+                        }`}>
+                           {booking.status === 'pending' ? 'Awaiting Payment' :
+                            ['accepted', 'in_progress', 'delivered'].includes(booking.status) ? 'Funded' :
+                            booking.status === 'completed' ? 'Released' :
+                            ['rejected', 'cancelled'].includes(booking.status) ? 'Refunded' :
+                            booking.status === 'disputed' ? 'Disputed' : 'Unknown'}
+                        </div>
+                     </div>
+                     <p className="text-[10px] text-white/60 font-medium leading-relaxed max-w-[90%]">
+                        {booking.status === 'pending' 
+                           ? "Waiting for the client to fund the escrow vault."
+                           : ['accepted', 'in_progress', 'delivered'].includes(booking.status)
+                           ? "Funds are safely locked in the escrow vault. They will be released upon completion."
+                           : booking.status === 'completed'
+                           ? "Funds have been released from the escrow vault to the provider."
+                           : ['rejected', 'cancelled'].includes(booking.status)
+                           ? "Funds have been returned from the escrow vault to the client."
+                           : "The escrow is currently paused due to an active dispute."}
                      </p>
                   </div>
                </section>
@@ -384,39 +537,80 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                   </div>
                </div>
 
-               {/* Partner Profile */}
-               <div className="mb-4 p-4 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10">
-                        <img 
-                           src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${otherUserId}`} 
-                           alt="Partner" 
-                           className="w-full h-full object-cover"
-                        />
+               {/* Contract Parties Ledger Row */}
+               <span className="text-[9px] font-black uppercase tracking-widest text-white/30 block mb-1">Contract Participants</span>
+               <div className="grid grid-cols-2 gap-3 mb-4">
+                  {/* PROVIDER CARD */}
+                  <div className="p-4 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col justify-between h-36">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 shrink-0">
+                           <img 
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.seller_id}`} 
+                              alt="Provider" 
+                              className="w-full h-full object-cover"
+                           />
+                        </div>
+                        <div className="min-w-0">
+                           <p className="text-[8px] font-black uppercase tracking-widest text-purple-400">Provider</p>
+                           <h4 className="text-xs font-bold text-white truncate mt-0.5">
+                              {booking.seller?.hustle_name || booking.seller?.full_name || "Marcus V."}
+                           </h4>
+                        </div>
                      </div>
-                     <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-white/30">{isSeller ? "Client" : "Creator"}</p>
-                        <h4 className="text-sm font-bold text-white leading-none mt-1">
-                           {otherUser?.hustle_name || otherUser?.full_name || 'Project Partner'}
-                        </h4>
+                     <div className="flex items-center justify-between mt-3">
+                        <span className="text-[8px] font-bold text-[#00ea87] uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/10 px-2 py-0.5 rounded-full">✓ Specialist</span>
+                        {isSeller ? (
+                           <span className="text-[8px] font-black text-white/40 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md">You</span>
+                        ) : (
+                           <button 
+                              onClick={() => onMessage?.(booking.seller_id)}
+                              className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all shrink-0"
+                           >
+                              <MessageSquare size={13} />
+                           </button>
+                        )}
                      </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button 
-                       onClick={() => onMessage?.(otherUserId)}
-                       className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
-                    >
-                       <MessageSquare size={16} />
-                    </button>
-                    {isSeller && (
-                      <button 
-                        onClick={handleBlockAction}
-                        className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${isBlocked ? 'bg-red-500 border-red-500 text-white' : 'bg-white/5 border-white/10 text-red-500/40 hover:text-red-500 hover:bg-red-500/10'}`}
-                        title={isBlocked ? "Unblock Buyer" : "Block Buyer"}
-                      >
-                        <AlertCircle size={16} />
-                      </button>
-                    )}
+
+                  {/* CLIENT CARD */}
+                  <div className="p-4 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col justify-between h-36">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 shrink-0">
+                           <img 
+                              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${booking.buyer_id}`} 
+                              alt="Client" 
+                              className="w-full h-full object-cover"
+                           />
+                        </div>
+                        <div className="min-w-0">
+                           <p className="text-[8px] font-black uppercase tracking-widest text-blue-400">Client</p>
+                           <h4 className="text-xs font-bold text-white truncate mt-0.5">
+                              {booking.buyer?.full_name || "Elena S."}
+                           </h4>
+                        </div>
+                     </div>
+                     <div className="flex items-center justify-between mt-3 border-t border-white/5 pt-3">
+                        <span className="text-[8px] font-bold text-white/40 uppercase tracking-widest">Buyer Ledger</span>
+                        {!isSeller ? (
+                           <span className="text-[8px] font-black text-white/40 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md">You</span>
+                        ) : (
+                           <div className="flex gap-1">
+                              <button 
+                                 onClick={() => onMessage?.(booking.buyer_id)}
+                                 className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all shrink-0"
+                              >
+                                 <MessageSquare size={13} />
+                              </button>
+                              <button 
+                                onClick={handleBlockAction}
+                                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-all shrink-0 ${isBlocked ? 'bg-red-500 border-red-500 text-white' : 'bg-white/5 border-white/10 text-red-500/40 hover:text-red-500'}`}
+                                title={isBlocked ? "Unblock Buyer" : "Block Buyer"}
+                              >
+                                <AlertCircle size={13} />
+                              </button>
+                           </div>
+                        )}
+                     </div>
                   </div>
                </div>
 
@@ -522,22 +716,61 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                      </div>
                   )}
 
-                  {attachments.length > 0 && (
-                     <div className="pt-6 border-t border-white/5 space-y-3">
-                        <span className="text-[9px] font-black uppercase text-white/30 tracking-widest block">Resource Attachments</span>
-                        <div className="grid grid-cols-2 gap-2">
-                           {attachments.map((file: any, idx: number) => (
-                              <div key={idx} className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center gap-3">
-                                 <FileText size={16} className="text-blue-400" />
-                                 <div className="min-w-0">
-                                    <p className="text-[10px] text-white font-bold truncate">{file.name || `File ${idx+1}`}</p>
-                                    <p className="text-[8px] text-white/40 uppercase font-black">{file.size || 'KB'}</p>
+                  {/* Resource Attachments Upload and Tracking Grid */}
+                  <div className="pt-6 border-t border-white/5 space-y-4">
+                     <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black uppercase text-white/30 tracking-widest block">Project Attachments</span>
+                        <span className="text-[8px] font-black uppercase text-[#00ea87] tracking-wider">Secured Local Sync</span>
+                     </div>
+
+                     {/* Dynamic File Uploader Card */}
+                     <div 
+                        onClick={triggerFileSelect} 
+                        className="border border-dashed border-white/10 rounded-2xl p-6 text-center cursor-pointer hover:border-blue-500/40 hover:bg-white/[0.01] transition-all group"
+                     >
+                        <input 
+                           type="file" 
+                           ref={fileInputRef} 
+                           onChange={handleFileChange} 
+                           style={{ display: 'none' }}
+                           multiple 
+                        />
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-500/10 group-hover:text-blue-400 transition-colors">
+                           <Plus size={18} />
+                        </div>
+                        <p className="text-xs font-bold text-white mb-1">Click to upload project attachments</p>
+                        <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest leading-none">Supports PDF, ZIP, Images up to 25MB</p>
+                     </div>
+
+                     {uploadedAttachments.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                           {uploadedAttachments.map((file: any, idx: number) => (
+                              <div key={idx} className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center justify-between group hover:border-white/10 transition-colors">
+                                 <div className="flex items-center gap-3 min-w-0">
+                                    <FileText size={16} className="text-blue-400 shrink-0" />
+                                    <div className="min-w-0">
+                                       <p className="text-[10px] text-white font-bold truncate leading-tight">{file.name || `File ${idx+1}`}</p>
+                                       <p className="text-[8px] text-white/40 uppercase font-black leading-none mt-1">{file.size || 'KB'}</p>
+                                    </div>
                                  </div>
+                                 <button 
+                                    onClick={(e) => {
+                                       e.preventDefault();
+                                       e.stopPropagation();
+                                       setUploadedAttachments(uploadedAttachments.filter((_, i) => i !== idx));
+                                    }}
+                                    className="p-1.5 text-white/20 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                                    title="Remove Attachment"
+                                 >
+                                    <X size={12} />
+                                 </button>
                               </div>
                            ))}
                         </div>
-                     </div>
-                  )}
+                     ) : (
+                        <p className="text-[10px] text-white/20 italic font-bold uppercase tracking-widest text-center py-4">No custom files added yet</p>
+                     )}
+                  </div>
                </section>
 
                {/* Deliverables Grid */}
@@ -694,8 +927,25 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
             </div>
          )}
          {booking.status === 'completed' && (
-            <div className="text-center py-2">
-               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Hustle Completed Successfully</span>
+            <div className="flex flex-col items-center py-2 gap-4">
+               <span className="text-[10px] font-black uppercase tracking-widest text-[#00ea87] drop-shadow-[0_0_10px_rgba(0,234,135,0.4)]">Hustle Completed Successfully</span>
+               
+               {isClient && (
+                 <button 
+                   onClick={() => setShowReviewModal(true)}
+                   className="w-full h-14 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all text-white shadow-xl max-w-xs active:scale-95"
+                 >
+                   <Star size={16} className="text-yellow-400" />
+                   Rate Experience
+                 </button>
+               )}
+               {isSeller && (
+                 <button 
+                   className="w-full h-14 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all text-white/50 cursor-pointer max-w-xs"
+                 >
+                   Awaiting Client Review
+                 </button>
+               )}
             </div>
          )}
       </footer>
@@ -861,6 +1111,20 @@ export default function BookingDetail({ booking: initialBooking, onBack, onMessa
                booking={booking} 
                isClient={isClient}
                onClose={() => setShowEscrow(false)} 
+            />
+         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+         {showReviewModal && (
+            <ReviewSubmissionModal
+               bookingId={booking.id}
+               providerName={otherUser?.hustle_name || otherUser?.full_name || 'Provider'}
+               onClose={() => setShowReviewModal(false)}
+               onSubmit={(data) => {
+                  console.log("Review submitted:", data);
+                  alert("Review submitted successfully! Thank you for your feedback.");
+               }}
             />
          )}
       </AnimatePresence>

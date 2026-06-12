@@ -2,55 +2,99 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
-export function WelcomeStep({ onNext }: { onNext: () => void, key?: React.Key }) {
+interface WelcomeStepProps {
+  onNext: () => void;
+  onSignIn?: () => void;
+  key?: React.Key | string;
+}
+
+export function WelcomeStep({ onNext, onSignIn }: WelcomeStepProps) {
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-      className="flex-1 flex flex-col p-6 items-center justify-center relative overflow-hidden"
+      exit={{ opacity: 0, y: -15 }}
+      transition={{ duration: 0.5, ease: [0.19, 1, 0.22, 1] }}
+      className="flex-1 flex flex-col p-6 items-center justify-between h-full w-full max-w-md mx-auto relative z-10"
+      id="welcome-step"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-black to-purple-500/10" />
-      
-      <div className="relative z-10 flex flex-col items-center text-center max-w-sm">
+      {/* Top Graphic decoration */}
+      <div className="w-full flex-1 flex flex-col items-center justify-center text-center mt-12 md:mt-16">
+        {/* Hustle Logo Icon */}
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mb-8 shadow-[0_0_40px_rgba(255,255,255,0.1)]"
+          transition={{ delay: 0.2, duration: 0.6, type: "spring", stiffness: 100 }}
+          className="w-20 h-20 bg-gradient-to-tr from-brand-primary/20 via-brand-accent/20 to-brand-primary/10 border border-white/10 rounded-2xl flex items-center justify-center mb-8 shadow-glow-red relative group overflow-hidden"
         >
-          <Sparkles className="text-white w-8 h-8" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-brand-primary to-brand-accent opacity-10 group-hover:opacity-20 transition-opacity" />
+          <Sparkles className="text-white w-10 h-10 animate-pulse" />
         </motion.div>
         
+        {/* Brand Caption */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-xs font-mono font-medium tracking-[0.3em] text-brand-primary uppercase mb-3"
+        >
+          SKILL DISCOVERY MARKETPLACE
+        </motion.div>
+
+        {/* Headline */}
         <motion.h1 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="text-4xl font-bold tracking-tight mb-4"
+          className="text-5xl font-extrabold tracking-tight mb-4 font-display font-black"
         >
-          Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/50">Hustle</span>
+          HUSTLE
         </motion.h1>
         
+        {/* Explanation */}
         <motion.p 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="text-white/40 text-lg mb-12"
+          transition={{ delay: 0.5 }}
+          className="text-white/60 text-lg mb-8 max-w-xs font-normal leading-relaxed"
         >
-          The economy of you. Connect, collaborate, and monetize your skills in a premium marketplace.
+          Discover skilled professionals, book services, and learn from creators through interactive short video content.
         </motion.p>
-        
-        <motion.button 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          onClick={onNext}
-          className="w-full h-14 bg-white text-black rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-white/90 transition-all active:scale-[0.98]"
-        >
-          Get Started <ArrowRight className="w-5 h-5" />
-        </motion.button>
       </div>
+
+      {/* Action Area at the bottom */}
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+        className="w-full pb-8 mt-auto"
+      >
+        <button 
+          onClick={onNext}
+          className="w-full h-14 bg-gradient-to-r from-brand-primary to-brand-accent text-white rounded-xl font-semibold flex items-center justify-center gap-3 shadow-glow-red hover:opacity-95 transition-all text-base active-scale group"
+          id="btn-welcome-continue"
+        >
+          Get Started 
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </button>
+
+        {onSignIn && (
+          <div className="text-center mt-3">
+            <button 
+              type="button" 
+              onClick={onSignIn}
+              className="text-sm font-medium text-white/50 hover:text-white transition-colors active-scale py-1 px-3"
+              id="btn-welcome-signin"
+            >
+              Already have an account? <span className="text-brand-primary font-bold hover:underline">Sign In</span>
+            </button>
+          </div>
+        )}
+
+        <p className="text-[10px] text-white/20 text-center mt-4 uppercase tracking-widest font-mono">
+          Explore local talentry instantly
+        </p>
+      </motion.div>
     </motion.div>
   );
 }

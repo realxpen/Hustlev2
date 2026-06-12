@@ -220,19 +220,19 @@ export default function BookingFlow({ hustler, initialListing, onClose }: Bookin
                    <button onClick={() => setStep("schedule")} className="text-white/40 mb-4 flex items-center gap-1 hover:text-white">
                       <ChevronLeft size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
                    </button>
-                  <h2 className="text-2xl font-display font-black tracking-tight">Review Trust</h2>
-                  <p className="text-white/40 text-sm font-light mt-1">Verify details before commitment.</p>
+                  <h2 className="text-2xl font-display font-black tracking-tight text-white">Activate Hustle Shield</h2>
+                  <p className="text-white/45 text-[11px] font-bold mt-1 uppercase tracking-wider">Step 1 of 2: Confirm Project Scope & Escrow Safety</p>
                 </div>
 
                 <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col gap-4">
                    <div className="flex justify-between items-start">
                       <div>
-                         <h3 className="font-bold text-lg leading-none">{selectedService?.title || selectedService?.name}</h3>
-                         <p className="text-xs text-white/40 mt-2 flex items-center gap-1">
-                            <Calendar size={12} /> {selectedDate} • <Clock size={12} /> {selectedTime}
+                         <h3 className="font-bold text-lg leading-none text-white">{selectedService?.title || selectedService?.name}</h3>
+                         <p className="text-xs text-white/45 mt-2 flex items-center gap-1.5 font-semibold">
+                            <Calendar size={12} className="text-blue-400" /> {selectedDate} • <Clock size={12} className="text-blue-400" /> {selectedTime}
                          </p>
                       </div>
-                      <span className="text-xl font-display font-black">${selectedService?.price || selectedService?.base_price}</span>
+                      <span className="text-xl font-display font-black text-emerald-400">${selectedService?.price || selectedService?.base_price}</span>
                    </div>
                    
                    <div className="h-[1px] bg-white/5 w-full" />
@@ -240,19 +240,19 @@ export default function BookingFlow({ hustler, initialListing, onClose }: Bookin
                    <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2">
                          <ShieldCheck size={14} className="text-blue-400" />
-                         <span className="text-[10px] uppercase font-bold tracking-widest text-white/60">Platform Protected Booking</span>
+                         <span className="text-[10px] uppercase font-black tracking-widest text-[#3b82f6]">Double-Interlocked Escrow Lock</span>
                       </div>
-                      <p className="text-[10px] text-white/30 font-light leading-relaxed">
-                         You'll only pay after {hustler.creator.name} confirms the booking. Hustle keeps your funds secure until work is delivered.
+                      <p className="text-[10px] text-white/40 font-medium leading-relaxed uppercase tracking-tight normal-case">
+                         Upon contract activation, your payment will be held in a secure, neutral Escrow Vault managed by Hustle. The Hustler is not paid directly. Funds are only transferred upon milestone delivery.
                       </p>
                    </div>
                 </div>
 
                 <button 
                   onClick={() => nextStep("payment")}
-                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-4 shadow-xl shadow-white/5"
+                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-4 shadow-xl shadow-white/5 text-center flex items-center justify-center hover:bg-white/90 active:scale-[0.98] transition-all"
                 >
-                  Pay Securely
+                  Activate Escrow Protection & Continue
                 </button>
               </motion.div>
             )}
@@ -270,20 +270,20 @@ export default function BookingFlow({ hustler, initialListing, onClose }: Bookin
                    <button onClick={() => setStep("review")} className="text-white/40 mb-4 flex items-center gap-1 hover:text-white">
                       <ChevronLeft size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
                    </button>
-                  <h2 className="text-2xl font-display font-black tracking-tight">Financial Trust</h2>
-                  <p className="text-white/40 text-sm font-light mt-1 text-balance">Your payment is held in a secure <span className="text-blue-400 font-bold">Escrow Account</span> until you approve the work.</p>
+                  <h2 className="text-2xl font-display font-black tracking-tight text-white">Escrow Shield Vault</h2>
+                  <p className="text-white/45 text-[11px] font-bold mt-1 uppercase tracking-wider">Step 2 of 2: Secure Funds in Neutral Custody</p>
                 </div>
 
                 <div className="flex flex-col gap-3">
                    {/* Wallet Option */}
-                   <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between cursor-pointer group hover:bg-blue-500/20 transition-all">
+                   <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between cursor-pointer group hover:bg-blue-500/25 transition-all">
                       <div className="flex items-center gap-4">
                          <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center border border-blue-500/30">
                             <Wallet size={24} className="text-blue-400" />
                          </div>
-                         <div className="flex flex-col">
-                            <span className="text-sm font-bold">Hustle Wallet</span>
-                            <span className="text-[10px] text-blue-400/60 font-black uppercase tracking-widest">Balance: $1,240.50</span>
+                         <div className="flex flex-col text-left">
+                            <span className="text-sm font-bold text-white">Secure Hustle Wallet</span>
+                            <span className="text-[10px] text-blue-400/80 font-black uppercase tracking-widest">Balance: $1,240.50</span>
                          </div>
                       </div>
                       <div className="w-6 h-6 rounded-full border-2 border-blue-400 flex items-center justify-center">
@@ -296,33 +296,33 @@ export default function BookingFlow({ hustler, initialListing, onClose }: Bookin
                          <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center border border-white/10">
                             <CreditCard size={24} className="text-white/40" />
                          </div>
-                         <div className="flex flex-col">
-                            <span className="text-sm font-bold">Apple Pay</span>
-                            <span className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Instant Activation</span>
+                         <div className="flex flex-col text-left">
+                            <span className="text-sm font-bold text-white">Apple Pay Shield</span>
+                            <span className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Neutral Holding Escrow</span>
                          </div>
                       </div>
                       <div className="w-6 h-6 rounded-full border border-white/10" />
                    </div>
                 </div>
 
-                <div className="mt-2 p-6 rounded-2xl bg-white/[0.01] border border-dashed border-white/10">
-                   <div className="flex items-center gap-3 mb-3">
+                <div className="mt-2 p-6 rounded-2xl bg-gradient-to-r from-blue-950/20 to-transparent border border-blue-500/20">
+                   <div className="flex items-center gap-2.5 mb-2.5">
                       <ShieldCheck size={16} className="text-blue-400" />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Escrow Guarantee</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#3b82f6]">Hustle Shield™ Guarantee Active</p>
                    </div>
-                   <p className="text-[10px] text-white/20 font-light leading-relaxed">
-                      Funds will be released only after you mark the milestone as complete. If the hustler doesn't deliver, your money is returned instantly.
+                   <p className="text-[10px] text-white/40 font-medium leading-relaxed uppercase tracking-tight normal-case">
+                      Funds remain securely sequestered in neutral custody. They are only released upon your explicit authorization after review of each submitted work milestone. Zero risk. Full safety check.
                    </p>
                 </div>
 
                 <button 
                   onClick={() => handleCreateBooking()}
                   disabled={isBookingLoading}
-                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-2 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full h-14 bg-white text-black rounded-xl font-black uppercase tracking-widest text-[11px] mt-2 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isBookingLoading ? (
                     <div className="w-4 h-4 border-2 border-black/10 border-t-black rounded-full animate-spin" />
-                  ) : "Pay & Lock into Escrow"}
+                  ) : "Lock Funds into Escrow & Propose Hustle"}
                 </button>
                 {bookingError && (
                   <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center mt-2">{bookingError}</p>

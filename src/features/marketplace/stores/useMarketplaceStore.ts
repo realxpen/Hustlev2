@@ -154,9 +154,9 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       } catch (err) {}
     }
 
-    const isHustler = profile?.is_hustler === true || profile?.role === 'hustler' || profile?.role === 'admin';
+    const isHustler = profile?.is_hustler === true || profile?.role === 'hustler' || profile?.role === 'admin' || profile?.is_agent === true;
     if (!isHustler) {
-      set({ error: 'Only registered Hustlers can create listings. Please upgrade your profile first.', isLoading: false });
+      set({ error: 'Only registered Hustlers or certified agents can create listings.', isLoading: false });
       return null;
     }
 
@@ -182,7 +182,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       description,
       base_price,
       pricing_type,
-      owner_id: user.id,
+      owner_id: data.owner_id || user.id,
       is_active: true,
       media: data.media || []
     };

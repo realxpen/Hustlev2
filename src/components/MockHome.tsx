@@ -31,6 +31,7 @@ import MainFeedHub from "./MainFeedHub";
 import LiveCreatorStudio from "./LiveCreatorStudio";
 import CreatorStudioDashboard from "./CreatorStudioDashboard";
 import UnifiedCreatorFlow from "./UnifiedCreatorFlow";
+import ServiceCreationFlow from "./ServiceCreationFlow";
 import CallScreen, { CallInfo } from "./CallScreen";
 import ChatHub from "./ChatHub";
 import ConversationView from "./ConversationView";
@@ -77,6 +78,7 @@ export default function MockHome() {
   const [activeFeedTab, setActiveFeedTab] = useState<"for-you" | "live" | "nearby">("for-you");
   const [isCreatorStudioOpen, setIsCreatorStudioOpen] = useState(false);
   const [isCreatorFlowOpen, setIsCreatorFlowOpen] = useState(false);
+  const [isServiceCreationOpen, setIsServiceCreationOpen] = useState(false);
   const [initialFlowType, setInitialFlowType] = useState<string | undefined>(undefined);
   const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -690,17 +692,13 @@ export default function MockHome() {
               'hover:bg-brand-primary hover:text-white'
             } text-black shadow-[0_0_30px_rgba(255,255,255,0.2)]`}
           >
-            <PlusCircle size={24} className="group-hover:scale-110 transition-transform mb-0.5" />
+            <PlusCircle size={24} className="group-hover:scale-110 transition-transform mb-0.5 text-brand-primary" />
             <motion.span 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              key={activeNav}
-              className="text-[7px] font-black uppercase tracking-tighter"
+              className="text-[9px] font-black uppercase tracking-tighter"
             >
-              {activeNav === 'home' ? 'Post' : 
-               activeNav === 'live' ? 'Studio' :
-               activeNav === 'wallet' ? 'Add' :
-               'Hustle'}
+              Create
             </motion.span>
           </motion.button>
         </div>
@@ -786,6 +784,8 @@ export default function MockHome() {
           setIsCreateOpen(false);
           if (type === 'live') {
             setIsLiveStudioOpen(true);
+          } else if (type === 'create_service') {
+            setIsServiceCreationOpen(true);
           } else {
             setInitialFlowType(type);
             setIsCreatorFlowOpen(true);
@@ -826,6 +826,20 @@ export default function MockHome() {
                 setIsCreatorStudioOpen(false);
                 setSelectedBooking(payload.booking);
               }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Main Service Creation Flow */}
+      <AnimatePresence>
+        {isServiceCreationOpen && (
+          <ServiceCreationFlow
+            onClose={() => setIsServiceCreationOpen(false)}
+            onSuccess={(listing) => {
+              setIsServiceCreationOpen(false);
+              console.log("Published Service:", listing);
+              // Handle success (could open profile tab)
             }}
           />
         )}

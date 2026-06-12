@@ -6,6 +6,7 @@ import type { ReportTargetType } from "../types/moderation";
 
 interface ReportSheetProps {
   onClose: () => void;
+  onReportSuccess?: () => void;
   entityName: string;
   targetId: string;
   targetType: ReportTargetType;
@@ -18,7 +19,7 @@ const REPORT_REASONS = [
   { id: "inappropriate", label: "Inappropriate Content", icon: <Flag size={18} /> },
 ];
 
-export default function ReportSheet({ onClose, entityName, targetId, targetType }: ReportSheetProps) {
+export default function ReportSheet({ onClose, onReportSuccess, entityName, targetId, targetType }: ReportSheetProps) {
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [internalError, setInternalError] = useState("");
@@ -34,7 +35,11 @@ export default function ReportSheet({ onClose, entityName, targetId, targetType 
       });
       if (res.success) {
         setIsSubmitted(true);
-        setTimeout(onClose, 2000);
+        if (onReportSuccess) {
+           onReportSuccess();
+        } else {
+           setTimeout(onClose, 2000);
+        }
       } else {
         setInternalError(res.error || "Failed to submit report");
       }

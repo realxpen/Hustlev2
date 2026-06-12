@@ -25,6 +25,7 @@ import { useBookingStore } from "../features/bookings/stores/useBookingStore";
 import { useStoryDraftStore } from "../features/feed/stores/useStoryDraftStore";
 
 import { useChatStore } from "../features/chat/stores/useChatStore";
+import { useSearchStore } from "../features/feed/stores/useSearchStore";
 
 interface MainFeedHubProps {
   MOCK_HUSTLERS?: any[]; // Keep for compatibility, but don't strictly require it
@@ -40,7 +41,7 @@ interface MainFeedHubProps {
   onQuickBook?: (hustler: any) => void;
 }
 
-type FeedTab = "for-you" | "live" | "nearby";
+type FeedTab = "for-you" | "nearby" | "following" | "learning" | "services" | "projects" | "verified" | "live";
 
 export default function MainFeedHub({
   bridgeIntent,
@@ -85,6 +86,11 @@ export default function MainFeedHub({
     "for-you": 0,
     live: 0,
     nearby: 0,
+    following: 0,
+    learning: 0,
+    services: 0,
+    projects: 0,
+    verified: 0,
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -177,6 +183,12 @@ export default function MainFeedHub({
 
   const tabs = [
     { id: "for-you", label: "For You" },
+    { id: "nearby", label: "Nearby" },
+    { id: "following", label: "Following" },
+    { id: "learning", label: "Learning" },
+    { id: "services", label: "Services" },
+    { id: "projects", label: "Projects" },
+    { id: "verified", label: "Verified" },
     {
       id: "live",
       label: "Live",
@@ -291,49 +303,18 @@ export default function MainFeedHub({
       <StoryViewer />
       {/* Top Navigation */}
       <header
-        className={`absolute top-0 left-0 right-0 z-50 pt-12 pb-4 px-6 pointer-events-auto bg-gradient-to-b ${activeTab === "live" ? "from-black/60" : "from-black/80"} via-black/40 to-transparent transition-all duration-500 ${isNavVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"}`}
+        className={`absolute top-0 left-0 right-0 z-50 pt-12 pb-4 px-4 pointer-events-auto bg-gradient-to-b ${activeTab === "live" ? "from-black/60" : "from-black/80"} via-black/40 to-transparent transition-all duration-500 ${isNavVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"}`}
       >
-        <div className="relative flex items-center justify-center mb-4">
-          <div className="flex items-center gap-5">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as FeedTab)}
-                className={`relative pb-1 transition-all ${
-                  activeTab === tab.id
-                    ? "text-white font-bold opacity-100 scale-105 transform origin-bottom drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-                    : "text-white/60 font-semibold opacity-70 hover:opacity-100 drop-shadow-md"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 drop-shadow-md">
-                  {tab.icon && (
-                    <span
-                      className={
-                        activeTab === tab.id && tab.id === "live"
-                          ? "text-red-500"
-                          : ""
-                      }
-                    >
-                      {tab.icon}
-                    </span>
-                  )}
-                  <span className="text-[13px]">{tab.label}</span>
-                </div>
-                {activeTab === tab.id && (
-                  <motion.div
-                    layoutId="feedTabIndicator"
-                    className="absolute -bottom-1.5 left-2 right-2 h-0.5 bg-white rounded-full drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-                  />
-                )}
-              </button>
-            ))}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-2xl font-black italic tracking-tighter text-white drop-shadow-md">HUSTLE</span>
           </div>
 
-          <div className="absolute right-0 flex items-center gap-3">
+          <div className="flex items-center gap-3">
             {activeTab === "live" && (profile?.is_hustler || profile?.is_agent || profile?.role === 'hustler') && (
                <button
                  onClick={() => setShowStudio(true)}
-                 className="flex items-center gap-2 bg-red-500 text-white px-4 h-10 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95 transition-all text-xs font-black uppercase tracking-widest"
+                 className="flex items-center gap-2 bg-red-500 text-white px-3 h-10 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95 transition-all text-xs font-black uppercase tracking-widest"
                >
                  <Radio size={14} className="animate-pulse" /> Go Live
                </button>
@@ -362,16 +343,34 @@ export default function MainFeedHub({
                   className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]"
                 />
               )}
-            <Bell size={18} />
-          </button>
-          <button
-            onClick={onOpenChat}
+              <Bell size={18} />
+            </button>
+            <button
+              onClick={onOpenChat}
               className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center border border-white/20 cursor-pointer hover:bg-white/10 transition-colors relative shadow-lg"
             >
               {totalChatUnread > 0 && <div className="w-2 h-2 rounded-full bg-brand-primary absolute top-2 right-2 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />}
               <MessageSquare size={18} />
             </button>
           </div>
+        </div>
+
+        {/* Horizontal Chips for Feeds */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-2 pointer-events-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as FeedTab)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all border shadow-md backdrop-blur-md ${
+                activeTab === tab.id
+                  ? (tab.id === "live" ? "bg-red-600 text-white border-red-500" : "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]")
+                  : "bg-black/50 text-white/70 border-white/10 hover:bg-white/20 hover:text-white"
+              }`}
+            >
+              {tab.icon && <span className={activeTab === tab.id ? "" : "text-white/50"}>{tab.icon}</span>}
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Live Subnav Filters */}
@@ -544,6 +543,32 @@ export default function MainFeedHub({
                   )}
                 </div>
 
+                {getFeedItems().length === 0 && !isFetchingMore && !hasMore && (
+                   <div className="w-full h-screen flex flex-col items-center justify-center p-12 text-center snap-start -mt-24">
+                     {!navigator.onLine ? (
+                        <div className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 flex flex-col items-center w-full">
+                          <Radio size={40} className="text-white/20 mb-6 opacity-50" />
+                          <h3 className="text-xl font-black italic tracking-tighter text-white mb-2 uppercase">No Connection</h3>
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-relaxed">Please check your internet connection and try again.</p>
+                        </div>
+                     ) : activeTab === "nearby" ? (
+                        <div className="p-8 rounded-[3rem] bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 flex flex-col items-center w-full">
+                          <MapPin size={40} className="text-blue-400 mb-6 opacity-80" />
+                          <h3 className="text-xl font-black italic tracking-tighter text-white mb-2 uppercase">No Recommendations</h3>
+                          <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest leading-relaxed mb-6">Expand your location area</p>
+                          <button onClick={() => setActiveTab("for-you")} className="px-6 py-3 bg-blue-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-blue-500 transition-colors">Go to For You</button>
+                        </div>
+                     ) : (
+                        <div className="p-8 rounded-[3rem] bg-white/[0.02] border border-white/5 flex flex-col items-center w-full">
+                          <Search size={40} className="text-white/20 mb-6 opacity-50" />
+                          <h3 className="text-xl font-black italic tracking-tighter text-white mb-2 uppercase">Feed Empty</h3>
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-relaxed mb-6">No content available for this category.</p>
+                          <button onClick={() => setActiveTab("for-you")} className="px-6 py-3 bg-white/10 text-white font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-white/20 transition-colors">Reset Feed</button>
+                        </div>
+                     )}
+                   </div>
+                )}
+
                 {getFeedItems().map((hustler) => (
                   <div
                     key={`${activeTab}-${hustler.id}`}
@@ -565,6 +590,11 @@ export default function MainFeedHub({
                         price: hustler.embedCTA?.price || 500,
                         type: hustler.detailData?.type || 'service'
                       })}
+                      onSkillTagClick={(skill) => {
+                        useSearchStore.getState().setSearchQuery(skill);
+                        useSearchStore.getState().globalSearch(skill);
+                        onOpenSearch?.();
+                      }}
                     />
                   </div>
                 ))}

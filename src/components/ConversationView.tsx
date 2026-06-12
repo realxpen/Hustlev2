@@ -16,6 +16,7 @@ import { useAuthStore } from '../features/auth/stores/useAuthStore';
 import { useChatStore } from '../features/chat/stores/useChatStore';
 import { useBookingStore } from '../features/bookings/stores/useBookingStore';
 import BookingContextCard from './BookingContextCard';
+import TrustBadge from './TrustBadge';
 import { supabase } from '../lib/supabase';
 import { format, formatDistanceToNow } from 'date-fns';
 import { AudioPlayer } from './chat/AudioPlayer';
@@ -193,10 +194,27 @@ export default function ConversationView({ chat: passedChat, conversationId, onC
               )}
            </div>
            <div>
-              <h2 className="text-sm font-black uppercase tracking-tight italic">{chat.name}</h2>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h2 className="text-sm font-black uppercase tracking-tight italic">{chat.name}</h2>
+                {targetUser?.verified && (
+                  <TrustBadge type="verified" size="xs" showLabel={false} />
+                )}
+                {targetUser?.is_hustler && (
+                  <TrustBadge type="trusted_hustler" size="xs" showLabel={false} />
+                )}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                  <div className={`w-1.5 h-1.5 rounded-full ${chat.online ? 'bg-emerald-500 animate-pulse' : 'bg-white/20'}`} />
                  <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{chat.online ? 'Active Now' : 'Last seen 2h ago'}</span>
+                 {activeBooking && (
+                   <button 
+                     onClick={() => onManageBooking && onManageBooking(activeBooking)}
+                     className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/15 border border-brand-primary/30 hover:bg-brand-primary/25 cursor-pointer rounded-full transition-all active:scale-95 text-[7px] font-black text-brand-primary uppercase tracking-widest shrink-0"
+                   >
+                     <Briefcase size={8} />
+                     <span>Contract Details</span>
+                   </button>
+                 )}
                  {foundConversation?.disappearing_messages_duration && (
                    <div className="flex items-center gap-1 ml-1 pl-1 border-l border-white/10">
                      <Clock size={8} className="text-brand-primary" />

@@ -559,10 +559,20 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const isSeller = current.seller_id === user.id;
       const isBuyer = current.buyer_id === user.id;
 
-      // Only seller can update to operational statuses (accepted, rejected, etc)
-      const sellerOnlyStatuses: BookingStatus[] = ['accepted', 'rejected', 'in_progress', 'completed'];
+      // Only seller can update to certain operational statuses
+      const sellerOnlyStatuses: BookingStatus[] = ['accepted', 'rejected', 'in_progress', 'delivered'];
       if (sellerOnlyStatuses.includes(newStatus) && !isSeller) {
-        throw new Error('Only the seller can update this status');
+        throw new Error('Only the provider can transition to this state');
+      }
+
+      // Either buyer or seller can complete, but usually buyer signs off
+      if (newStatus === 'completed' && !isBuyer && !isSeller) {
+        throw new Error('You must be a client or provider to complete this booking');
+      }
+
+      // Disputed status can be initiated by either party
+      if (newStatus === 'disputed' && !isBuyer && !isSeller) {
+        throw new Error('Only contract participants can dispute this booking');
       }
 
       // Buyer can cancel before acceptance
@@ -584,8 +594,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
       const getEscrowState = (b: any): EscrowPaymentState => {
         if (b.escrow_status === 'released') return EscrowPaymentState.RELEASED;
         if (b.escrow_status === 'refunded') return EscrowPaymentState.REFUNDED;
-        if (b.escrow_status === 'held') return EscrowPaymentState.IN_ESCROW;
-        return EscrowPaymentState.PENDING_PAYMENT;
+        if (b.escrow_status === 'held') return EscrowPaymentState.FUNDED;
+        return EscrowPaymentState.AWAITING_PAYMENT;
       };
 
       const currentEscrowState = getEscrowState(current);
