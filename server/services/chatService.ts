@@ -4,11 +4,16 @@ import { ServerMessage, ServerConversation } from "../types/chat";
 
 export class ChatService {
   constructor() {
-    this.initializeBookingListeners();
+    // CRITICAL FIX: Removed the immediate constructor execution block.
+    // This stops circular module imports from hitting uninitialized ReferenceErrors.
+    console.log("[ChatService] Instantiated backend operational memory layers.");
   }
 
-  // Hook into booking event service to satisfy "every booking creates a linked chat thread"
-  private initializeBookingListeners(): void {
+  /**
+   * Safe, deferred hook attachment that guarantees 
+   * bookingEventService is completely exported before parsing listeners.
+   */
+  public initializeBookingListeners(): void {
     console.log("[ChatService] Mounting automatic booking-linked conversation listener...");
     
     bookingEventService.on("booking.created", (payload: BookingEventPayload) => {
@@ -91,4 +96,10 @@ export class ChatService {
   }
 }
 
+// Instantiate Singleton export instance
 export const chatService = new ChatService();
+
+// Defer the execution to the next loop checkpoint phase so bookingEventService initializes fully first
+setImmediate(() => {
+  chatService.initializeBookingListeners();
+});

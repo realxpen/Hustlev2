@@ -43,6 +43,7 @@ import { useSocialGraphStore } from "../features/social/stores/useSocialGraphSto
 import { supabase } from "../lib/supabase";
 import { convertCurrency, formatCurrency, Currency } from "../lib/currency";
 import { useAppOrchestrator } from "../stores/useAppOrchestrator";
+import type { FeedPost } from '../types/feed';
 
 export interface EmbedCTA {
   type: "book" | "buy" | "apply" | "ad";
@@ -59,6 +60,19 @@ export interface FeedContent {
   hasMusic?: boolean;
   musicTrack?: string;
   musicData?: any;
+}
+
+interface ExtendedFeedPost extends FeedPost {
+  userHasSaved?: boolean;
+  userHasLiked?: boolean;
+  userHasReposted?: boolean;
+  collection_id?: string | null;
+  is_repost?: boolean;
+  original_post_id?: string | null;
+  reposts_count?: number;
+  comments_count?: number;
+  saves_count?: number;
+  shares_count?: number;
 }
 
 export interface FeedCardProps {
@@ -147,7 +161,7 @@ export default function FeedCard({
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [showCtaFlow, setShowCtaFlow] = useState(false);
-  // Normalize details and CTAs into arrays
+
   const details = Array.isArray(detailData)
     ? detailData
     : detailData
@@ -159,7 +173,6 @@ export default function FeedCard({
     ctas[0] || null,
   );
 
-  // Stats for optimistic UI
   const [stats, setStats] = useState({
     likes: 0,
     comments: 0,
@@ -172,12 +185,10 @@ export default function FeedCard({
   const [isHidden, setIsHidden] = useState(false);
   const [hiddenReason, setHiddenReason] = useState<"skipped" | "reported" | null>(null);
 
-  // Loading States
   const [isLiking, setIsLiking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isFollowingState, setIsFollowingState] = useState(false);
 
-  // Internal Share State
   const [shareStep, setShareStep] = useState<"options" | "users">("options");
   const [usersToShare, setUsersToShare] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,12 +196,26 @@ export default function FeedCard({
   const [sharingToUserId, setSharingToUserId] = useState<string | null>(null);
 
   const postFromStore = useFeedStore((state) =>
-    typeof id === "string" ? state.posts.find((p) => p.id === id) : null,
-  );
+    typeof id === "string" ? state.posts.find((p) => p.id === id) : null
+  ) as ExtendedFeedPost | null;
 
   const isActiveSaved = postFromStore ? !!postFromStore.userHasSaved : saved;
 
-  const collections = useFeedStore((state) => state.collections);
+  interface AugmentedFeedStore {
+    posts: any[];
+    commentsMap: Record<string, any[]>;
+    loadingComments: Record<string, boolean>;
+    collections: any[];
+    networkQuality: 'fast' | 'medium' | 'slow';
+    activeMediaId: string | null;
+    setActiveMediaId: (id: string | null) => void;
+    optimizeFeedPerformance: () => void;
+    preloadMedia: (post: ExtendedFeedPost) => void;
+    fetchComments: (id: string) => void;
+    fetchCollections: () => void;
+  }
+
+  const collections = useFeedStore((state) => (state as unknown as AugmentedFeedStore).collections);
   const {
     toggleLike: toggleDbLike,
     toggleRepost: toggleDbRepost,
@@ -202,14 +227,29 @@ export default function FeedCard({
     sharePostToUser: shareDbPostToUser,
   } = usePostActions();
   const { user, profile } = useAuthStore();
-  const store = useFeedStore();
+  const store = useFeedStore() as unknown as AugmentedFeedStore;
   const cardRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   const { toggleFollow, iFollow } = useSocialGraphStore();
-  const targetUserId = creator.id.toString();
+  const targetUserId = creator.id?.toString() || '';
   const isFollowing = user ? iFollow(user.id, targetUserId) : false;
+
+  interface DbComment {
+    id: string;
+    post_id: string;
+    parent_comment_id: string | null;
+    content: string;
+    created_at: string;
+    user_id: string;
+  }
+
+  // Robust string conversion helper to completely shield component properties
+  const safeStringify = (value: any): string => {
+    if (value === null || value === undefined) return '0';
+    return String(value);
+  };
 
   const handleFollowClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -232,7 +272,6 @@ export default function FeedCard({
     }
   };
 
-  // Media Performance: Intersection Observer
   useEffect(() => {
     if (!cardRef.current) return;
 
@@ -241,43 +280,36 @@ export default function FeedCard({
         setIsVisible(entry.isIntersecting);
         if (entry.isIntersecting && typeof id === "string") {
           store.setActiveMediaId(id);
-          // Auto-optimize performance on dynamic quality shifts
           store.optimizeFeedPerformance();
         }
       },
-      { threshold: 0.6 } // 60% visibility triggers active state
+      { threshold: 0.6 }
     );
 
     observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, [id, store]);
 
-  // Video playback control
   useEffect(() => {
     if (!videoRef.current) return;
-    
     const isActuallyActive = store.activeMediaId === id;
-    
     if (isActuallyActive && isVisible) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     } else {
       videoRef.current.pause();
     }
   }, [isVisible, store.activeMediaId, id]);
 
-  // Preloading neighbors logic (done in Hub or here)
   useEffect(() => {
     if (isVisible && typeof id === "string") {
       const currentIndex = store.posts.findIndex(p => p.id === id);
       if (currentIndex !== -1) {
-        // Preload next post
         const nextPost = store.posts[currentIndex + 1];
         if (nextPost) store.preloadMedia(nextPost);
       }
     }
   }, [isVisible, id, store.posts]);
 
-  // Fetch users when step changes to users
   useEffect(() => {
     if (shareStep === "users" && user) {
       const fetchInitialUsers = async () => {
@@ -294,7 +326,6 @@ export default function FeedCard({
     }
   }, [shareStep, user]);
 
-  // Search users effect
   useEffect(() => {
     if (shareStep === "users" && searchQuery.trim().length > 0) {
       const delayDebounce = setTimeout(async () => {
@@ -303,20 +334,13 @@ export default function FeedCard({
           .from("profiles")
           .select("id, full_name, username, avatar_url")
           .neq("id", user?.id)
-          .or(
-            `username.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`,
-          )
+          .or(`username.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`)
           .limit(15);
         if (data) setUsersToShare(data);
         setIsSearching(false);
       }, 500);
       return () => clearTimeout(delayDebounce);
-    } else if (
-      shareStep === "users" &&
-      searchQuery.trim().length === 0 &&
-      user
-    ) {
-      // Reset to defaults if empty
+    } else if (shareStep === "users" && searchQuery.trim().length === 0 && user) {
       const fetchInitialUsers = async () => {
         const { data } = await supabase
           .from("profiles")
@@ -329,7 +353,6 @@ export default function FeedCard({
     }
   }, [searchQuery, shareStep, user]);
 
-  // Helper for actual sharing
   const handleInternalShare = async (targetUserId: string) => {
     if (typeof id !== "string") return;
     setSharingToUserId(targetUserId);
@@ -339,10 +362,8 @@ export default function FeedCard({
     setShareStep("options");
   };
 
-  const commentsForThisPost =
-    typeof id === "string" ? store.commentsMap[id] || [] : [];
-  const isCommentsLoading =
-    typeof id === "string" ? !!store.loadingComments[id] : false;
+  const commentsForThisPost = typeof id === "string" ? store.commentsMap[id] || [] : [];
+  const isCommentsLoading = typeof id === "string" ? !!store.loadingComments[id] : false;
   const isActiveLiked = postFromStore ? !!postFromStore.userHasLiked : liked;
   const activeLikesCount = postFromStore
     ? (postFromStore.likes_count ?? 0)
@@ -350,20 +371,12 @@ export default function FeedCard({
       ? detailData.socialStats.likes
       : stats.likes;
 
-  const isActiveReposted = postFromStore
-    ? !!postFromStore.userHasReposted
-    : reposted;
-  const activeRepostsCount = postFromStore
-    ? (postFromStore.reposts_count ?? 0)
-    : stats.reposts;
-
-  const activeCommentsCount = postFromStore
-    ? (postFromStore.comments_count ?? 0)
-    : stats.comments;
+  const isActiveReposted = postFromStore ? !!postFromStore.userHasReposted : reposted;
+  const activeRepostsCount = postFromStore ? (postFromStore.reposts_count ?? 0) : stats.reposts;
+  const activeCommentsCount = postFromStore ? (postFromStore.comments_count ?? 0) : stats.comments;
 
   const commentInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper for human-readable time format
   const formatTime = (isoString?: string) => {
     if (!isoString) return "now";
     try {
@@ -398,18 +411,24 @@ export default function FeedCard({
         if (typeof id === "string") {
           store.fetchComments(id);
 
-          const { data: rpsts } = await (
-            supabase.from("posts").select(`
-              id,
-              repost_comment,
-              created_at,
-              user_id,
-              profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews)
-            `) as any
-          )
+          // Correct pagination chaining setup against syntax exception triggers
+          const queryBuilder = supabase.from("posts").select(`
+            id,
+            repost_comment,
+            created_at,
+            user_id,
+            profiles!posts_user_id_fkey(id, full_name, username, avatar_url, hustle_name, primary_skill, is_hustler, review_count, rating_average, has_reviews)
+          `);
+
+          const baseQuery = queryBuilder
             .eq("original_post_id", id)
             .eq("is_repost", true)
             .order("created_at", { ascending: false });
+
+          // Defensive syntax safety configuration setup
+          const { data: rpsts } = typeof (baseQuery as any).range === 'function'
+            ? await (baseQuery as any).range(0, 10)
+            : await baseQuery;
 
           if (rpsts && isMounted) {
             const shaped = rpsts.map((rp: any) => {
@@ -428,7 +447,6 @@ export default function FeedCard({
 
     loadRepostsPreview();
 
-    // Subscribe to new reposts
     const repostsChannel = supabase
       .channel(`public:reposts_preview:${id}`)
       .on(
@@ -439,7 +457,7 @@ export default function FeedCard({
           table: "posts",
           filter: `original_post_id=eq.${id}`,
         },
-        async (payload) => {
+        async (payload: { new: ExtendedFeedPost }) => {
           if (payload.new.is_repost) {
             const { data: fullRp } = await (
               supabase.from("posts").select(`
@@ -498,11 +516,9 @@ export default function FeedCard({
           return roots;
         };
 
-        // 1. Fetch real comments for the main post
         const { data: coms, error: comsErr } = await supabase
           .from("comments")
-          .select(
-            `
+          .select(`
             id,
             post_id,
             parent_comment_id,
@@ -510,8 +526,7 @@ export default function FeedCard({
             created_at,
             user_id,
             profiles!comments_user_id_fkey(id, full_name, username, avatar_url)
-          `,
-          )
+          `)
           .eq("post_id", targetPostIdForDrawer)
           .order("created_at", { ascending: true });
 
@@ -521,20 +536,18 @@ export default function FeedCard({
           setDbCommentsList(buildTree(coms || []));
         }
 
-        // 2. Fetch replies for ALL reposts of this post
         const { data: allRepostsIds } = await (
           supabase.from("posts").select("id") as any
         )
           .eq("original_post_id", targetPostIdForDrawer)
           .eq("is_repost", true);
 
-        const repostIds = allRepostsIds?.map((r) => r.id) || [];
+        const repostIds = allRepostsIds?.map((r: { id: string }) => r.id) || [];
 
         if (repostIds.length > 0) {
           const { data: replies, error: repliesErr } = await supabase
             .from("comments")
-            .select(
-              `
+            .select(`
               id,
               post_id,
               parent_comment_id,
@@ -542,16 +555,25 @@ export default function FeedCard({
               created_at,
               user_id,
               profiles!comments_user_id_fkey(id, full_name, username, avatar_url)
-            `,
-            )
+            `)
             .in("post_id", repostIds)
             .order("created_at", { ascending: true });
+
+          interface CommentReply {
+            id: string;
+            post_id: string;
+            parent_comment_id: string | null;
+            content: string;
+            created_at: string;
+            user_id: string;
+            profiles: { id: string; full_name: string | null; username: string | null; avatar_url: string | null; } | null;
+          }
 
           if (repliesErr) {
             console.error("Error loading DB repost replies:", repliesErr);
           } else if (isMounted && replies) {
-            const grouped: Record<string, any[]> = {};
-            replies.forEach((rep) => {
+            const grouped: Record<string, CommentReply[]> = {};
+            replies.forEach((rep: CommentReply) => {
               if (!grouped[rep.post_id]) {
                 grouped[rep.post_id] = [];
               }
@@ -576,8 +598,6 @@ export default function FeedCard({
 
     loadDrawerData();
 
-    // Subscribe to new comments for real-time responsiveness
-    // We subscribe to all comments where post_id matches target OR is in repostIds list
     const commentsChannel = supabase
       .channel(`public:comments_feed_card_drawer:${targetPostIdForDrawer}`)
       .on(
@@ -587,26 +607,23 @@ export default function FeedCard({
           schema: "public",
           table: "comments",
         },
-        async (payload) => {
+        async (payload: { new: DbComment }) => {
           const { data: newC } = await supabase
             .from("comments")
-            .select(
-              `
-            id,
-            post_id,
-            parent_comment_id,
-            content,
-            created_at,
-            user_id,
-            profiles!comments_user_id_fkey(id, full_name, username, avatar_url)
-          `,
-            )
+            .select(`
+              id,
+              post_id,
+              parent_comment_id,
+              content,
+              created_at,
+              user_id,
+              profiles!comments_user_id_fkey(id, full_name, username, avatar_url)
+            `)
             .eq("id", payload.new.id)
             .single();
 
           if (newC && isMounted) {
             setDrawerReloadKey((prev) => prev + 1);
-            // Update comments stats
             if (newC.post_id === targetPostIdForDrawer) {
               setStats((prev) => ({ ...prev, comments: prev.comments + 1 }));
             }
@@ -630,13 +647,10 @@ export default function FeedCard({
 
   const handleCtaClick = (item?: EmbedCTA) => {
     if (item) setSelectedCta(item);
-
-    // If it's a quick book from a props-provided action, prioritize that
     if (item?.type === "book" && onBook) {
       onBook();
       return;
     }
-
     if (details.length > 0) {
       setShowSummarySheet(true);
     } else {
@@ -652,9 +666,7 @@ export default function FeedCard({
 
   const handleDoubleTap = async () => {
     if (typeof id === "string") {
-      const isCurrentlyLiked = postFromStore
-        ? !!postFromStore.userHasLiked
-        : false;
+      const isCurrentlyLiked = postFromStore ? !!postFromStore.userHasLiked : false;
       if (!isCurrentlyLiked) {
         setShowHeartBurst(true);
         setTimeout(() => setShowHeartBurst(false), 1000);
@@ -665,7 +677,7 @@ export default function FeedCard({
       setIsLiking(true);
       await toggleDbLike(id as string, isCurrentlyLiked);
       setIsLiking(false);
-      
+
       if (!isCurrentlyLiked) {
         useAppOrchestrator.getState().emitEvent({
           event_type: 'post_liked',
@@ -732,12 +744,10 @@ export default function FeedCard({
         targetPostId = (replyingTo as any).repost_id;
       }
 
-      // If we are replying to a repost thought itself, parentId should be null (since the thought is in posts table, not comments)
-      // Otherwise if we are replying to a comment inside the thread, we use its id.
       const parentId =
         replyingTo &&
-        (!isRepostReply ||
-          (replyingTo as any).id !== (replyingTo as any).repost_id)
+          (!isRepostReply ||
+            (replyingTo as any).id !== (replyingTo as any).repost_id)
           ? (replyingTo as any).id
           : null;
 
@@ -754,7 +764,6 @@ export default function FeedCard({
 
       if (replyingTo) {
         if (replyingTo.id === -1) {
-          // Repost reply
           setCommentsList([
             { ...commentData, isRepostReply: true },
             ...commentsList,
@@ -778,7 +787,6 @@ export default function FeedCard({
     if (typeof id === "string") {
       if (!isActiveSaved) {
         setShowSaveCollections(true);
-        // Initially save to general if not already saved
         await toggleDbSave(id);
         store.fetchCollections();
       } else {
@@ -848,7 +856,6 @@ export default function FeedCard({
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
-      {/* Hidden / Skip State Overlay */}
       <AnimatePresence>
         {isHidden && (
           <motion.div
@@ -858,31 +865,30 @@ export default function FeedCard({
             className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 pointer-events-auto"
           >
             <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
-               <EyeOff size={32} className="text-white/40" />
+              <EyeOff size={32} className="text-white/40" />
             </div>
             <h2 className="text-2xl font-black italic uppercase tracking-tighter mb-2 text-white drop-shadow-md">
               {hiddenReason === "reported" ? "Post Reported" : "Post Hidden"}
             </h2>
             <p className="text-white/50 text-center text-[13px] font-bold tracking-wide leading-relaxed mb-8 max-w-[70%]">
-              {hiddenReason === "reported" 
-                 ? "Thanks for helping keep our community safe." 
-                 : "We'll show you fewer posts like this."}
+              {hiddenReason === "reported"
+                ? "Thanks for helping keep our community safe."
+                : "We'll show you fewer posts like this."}
             </p>
-            <button 
-               onClick={(e) => { 
-                 e.stopPropagation(); 
-                 setIsHidden(false); 
-                 setHiddenReason(null); 
-               }}
-               className="h-12 px-8 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-lg flex items-center justify-center"
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsHidden(false);
+                setHiddenReason(null);
+              }}
+              className="h-12 px-8 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[11px] font-black uppercase tracking-widest text-white shadow-lg flex items-center justify-center"
             >
-               Undo Action
+              Undo Action
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Content Layer (Mixed Media Placeholder) */}
       <div
         className="absolute inset-0 z-0 bg-black"
         onDoubleClick={handleDoubleTap}
@@ -920,7 +926,6 @@ export default function FeedCard({
             }}
             className={`w-full h-full flex flex-col bg-gradient-to-br ${(typeof creator.id === "number" ? creator.id % 2 === 0 : creator.id.length % 2 === 0) ? "from-slate-900 to-black" : "from-zinc-950 to-black"} items-center justify-center relative`}
           >
-            {/* Zoom/Full Mode Trigger Button */}
             {content.type !== "audio" && (
               <button
                 onClick={() => setShowFullViewer(true)}
@@ -931,7 +936,6 @@ export default function FeedCard({
               </button>
             )}
 
-            {/* Carousel indicators logic */}
             {content.mediaUrls && content.mediaUrls.length > 1 && (
               <div className="absolute top-4 left-0 right-0 flex justify-center gap-2 z-20">
                 {content.mediaUrls.map((_: any, i: number) => (
@@ -951,7 +955,6 @@ export default function FeedCard({
               </div>
             )}
 
-            {/* Display multiple media, or fallback to single thumbnail */}
             {(() => {
               const currentMedia =
                 content.mediaArray && content.mediaArray.length > 0
@@ -969,10 +972,11 @@ export default function FeedCard({
                     referrerPolicy="no-referrer"
                     loading="lazy"
                     onClick={(e) => {
-                      if (content.mediaArray?.length > 1) {
+                      if (content.mediaArray && content.mediaArray.length > 1) {
                         e.stopPropagation();
+                        const mediaArr = content.mediaArray;
                         setMediaIndex(
-                          (prev) => (prev + 1) % content.mediaArray.length,
+                          (prev) => (prev + 1) % mediaArr.length,
                         );
                       }
                     }}
@@ -983,7 +987,7 @@ export default function FeedCard({
               if (currentMedia.type === "video") {
                 const networkQuality = store.networkQuality;
                 const isActuallyActive = store.activeMediaId === id;
-                
+
                 return (
                   <div className="w-full h-full relative">
                     <video
@@ -995,7 +999,6 @@ export default function FeedCard({
                       muted={isMuted}
                       preload={isActuallyActive ? "auto" : (networkQuality === "slow" ? "none" : "metadata")}
                     />
-                    {/* Speaker overlay button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1008,11 +1011,11 @@ export default function FeedCard({
                       {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                     </button>
                     {networkQuality === "slow" && !isActuallyActive && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
-                           <div className="px-3 py-1 bg-black/40 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/60">
-                             Slow Connection
-                           </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+                        <div className="px-3 py-1 bg-black/40 rounded-full border border-white/10 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                          Slow Connection
                         </div>
+                      </div>
                     )}
                   </div>
                 );
@@ -1036,11 +1039,11 @@ export default function FeedCard({
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2">Document</div>
                       <div className="text-2xl font-black text-white/40">{getFileIcon(currentMedia.type)}</div>
                     </div>
-                    
+
                     <h3 className="text-lg font-bold text-white/90 text-center line-clamp-1 mb-2">
                       {currentMedia.name || content.caption || "Document Attachment"}
                     </h3>
-                    
+
                     {currentMedia.size && (
                       <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-6">
                         {currentMedia.size}
@@ -1065,7 +1068,6 @@ export default function FeedCard({
         )}
         <div className="grain-overlay opacity-[0.03]" />
 
-        {/* Heart Burst Animation */}
         <AnimatePresence>
           {showHeartBurst && (
             <motion.div
@@ -1080,7 +1082,6 @@ export default function FeedCard({
           )}
         </AnimatePresence>
 
-        {/* Heart Break Animation */}
         <AnimatePresence>
           {showHeartBreak && (
             <motion.div
@@ -1096,10 +1097,8 @@ export default function FeedCard({
         </AnimatePresence>
       </div>
 
-      {/* Overlay: Bottom Information */}
       <div className="absolute bottom-0 left-0 right-0 pt-32 pb-24 px-4 z-20 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
         <div className="flex flex-col gap-3 pointer-events-auto max-w-[85%]">
-          {/* Repost Thoughts Animated Preview Container */}
           {dbRepostsList.length > 0 && !repost && (
             <RepostThoughtsPreview
               reposts={dbRepostsList}
@@ -1107,7 +1106,6 @@ export default function FeedCard({
             />
           )}
 
-          {/* Context Badges (Ad or Intelligence) */}
           <div className="flex items-center gap-2">
             {isAd && (
               <div className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-white/20">
@@ -1128,9 +1126,7 @@ export default function FeedCard({
             )}
           </div>
 
-          {/* Identity & Trust Block */}
           <div className="flex flex-col gap-2">
-            {/* Repost Thought Bubble - attached cleanly and frictionless on the post */}
             {repost && (
               <div className="flex items-start gap-2 bg-black/40 border border-white/5 backdrop-blur-sm p-2 rounded-xl text-xs max-w-full">
                 <Repeat2 size={12} className="text-green-400 shrink-0 mt-0.5" />
@@ -1157,7 +1153,6 @@ export default function FeedCard({
             )}
 
             <div className="flex items-start gap-3">
-              {/* Bottom Profile Details - Name & Badges */}
               <div className="flex flex-col">
                 <div className="flex items-center gap-2 cursor-pointer" onClick={onProfileClick}>
                   <h3 className="text-base font-display font-black tracking-tight text-white flex items-center gap-1.5 drop-shadow-md">
@@ -1169,7 +1164,6 @@ export default function FeedCard({
                       className="text-blue-400 fill-blue-500/20 shrink-0"
                     />
                   )}
-                  {/* Real-time Green active dot */}
                   {creator.active && (
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1178,7 +1172,6 @@ export default function FeedCard({
                   )}
                 </div>
 
-                {/* Highly Polished Trust Badges */}
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 border border-blue-500/30 backdrop-blur-md">
                     <ShieldCheck size={10} className="text-blue-400" />
@@ -1192,7 +1185,6 @@ export default function FeedCard({
                   )}
                 </div>
 
-                {/* Clicking Skill Tag pill triggers discovery search category */}
                 <div className="flex flex-wrap items-center gap-2 mt-2.5">
                   <button
                     onClick={(e) => {
@@ -1227,24 +1219,22 @@ export default function FeedCard({
             </div>
           </div>
 
-          {/* Content Title & Description */}
           <div className="flex flex-col gap-1">
-             <div className="flex items-center gap-2 mt-1">
-                 <span className="text-sm font-bold text-white drop-shadow-md">
-                   {Array.isArray(detailData) ? detailData[0]?.title : detailData?.title || content.caption?.split('.')[0] || "Hustle Showcase"}
-                 </span>
-                 <span className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest text-white/80 border border-white/5">
-                   {["Skill Demo", "Project Showcase", "Before & After", "Educational Tip", "Customer Testimonial", "Service Promotion"][(typeof id === "number" ? id : id?.toString().length || 0) % 6]}
-                 </span>
-             </div>
-             {content.type !== "text" && (
-                <p className="text-xs font-medium tracking-wide text-white/80 leading-relaxed line-clamp-2 drop-shadow-md max-w-[90%] mt-0.5">
-                   {content.caption}
-                </p>
-             )}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm font-bold text-white drop-shadow-md">
+                {Array.isArray(detailData) ? detailData[0]?.title : detailData?.title || content.caption?.split('.')[0] || "Hustle Showcase"}
+              </span>
+              <span className="bg-white/10 backdrop-blur-md px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest text-white/80 border border-white/5">
+                {["Skill Demo", "Project Showcase", "Before & After", "Educational Tip", "Customer Testimonial", "Service Promotion"][(typeof id === "number" ? id : id?.toString().length || 0) % 6]}
+              </span>
+            </div>
+            {content.type !== "text" && (
+              <p className="text-xs font-medium tracking-wide text-white/80 leading-relaxed line-clamp-2 drop-shadow-md max-w-[90%] mt-0.5">
+                {content.caption}
+              </p>
+            )}
           </div>
 
-          {/* Music Integration */}
           {content.hasMusic && (
             <div className="flex items-center gap-2 mt-1">
               <Music size={11} className="text-white/50 animate-bounce" />
@@ -1256,50 +1246,44 @@ export default function FeedCard({
             </div>
           )}
 
-          {/* BOTTOM ACTION BAR */}
           <div className="mt-3 flex items-center gap-2 w-full pr-10">
-            {/* View Profile */}
             <button
-               onClick={(e) => { e.stopPropagation(); if (onProfileClick) onProfileClick(); }}
-               className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
+              onClick={(e) => { e.stopPropagation(); if (onProfileClick) onProfileClick(); }}
+              className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
             >
-               Profile
+              Profile
             </button>
-            
-            {/* Always Visible Hire Button */}
+
             <motion.button
-               whileTap={{ scale: 0.95 }}
-               onClick={(e) => {
-                 e.stopPropagation();
-                 if (onBook) onBook();
-                 else if (!isAd && ctas.length > 0) handleCtaClick(ctas[0]);
-                 else handleCtaClick();
-               }}
-               className="h-11 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(37,99,235,0.4)] active:scale-95 transition-all w-full"
+              whileTap={{ scale: 0.95 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onBook) onBook();
+                else if (!isAd && ctas.length > 0) handleCtaClick(ctas[0]);
+                else handleCtaClick();
+              }}
+              className="h-11 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(37,99,235,0.4)] active:scale-95 transition-all w-full"
             >
-               <Calendar size={13} />
-               Hire {creator.name.split(" ")[0]}
+              <Calendar size={13} />
+              Hire {creator.name.split(" ")[0]}
             </motion.button>
 
-            {/* View Service */}
             {ctas.length > 0 && (
               <button
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   handleCtaClick(ctas[0]);
-                 }}
-                 className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCtaClick(ctas[0]);
+                }}
+                className="h-11 px-4 rounded-xl border border-white/20 bg-black/40 backdrop-blur-md text-[10px] font-black uppercase tracking-widest text-white hover:bg-white/10 transition-colors shadow-lg shrink-0"
               >
-                 Service
+                Service
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Action Layer: Engagement Sidebar */}
       <div className="absolute right-4 bottom-24 z-30 flex flex-col items-center gap-5 pointer-events-auto">
-        {/* TikTok Style Profile Picture with follow dynamic overlap button */}
         <div className="flex flex-col items-center relative mb-4">
           <div
             onClick={onProfileClick}
@@ -1323,12 +1307,11 @@ export default function FeedCard({
               whileTap={{ scale: 0.85 }}
               onClick={handleFollowClick}
               disabled={isFollowingState}
-              className={`absolute -bottom-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-black/85 transition-all z-10 ${
-                isFollowingState ? "opacity-50 !bg-gray-500 scale-95" :
-                isFollowing
-                  ? "bg-emerald-500 text-white"
-                  : "bg-gradient-to-r from-red-500 to-pink-500 text-white"
-              }`}
+              className={`absolute -bottom-1.5 w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-black/85 transition-all z-10 ${isFollowingState ? "opacity-50 !bg-gray-500 scale-95" :
+                  isFollowing
+                    ? "bg-emerald-500 text-white"
+                    : "bg-gradient-to-r from-red-500 to-pink-500 text-white"
+                }`}
             >
               {isFollowingState ? (
                 <div className="w-2.5 h-2.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -1355,9 +1338,7 @@ export default function FeedCard({
             )}
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
-            {activeLikesCount >= 1000
-              ? (activeLikesCount / 1000).toFixed(1) + "k"
-              : activeLikesCount}
+            {safeStringify(activeLikesCount)}
           </span>
         </div>
 
@@ -1370,7 +1351,7 @@ export default function FeedCard({
             <MessageSquare size={20} />
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
-            {activeCommentsCount}
+            {safeStringify(activeCommentsCount)}
           </span>
         </div>
 
@@ -1401,7 +1382,7 @@ export default function FeedCard({
             onClick={() => setShowRepostsDrawer(true)}
             className="text-[10px] font-bold text-white/80 drop-shadow-md hover:text-green-400 cursor-pointer transition-colors"
           >
-            {activeRepostsCount}
+            {safeStringify(activeRepostsCount)}
           </button>
         </div>
 
@@ -1422,12 +1403,7 @@ export default function FeedCard({
             )}
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
-            {postFromStore?.saves_count ||
-              (detailData &&
-              !Array.isArray(detailData) &&
-              (detailData as any).socialStats
-                ? (detailData as any).socialStats.saves
-                : (stats as any).saves || 0)}
+            {safeStringify(postFromStore?.saves_count || (detailData && !Array.isArray(detailData) && (detailData as any).socialStats ? (detailData as any).socialStats.saves : (stats as any).saves))}
           </span>
         </div>
 
@@ -1440,39 +1416,29 @@ export default function FeedCard({
             <Share2 size={18} />
           </motion.button>
           <span className="text-[10px] font-bold text-white/80 drop-shadow-md">
-            {postFromStore?.shares_count ||
-              (detailData &&
-              !Array.isArray(detailData) &&
-              (detailData as any).socialStats
-                ? (detailData as any).socialStats.shares
-                : (stats as any).shares || 0)}
+            {safeStringify(postFromStore?.shares_count || (detailData && !Array.isArray(detailData) && (detailData as any).socialStats ? (detailData as any).socialStats.shares : (stats as any).shares))}
           </span>
         </div>
 
         <div className="flex flex-col items-center gap-1 group mt-2">
           <motion.button
-            whileTap={{ scale: 0.8 }}
             onClick={(e) => {
-               e.stopPropagation();
-               setIsHidden(true);
-               setHiddenReason("skipped");
-               
-               // Delay removing from feed to allow undo
-               if (typeof id === "string") {
-                  setTimeout(() => {
-                    // we can't easily check if it's still hidden because of closure,
-                    // but we can just fire the backend event and let it be
-                    const useFeedStore = require('../features/feed/stores/useFeedStore').useFeedStore;
-                    fetch("/api/feed/not-interested", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${localStorage.getItem("hustle_auth_token")}`
-                      },
-                      body: JSON.stringify({ postId: id })
-                    }).catch(console.error);
-                  }, 4000);
-               }
+              e.stopPropagation();
+              setIsHidden(true);
+              setHiddenReason("skipped");
+
+              if (typeof id === "string") {
+                setTimeout(() => {
+                  fetch("/api/feed/not-interested", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${localStorage.getItem("hustle_auth_token")}`
+                    },
+                    body: JSON.stringify({ postId: id })
+                  }).catch(console.error);
+                }, 4000);
+              }
             }}
             className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:text-orange-400 transition-colors"
           >
@@ -1485,10 +1451,9 @@ export default function FeedCard({
 
         <div className="flex flex-col items-center gap-1 group mt-2">
           <motion.button
-            whileTap={{ scale: 0.8 }}
             onClick={(e) => {
-               e.stopPropagation();
-               setShowReportSheet(true);
+              e.stopPropagation();
+              setShowReportSheet(true);
             }}
             className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:text-red-500 transition-colors"
           >
@@ -1498,10 +1463,8 @@ export default function FeedCard({
             Report
           </span>
         </div>
-
       </div>
 
-      {/* Interactive Comment Drawer */}
       <AnimatePresence>
         {showComments && (
           <>
@@ -1550,7 +1513,6 @@ export default function FeedCard({
                   </div>
                 ) : (
                   <>
-                    {/* Comments Tree */}
                     {typeof id === "string" ? (
                       commentsForThisPost.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -1581,30 +1543,18 @@ export default function FeedCard({
                                       {c.profiles?.avatar_url ? (
                                         <img
                                           src={c.profiles.avatar_url}
-                                          alt={
-                                            c.profiles.full_name ||
-                                            c.profiles.username ||
-                                            ""
-                                          }
+                                          alt={c.profiles.full_name || c.profiles.username || ""}
                                           className="w-full h-full object-cover"
                                           referrerPolicy="no-referrer"
                                         />
                                       ) : (
-                                        (
-                                          c.profiles?.full_name ||
-                                          c.profiles?.username ||
-                                          "U"
-                                        )
-                                          .charAt(0)
-                                          .toUpperCase()
+                                        (c.profiles?.full_name || c.profiles?.username || "U").charAt(0).toUpperCase()
                                       )}
                                     </div>
                                     <div className="flex-1 flex flex-col pt-0.5 min-w-0">
                                       <div className="flex items-center justify-between w-full">
                                         <span className="font-bold text-white/50 text-[11px] truncate">
-                                          {c.profiles?.full_name ||
-                                            c.profiles?.username ||
-                                            "Unknown User"}
+                                          {c.profiles?.full_name || c.profiles?.username || "Unknown User"}
                                         </span>
                                         <span className="text-[10px] text-white/20 font-medium whitespace-nowrap">
                                           {formatTime(c.created_at)}
@@ -1619,14 +1569,9 @@ export default function FeedCard({
                                           onClick={() => {
                                             setReplyingTo({
                                               id: c.id,
-                                              user:
-                                                c.profiles?.username ||
-                                                c.profiles?.full_name ||
-                                                "user",
+                                              user: c.profiles?.username || c.profiles?.full_name || "user",
                                             });
-                                            setNewComment(
-                                              `@${c.profiles?.username || c.profiles?.full_name || "user"} `,
-                                            );
+                                            setNewComment(`@${c.profiles?.username || c.profiles?.full_name || "user"} `);
                                             commentInputRef.current?.focus();
                                           }}
                                         >
@@ -1635,11 +1580,7 @@ export default function FeedCard({
                                         <div className="flex items-center gap-1.5 cursor-pointer hover:text-red-400 transition-colors">
                                           <Heart
                                             size={12}
-                                            className={
-                                              c.liked
-                                                ? "fill-red-500 text-red-500"
-                                                : ""
-                                            }
+                                            className={c.liked ? "fill-red-500 text-red-500" : ""}
                                           />
                                           <span>Like</span>
                                         </div>
@@ -1660,7 +1601,6 @@ export default function FeedCard({
                         ))
                       )
                     ) : (
-                      /* Mock Fallback */
                       commentsList
                         .filter((c) => !c.isRepostReply)
                         .map(function renderComment(
@@ -1706,31 +1646,24 @@ export default function FeedCard({
                                     </span>
                                     <div
                                       className="flex items-center gap-1.5 cursor-pointer hover:text-red-400 transition-colors"
-                                      onClick={() =>
-                                        toggleLikeComment(comment.id)
-                                      }
+                                      onClick={() => toggleLikeComment(comment.id)}
                                     >
                                       <Heart
                                         size={12}
-                                        className={
-                                          comment.liked
-                                            ? "fill-red-500 text-red-500"
-                                            : ""
-                                        }
+                                        className={comment.liked ? "fill-red-500 text-red-500" : ""}
                                       />
                                       <span>Like</span>
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                              {comment.replies &&
-                                comment.replies.length > 0 && (
-                                  <div className="flex flex-col gap-4">
-                                    {comment.replies.map((reply: any) =>
-                                      renderComment(reply, depth + 1),
-                                    )}
-                                  </div>
-                                )}
+                              {comment.replies && comment.replies.length > 0 && (
+                                <div className="flex flex-col gap-4">
+                                  {comment.replies.map((reply: any) =>
+                                    renderComment(reply, depth + 1),
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })
@@ -1740,7 +1673,6 @@ export default function FeedCard({
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 bg-[#0f0f0f] border-t border-white/5 pb-8 flex flex-col z-10">
-                {/* Replying indicator banner */}
                 {replyingTo && !(replyingTo as any).isRepost && (
                   <div className="flex items-center justify-between px-6 py-2 bg-white/5 border-b border-white/5 text-[11px] text-white/50 shrink-0">
                     <span>
@@ -1770,14 +1702,8 @@ export default function FeedCard({
                       type="text"
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handlePostComment()
-                      }
-                      placeholder={
-                        replyingTo
-                          ? `Reply to @${replyingTo.user}...`
-                          : "Add a comment..."
-                      }
+                      onKeyDown={(e) => e.key === "Enter" && handlePostComment()}
+                      placeholder={replyingTo ? `Reply to @${replyingTo.user}...` : "Add a comment..."}
                       className="bg-transparent border-none outline-none flex-1 text-sm placeholder:text-white/30"
                     />
                     <button
@@ -1798,7 +1724,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Dedicated Reposts Thoughts Drawer */}
       <AnimatePresence>
         {showRepostsDrawer && (
           <>
@@ -1872,9 +1797,7 @@ export default function FeedCard({
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center font-bold text-white/30">
-                                  {(profile?.username || "U")
-                                    .charAt(0)
-                                    .toUpperCase()}
+                                  {(profile?.username || "U").charAt(0).toUpperCase()}
                                 </div>
                               )}
                             </div>
@@ -1882,9 +1805,7 @@ export default function FeedCard({
                               <div className="flex items-center justify-between">
                                 <div className="flex flex-col">
                                   <span className="font-black text-xs text-white/90 truncate">
-                                    {profile?.full_name ||
-                                      profile?.username ||
-                                      "Unknown"}
+                                    {profile?.full_name || profile?.username || "Unknown"}
                                   </span>
                                   <span className="text-[10px] text-green-400 font-bold flex items-center gap-1 uppercase tracking-tighter">
                                     <Repeat2 size={10} /> REPOSTED
@@ -1899,9 +1820,7 @@ export default function FeedCard({
                                 <div className="mt-3 flex flex-col gap-2">
                                   <textarea
                                     value={editingRepostComment}
-                                    onChange={(e) =>
-                                      setEditingRepostComment(e.target.value)
-                                    }
+                                    onChange={(e) => setEditingRepostComment(e.target.value)}
                                     className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-green-500/40"
                                     rows={3}
                                     autoFocus
@@ -1939,10 +1858,7 @@ export default function FeedCard({
                                   onClick={() => {
                                     setReplyingTo({
                                       id: rep.id,
-                                      user:
-                                        profile?.username ||
-                                        profile?.full_name ||
-                                        "user",
+                                      user: profile?.username || profile?.full_name || "user",
                                       isRepost: true,
                                       repost_id: rep.id,
                                     } as any);
@@ -1951,37 +1867,28 @@ export default function FeedCard({
                                 >
                                   <MessageCircle size={12} /> Reply
                                 </span>
-                                {user &&
-                                  rep.user_id === user.id &&
-                                  (() => {
-                                    const rem = getEditingRemainingText(
-                                      rep.created_at,
-                                    );
-                                    if (!rem) return null;
-                                    return (
-                                      <span
-                                        className="cursor-pointer text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                                        onClick={() => {
-                                          setEditingRepostId(rep.id);
-                                          setEditingRepostComment(
-                                            rep.repost_comment || "",
-                                          );
-                                        }}
-                                      >
-                                        {rep.repost_comment
-                                          ? "EDIT"
-                                          : "ADD THOUGHT"}{" "}
-                                        <span className="text-[8px] text-blue-400/40 font-normal">
-                                          ({rem})
-                                        </span>
+                                {user && rep.user_id === user.id && (() => {
+                                  const rem = getEditingRemainingText(rep.created_at);
+                                  if (!rem) return null;
+                                  return (
+                                    <span
+                                      className="cursor-pointer text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                      onClick={() => {
+                                        setEditingRepostId(rep.id);
+                                        setEditingRepostComment(rep.repost_comment || "");
+                                      }}
+                                    >
+                                      {rep.repost_comment ? "EDIT" : "ADD THOUGHT"}{" "}
+                                      <span className="text-[8px] text-blue-400/40 font-normal">
+                                        ({rem})
                                       </span>
-                                    );
-                                  })()}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
 
-                          {/* Replies to this Repost Thought */}
                           {replies.length > 0 && (
                             <div className="flex flex-col mt-2">
                               {replies.map((reply: any) => (
@@ -2007,17 +1914,14 @@ export default function FeedCard({
                                               />
                                             ) : (
                                               <span className="text-[10px] font-bold text-white/30">
-                                                {(r.profiles?.username || "U")
-                                                  .charAt(0)
-                                                  .toUpperCase()}
+                                                {(r.profiles?.username || "U").charAt(0).toUpperCase()}
                                               </span>
                                             )}
                                           </div>
                                           <div className="flex-1 flex flex-col pt-0.5">
                                             <div className="flex items-center justify-between">
                                               <span className="font-bold text-[10px] text-white/50">
-                                                {r.profiles?.username ||
-                                                  "Unknown"}
+                                                {r.profiles?.username || "Unknown"}
                                               </span>
                                               <span className="text-[9px] text-white/20">
                                                 {formatTime(r.created_at)}
@@ -2030,9 +1934,7 @@ export default function FeedCard({
                                               onClick={() => {
                                                 setReplyingTo({
                                                   id: r.id,
-                                                  user:
-                                                    r.profiles?.username ||
-                                                    "user",
+                                                  user: r.profiles?.username || "user",
                                                   isRepost: true,
                                                   repost_id: rep.id,
                                                 } as any);
@@ -2047,10 +1949,7 @@ export default function FeedCard({
                                         {r.replies && r.replies.length > 0 && (
                                           <div className="flex flex-col">
                                             {r.replies.map((child: any) =>
-                                              renderRepostReply(
-                                                child,
-                                                depth + 1,
-                                              ),
+                                              renderRepostReply(child, depth + 1),
                                             )}
                                           </div>
                                         )}
@@ -2076,7 +1975,6 @@ export default function FeedCard({
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 bg-[#0f0f0f] border-t border-white/5 pb-8 flex flex-col z-10">
-                {/* Replying indicator for repost thread */}
                 {replyingTo && (replyingTo as any).isRepost && (
                   <div className="flex items-center justify-between px-6 py-2 bg-green-500/5 border-b border-green-500/10 text-[11px] text-green-400/60 shrink-0">
                     <span className="flex items-center gap-1.5">
@@ -2105,14 +2003,8 @@ export default function FeedCard({
                       type="text"
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handlePostComment()
-                      }
-                      placeholder={
-                        replyingTo
-                          ? `Reply to thought...`
-                          : "Reply to a repost thought..."
-                      }
+                      onKeyDown={(e) => e.key === "Enter" && handlePostComment()}
+                      placeholder={replyingTo ? `Reply to thought...` : "Reply to a repost thought..."}
                       className="bg-transparent border-none outline-none flex-1 text-sm placeholder:text-white/30"
                     />
                     <button
@@ -2133,7 +2025,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Save Collection Drawer */}
       <AnimatePresence>
         {showSaveCollections && (
           <>
@@ -2235,7 +2126,7 @@ export default function FeedCard({
                         size={20}
                         className={
                           postFromStore?.collection_id ===
-                          (collection.id === "general" ? null : collection.id)
+                            (collection.id === "general" ? null : collection.id)
                             ? "text-blue-400 fill-current"
                             : "text-white/20"
                         }
@@ -2249,10 +2140,10 @@ export default function FeedCard({
                         (collection.id === "general"
                           ? null
                           : collection.id) && (
-                        <span className="text-[10px] text-blue-400 font-bold">
-                          CURRENT
-                        </span>
-                      )}
+                          <span className="text-[10px] text-blue-400 font-bold">
+                            CURRENT
+                          </span>
+                        )}
                     </div>
                   </button>
                 ))}
@@ -2262,7 +2153,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Repost Drawer */}
       <AnimatePresence>
         {showRepostSheet && (
           <>
@@ -2297,7 +2187,6 @@ export default function FeedCard({
                     autoFocus
                   />
 
-                  {/* Quoted Post Preview */}
                   <div className="mt-2 mb-4 p-3 rounded-xl border border-white/10 bg-white/5 flex gap-3 opacity-80">
                     <div
                       className="w-10 h-10 bg-zinc-800 rounded bg-cover bg-center"
@@ -2334,7 +2223,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Share Drawer */}
       <AnimatePresence>
         {showShareSheet && (
           <>
@@ -2500,7 +2388,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* CTA Bottom Sheet (e.g. Booking/Buy Flow) */}
       <AnimatePresence>
         {showCtaFlow && (
           <>
@@ -2534,7 +2421,6 @@ export default function FeedCard({
               </div>
 
               <div className="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-6">
-                {/* Provider Info */}
                 <div className="flex items-center gap-4 pb-6 border-b border-white/10 mt-2">
                   <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/5 flex items-center justify-center font-bold text-xl text-white/40">
                     {creator.name.charAt(0)}
@@ -2561,7 +2447,6 @@ export default function FeedCard({
                   </div>
                 </div>
 
-                {/* Requirements/Details stub */}
                 {selectedCta?.type === "book" && (
                   <div className="flex flex-col gap-3">
                     <h5 className="font-bold text-sm text-white/80">
@@ -2623,13 +2508,12 @@ export default function FeedCard({
                     onClick={() => {
                       setShowCtaFlow(false);
                     }}
-                    className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 text-base transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 ${
-                      selectedCta?.type === "apply"
+                    className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 text-base transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 ${selectedCta?.type === "apply"
                         ? "bg-purple-600 text-white hover:bg-purple-500"
                         : selectedCta?.type === "ad"
                           ? "bg-blue-600 text-white hover:bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                           : "bg-white text-black hover:bg-white/90"
-                    }`}
+                      }`}
                   >
                     {selectedCta?.type === "book"
                       ? "Select Date & Time"
@@ -2646,7 +2530,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Summary Preview Sheet */}
       <AnimatePresence>
         {showSummarySheet && (
           <>
@@ -2698,7 +2581,7 @@ export default function FeedCard({
                           />
                         </div>
                         <div className="flex flex-col gap-1 flex-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-white/30">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-white/33">
                             {item.type}
                           </span>
                           <h3 className="text-xl font-bold tracking-tight">
@@ -2760,7 +2643,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Immersive Detail Screen */}
       <AnimatePresence>
         {showImmersiveDetail && selectedDetail && (
           <DetailScreen
@@ -2771,7 +2653,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Quick Actions Overlay (Long Press) */}
       <AnimatePresence>
         {showQuickActions && (
           <>
@@ -2844,7 +2725,6 @@ export default function FeedCard({
                     ))}
                   </div>
 
-                  {/* Prominent High-Visibility Action: Report */}
                   <button
                     onClick={() => {
                       setShowReportSheet(true);
@@ -2871,7 +2751,6 @@ export default function FeedCard({
         )}
       </AnimatePresence>
 
-      {/* Fullscreen Media Viewer */}
       <AnimatePresence>
         {showFullViewer && (() => {
           const currentMedia = content.mediaArray && content.mediaArray.length > 0
@@ -2891,17 +2770,17 @@ export default function FeedCard({
 
       <AnimatePresence>
         {showReportSheet && (
-           <ReportSheet
-              onClose={() => setShowReportSheet(false)}
-              onReportSuccess={() => {
-                setShowReportSheet(false);
-                setIsHidden(true);
-                setHiddenReason("reported");
-              }}
-              entityName={content.caption.substring(0, 30) + (content.caption.length > 30 ? "..." : "") || "this post"}
-              targetId={id.toString()}
-              targetType="post"
-           />
+          <ReportSheet
+            onClose={() => setShowReportSheet(false)}
+            onReportSuccess={() => {
+              setShowReportSheet(false);
+              setIsHidden(true);
+              setHiddenReason("reported");
+            }}
+            entityName={content.caption.substring(0, 30) + (content.caption.length > 30 ? "..." : "") || "this post"}
+            targetId={id.toString()}
+            targetType="post"
+          />
         )}
       </AnimatePresence>
     </div>
@@ -2917,8 +2796,6 @@ function RepostThoughtsPreview({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const thoughts = reposts.filter((r) => r.repost_comment);
-
-  // Use all reposts if no thoughts, or cycle through thoughts
   const displayItems = thoughts.length > 0 ? thoughts : reposts.slice(0, 5);
 
   useEffect(() => {
@@ -2929,8 +2806,9 @@ function RepostThoughtsPreview({
     return () => clearInterval(interval);
   }, [displayItems.length]);
 
+  if (displayItems.length === 0 || !displayItems[currentIndex]) return null;
+
   const activeRep = displayItems[currentIndex];
-  // Avatars for the stack (up to 3)
   const previewAvatars = reposts.slice(0, 3);
 
   return (

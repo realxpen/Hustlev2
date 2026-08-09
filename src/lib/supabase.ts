@@ -284,6 +284,8 @@ class MockSupabaseClient {
       orderField: '',
       orderAsc: false,
       limitNum: 0,
+      rangeStart: null as number | null,
+      rangeEnd: null as number | null,
 
       select: (cols?: string) => {
         return builder;
@@ -382,6 +384,14 @@ class MockSupabaseClient {
         builder.limitNum = num;
         return builder;
       },
+      range: (from: number, to: number) => {
+        builder.rangeStart = from;
+        builder.rangeEnd = to;
+        return builder;
+      },
+      or: () => {
+        return builder;
+      },
       single: () => {
         let results = [...(this.storageData[table] || [])];
         builder.filters.forEach(filter => {
@@ -415,6 +425,10 @@ class MockSupabaseClient {
 
         if (builder.limitNum > 0) {
           results = results.slice(0, builder.limitNum);
+        }
+
+        if (builder.rangeStart !== null && builder.rangeEnd !== null) {
+          results = results.slice(builder.rangeStart, builder.rangeEnd + 1);
         }
 
         return Promise.resolve({ data: results, error: null }).then(resolve);

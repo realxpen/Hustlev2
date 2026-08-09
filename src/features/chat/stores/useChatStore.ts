@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '../../../lib/supabase';
 import { useAppOrchestrator } from '../../../stores/useAppOrchestrator';
-import type { Conversation, Message, Profile } from '../../../types';
+import type { Conversation, Message, Profile } from '../../../types'; // Assuming Database type is available for table types
+import type { RealtimeChannel, User, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export interface ChatParticipant extends Profile {}
 
@@ -19,6 +20,47 @@ export interface ChatMessage extends Omit<Message, 'message_type' | 'media_metad
   message_type: 'text' | 'image' | 'video' | 'file' | 'voice' | 'shared_post' | 'reply' | 'system';
   reply_to_message_id?: string | null;
 }
+
+// Helper interface for `conversation_participants` select with profiles
+interface ConversationParticipantWithProfile {
+  conversation_id: string;
+  user_id: string;
+  profiles: Profile;
+}
+
+// Basic conversation_participants row
+interface ConversationParticipantRow {
+  conversation_id: string;
+  user_id: string;
+}
+
+// Helper interface for messages select with profiles and reactions
+interface MessageWithProfileAndReactions extends MessageRow {
+  profiles: Profile;
+  message_reactions: MessageReactionRow[];
+}
+// Define the type for the 'messages' table row for RealtimePostgresChangesPayload
+// This is derived from ChatMessage and common Supabase table structures.
+interface MessageRow {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string | null;
+  message_type: 'text' | 'image' | 'video' | 'file' | 'voice' | 'shared_post' | 'reply' | 'system';
+  created_at: string;
+  updated_at: string;
+  is_read: boolean;
+  read_at: string | null;
+  shared_post_id: string | null;
+  media_url: string | null;
+  media_metadata: any | null;
+  delivered_at: string | null;
+  expires_at: string | null;
+  reply_to_message_id: string | null;
+}
+
+// Define the type for the 'message_reactions' table row
+interface MessageReactionRow { id: string; message_id: string; user_id: string; emoji: string; created_at: string; }
 
 interface ChatState {
   conversations: ChatConversation[];
@@ -174,7 +216,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Reverse because we queried descending, but we want to prepend them to state ascending
         data.reverse();
         
-        const reactionsMap: Record<string, any[]> = {};
+        const reactionsMap: Record<string, MessageReactionRow[]> = {};
         
         const mappedMessages = data.map((m: any) => {
           if (m.message_reactions && m.message_reactions.length > 0) {
@@ -190,7 +232,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set(state => {
           const current = state.messages[conversationId] || [];
           // Prepend historical messages, ensure uniqueness
-          const newMsgIds = new Set(mappedMessages.map((m:any) => m.id));
+          const newMsgIds = new Set(mappedMessages.map((m: ChatMessage) => m.id));
           const filteredCurrent = current.filter(m => !newMsgIds.has(m.id));
           const nextMessages = { ...state.messages, [conversationId]: [...mappedMessages, ...filteredCurrent] };
           
@@ -225,7 +267,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
 
-      const conversationIds = Array.from(new Set(participations.map(p => p.conversation_id as string)));
+      const conversationIds = Array.from(new Set(participations.map((p: { conversation_id: string }) => p.conversation_id as string)));
 
       const { data: convData, error: convError } = await supabase
         .from('conversations')
@@ -322,9 +364,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .select('conversation_id')
         .eq('user_id', userBId);
 
-      const listA = participationsA?.map(p => p.conversation_id) || [];
-      const listB = participationsB?.map(p => p.conversation_id) || [];
-      const common = listA.filter(id => listB.includes(id));
+      const listA: string[] = participationsA?.map((p: ConversationParticipantRow) => p.conversation_id) || [];
+      const listB: string[] = participationsB?.map((p: ConversationParticipantRow) => p.conversation_id) || [];
+      const common: string[] = listA.filter((id: string) => listB.includes(id));
 
       if (common.length > 0) {
         return common[0];
@@ -380,7 +422,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
           const { message_reactions, ...rest } = m;
           return {
-            ...rest,
+            ...(rest as MessageRow), // Cast rest to MessageRow to ensure type compatibility
             sender: m.profiles
           };
         });
@@ -575,8 +617,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // 5. Subscribe to message arrivals in real-time
   subscribeToMessages: (conversationId: string) => {
-    let currentUserId: string | null = null;
-    supabase.auth.getUser().then(({ data }) => {
+    let currentUserId: string | null = null; // Declare currentUserId here
+    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
       currentUserId = data.user?.id || null;
     });
 
@@ -586,7 +628,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         schema: 'public',
         table: 'messages',
         filter: `conversation_id=eq.${conversationId}`
-      }, async (payload) => {
+      }, async (payload: RealtimePostgresChangesPayload<MessageRow>) => { // payload.new is already MessageRow
         const newMsg = payload.new as any;
         
         const { data: profile } = await supabase
@@ -594,7 +636,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           .select('*')
           .eq('id', newMsg.sender_id)
           .single();
-
+        
         const fullMsg = {
           ...newMsg,
           sender: profile || null
@@ -660,9 +702,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         event: '*',
         schema: 'public',
         table: 'message_reactions'
-        // Ideally filter by message_id in conversation, but we can't easily join in realtime filters.
-        // We'll update the state optimistically or check if the message belongs to the conversation.
-      }, async (payload) => {
+      }, async (payload: RealtimePostgresChangesPayload<MessageReactionRow>) => {
         const { eventType, new: newRec, old: oldRec } = payload;
         
         set(state => {
@@ -675,7 +715,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               nextReactions[msgId] = [...current, newRec];
             }
           } else if (eventType === 'DELETE') {
-            const msgId = oldRec.message_id; // the old record only has id in standard replication? Oh actually it should have full old record if replica identity full, but let's assume it at least has message_id if we want. If not we loop and find.
+            const msgId = oldRec.message_id;
             if (msgId && nextReactions[msgId]) {
               nextReactions[msgId] = nextReactions[msgId].filter(r => r.id !== oldRec.id);
             } else {
@@ -752,7 +792,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (error) throw error;
 
       set(state => ({
-        conversations: state.conversations.map(c => 
+        conversations: state.conversations.map((c: ChatConversation) => 
           c.id === conversationId ? { ...c, ...settings } : c
         )
       }));
@@ -761,15 +801,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  // 7. Track Global Online Presence
+  // 7. Track Global Online Presence safely across guest environments
   trackPresence: () => {
     let currentUserId: string | null = null;
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
       currentUserId = data.user?.id || null;
       if (currentUserId) {
-        // Clean up any existing duplicate channel
-        const existing = supabase.getChannels().filter(c => c.topic === 'global:presence' || c.topic === 'realtime:global:presence');
-        existing.forEach(c => supabase.removeChannel(c));
+        // Clean up any existing duplicate channel with safe verification guard
+        if (typeof supabase.getChannels === 'function') {
+          const existing = supabase.getChannels().filter((c: RealtimeChannel) => c.topic === 'global:presence' || c.topic === 'realtime:global:presence');
+          existing.forEach((c: RealtimeChannel) => supabase.removeChannel(c));
+        }
 
         const presenceChannel = supabase.channel('global:presence', {
           config: { presence: { key: currentUserId } }
@@ -784,7 +826,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set({ onlineUsers });
         });
 
-        presenceChannel.subscribe(async (status) => {
+        presenceChannel.subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             await presenceChannel.track({ online: true, updatedAt: new Date().toISOString() });
           }
@@ -793,7 +835,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     return () => {
-      supabase.getChannels().filter(c => c.topic === 'global:presence' || c.topic === 'realtime:global:presence').forEach(c => supabase.removeChannel(c));
+      if (typeof supabase.getChannels === 'function') {
+        supabase.getChannels().filter((c: RealtimeChannel) => c.topic === 'global:presence' || c.topic === 'realtime:global:presence').forEach((c: RealtimeChannel) => supabase.removeChannel(c));
+      }
     };
   },
 
@@ -884,11 +928,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
          p_emoji: emoji
        });
        
-       // Real-time will handle the update via postgres_changes on message_reactions if we subscribe to it,
-       // However we didn't add the listener here. Let's do it optimistically.
        const { data: { user } } = await supabase.auth.getUser();
        if (!user) return;
-
+       
        set(state => {
           const currentReactions = state.messageReactions[messageId] || [];
           const existsIndex = currentReactions.findIndex(r => r.user_id === user.id && r.emoji === emoji);

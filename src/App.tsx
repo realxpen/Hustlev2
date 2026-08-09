@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import SplashScreen from "./components/SplashScreen";
 import AuthScreen from "./components/AuthScreen";
 import EntryTransition from "./components/EntryTransition";
@@ -32,14 +32,22 @@ export default function App() {
     }
   }, [session, initializeRealtime]);
 
+  // Handle splash completion and session redirection strategies
   const handleSplashComplete = () => {
-    // If initialized and we have a session, skip auth screen (unless in recovery mode)
-    if (isInitialized && session && !isRecoveryMode) {
+    if (session && !isRecoveryMode) {
       setAppState("transition");
     } else {
       setAppState("auth");
     }
   };
+
+  // Safe fallback effect: automatically step past splash or auth screen 
+  // if an initialized session arrives mid-lifecycle
+  useEffect(() => {
+    if (isInitialized && session && !isRecoveryMode && (appState === "splash" || appState === "auth")) {
+      setAppState("transition");
+    }
+  }, [isInitialized, session, isRecoveryMode, appState]);
 
   useEffect(() => {
     if (isInitialized && isRecoveryMode) {
@@ -48,12 +56,12 @@ export default function App() {
   }, [isRecoveryMode, isInitialized]);
 
   return (
-    <main className="relative bg-black min-h-screen selection:bg-white selection:text-black">
+    <main className="relative bg-black min-h-screen selection:bg-white selection:text-black overflow-x-hidden">
       <AnimatePresence mode="wait">
         {appState === "splash" && (
           <SplashScreen key="splash" onComplete={handleSplashComplete} />
         )}
-        
+
         {appState === "auth" && (
           <AuthScreen key="auth" onLogin={() => setAppState("transition")} />
         )}
@@ -64,8 +72,10 @@ export default function App() {
 
         {appState === "home" && (
           <OnboardingGuard>
-            <MockHome key="home" />
-            <ProfileCompletionPopup key="profile-popup" />
+            <div className="w-full h-full animate-fade-in">
+              <MockHome key="home" />
+              <ProfileCompletionPopup key="profile-popup" />
+            </div>
           </OnboardingGuard>
         )}
       </AnimatePresence>

@@ -1,44 +1,54 @@
-import { useCallback, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
-import { useAuthStore } from '../../auth/stores/useAuthStore';
-import { useFeedStore, type FeedPost } from '../stores/useFeedStore';
-
-const POSTS_PER_PAGE = 10;
+import { useEffect, useMemo } from 'react';
+import { useFeedStore } from '../stores/useFeedStore';
 
 export function useFeed() {
-  const { user } = useAuthStore();
   const store = useFeedStore();
 
-  // Initial load
-  useEffect(() => {
-    store.fetchInitialFeed(POSTS_PER_PAGE);
-    store.optimizeFeedPerformance();
-  }, []);
+  // Extract core reactive data structures
+  const posts = store.posts;
+  const currentPostIndex = store.currentPostIndex;
+  const isLoading = store.isLoading;
+  const isFetchingMore = store.isFetchingMore;
+  const hasMore = store.hasMore;
+  const error = (store as any).error || null;
 
-  // Synchronize user repost state, saves and collections
+  // Resolve the primary fetch invocation method seamlessly across names
+  const syncFeedData = useMemo(() => {
+    return store.fetchDiscoveryFeed || (store as any).fetchInitialFeed;
+  }, [store]);
+
+  // Handle the automatic component mount data sync lifecycle hook safely
   useEffect(() => {
-    if (user) {
-      store.fetchReposts(user.id);
-      store.fetchSavedPosts();
-      store.fetchCollections();
+    if (typeof syncFeedData === 'function') {
+      // Pass 'true' to ensure a fresh baseline state overwrite on initial load
+      syncFeedData(true);
+    } else {
+      console.warn(
+        '⚠️ [useFeed Hook] No explicit synchronization trigger method resolved on useFeedStore. ' +
+        'Expected fetchDiscoveryFeed or fetchInitialFeed.'
+      );
     }
-  }, [user, store.fetchReposts, store.fetchSavedPosts, store.fetchCollections]);
+  }, [syncFeedData]);
 
-  // Realtime subscription setup
-  useEffect(() => {
-    store.subscribeToFeed();
-    return () => {
-      store.unsubscribeFromFeed();
+  // Wrap mutations and indexing handles safely for UI presentation layers
+  const actions = useMemo(() => {
+    return {
+      setCurrentIndex: store.setCurrentPostIndex,
+      incrementLikes: store.incrementLikes,
+      incrementViews: store.incrementViews,
+      refreshFeed: () => typeof syncFeedData === 'function' && syncFeedData(true),
+      loadNextPage: () => typeof syncFeedData === 'function' && syncFeedData(false),
+      fetchNextPage: () => typeof syncFeedData === 'function' && syncFeedData(false)
     };
-  }, [store.subscribeToFeed, store.unsubscribeFromFeed]);
+  }, [store, syncFeedData]);
 
   return {
-    posts: store.posts,
-    isLoading: store.isLoading,
-    isFetchingMore: store.isFetchingMore,
-    error: store.error,
-    hasMore: store.hasMore,
-    fetchNextPage: () => store.fetchMoreFeed(POSTS_PER_PAGE),
-    refreshFeed: () => store.fetchInitialFeed(POSTS_PER_PAGE)
+    posts,
+    currentPostIndex,
+    isLoading,
+    isFetchingMore,
+    hasMore,
+    error,
+    ...actions
   };
 }

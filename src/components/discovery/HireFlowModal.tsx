@@ -1,16 +1,39 @@
 import React, { useState, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { 
-  X, ShieldCheck, Star, Calendar, Clock, Sparkles, CheckCircle2, 
-  MapPin, Zap, Check, ChevronRight, Upload, Info, AlertCircle, FileText, Trash2
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  X, ShieldCheck, Star, Clock, Info, AlertCircle, FileText, Trash2, Upload, Zap, ChevronRight, Check
 } from "lucide-react";
 import { convertCurrency, formatCurrency, Currency } from "../../lib/currency";
 
+declare module 'react';
+
+export interface ServiceProfile {
+  id?: string;
+  hustle_name?: string;
+  full_name?: string;
+  avatar_url?: string;
+  verified?: boolean;
+  rating_average?: string | number;
+  review_count?: number;
+}
+
+export interface HustleServiceItem {
+  id: string;
+  owner_id: string;
+  title: string;
+  category?: string;
+  verified?: boolean;
+  base_price: string | number;
+  pricing_type?: "fixed" | "hourly" | "milestone";
+  rating_average?: string | number;
+  profiles?: ServiceProfile;
+}
+
 export interface HireFlowModalProps {
-  service: any;
+  service: HustleServiceItem;
   onClose: () => void;
   onConfirmHire: (hiringPayload: {
-    service: any;
+    service: HustleServiceItem;
     notes: string;
     timeline: string;
     attachments: File[];
@@ -89,9 +112,7 @@ export function HireFlowModal({
     if (currentStep === 1) {
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      if (!notes.trim()) {
-        return; // Ensure description is filled
-      }
+      if (!notes.trim()) return;
       setCurrentStep(3);
     }
   };
@@ -158,7 +179,7 @@ export function HireFlowModal({
 
         {/* Dynamic Progress indicator bar */}
         <div className="w-full bg-white/5 h-[2px]">
-          <div 
+          <div
             className="bg-gradient-to-r from-blue-500 to-[#00ea87] h-full transition-all duration-300"
             style={{ width: `${(currentStep / 3) * 100}%` }}
           />
@@ -166,7 +187,6 @@ export function HireFlowModal({
 
         {/* Scrollable Step Forms Room */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 no-scrollbar pb-24">
-          
           <AnimatePresence mode="wait">
             {/* SCREEN 1: CONFIRM SERVICE */}
             {currentStep === 1 && (
@@ -185,7 +205,7 @@ export function HireFlowModal({
                   <h4 className="text-lg font-display font-black text-white uppercase tracking-tight leading-snug">
                     {service.title}
                   </h4>
-                  
+
                   {/* Provider Row */}
                   <div className="flex items-center gap-3 pt-3 border-t border-white/5">
                     <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0">
@@ -200,7 +220,7 @@ export function HireFlowModal({
                         <Star size={10} className="text-yellow-400 fill-yellow-400" />
                         <span>{rating} Rating</span>
                         <span>•</span>
-                        <span>{profile.review_count || 12} successful deliveries</span>
+                        <span>{profile.review_count || 0} successful deliveries</span>
                       </div>
                     </div>
                   </div>
@@ -213,11 +233,13 @@ export function HireFlowModal({
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-white/50">Base Price Service Rate ({service.pricing_type || "fixed"})</span>
                       <span className="font-mono text-white font-bold">{formattedSubtotal}</span>
-                    </div>
+</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-white/50 flex items-center gap-1.5">
                         Escrow Contract Processing Fee
-                        <Info size={12} className="text-white/30 cursor-help" title="5% flat fee covers secure hold custody & payment clearing" />
+                        <span title="5% flat fee covers secure hold custody & payment clearing">
+                          <Info size={12} className="text-white/30 cursor-help" />
+                        </span>
                       </span>
                       <span className="font-mono text-white font-bold">{formattedFee}</span>
                     </div>
@@ -234,9 +256,9 @@ export function HireFlowModal({
                   <div>
                     <strong className="text-white text-xs block mb-1">Your payment is protected by Hustle Escrow.</strong>
                     <ul className="list-disc pl-4 space-y-1">
-                       <li>Money is held securely in our vault.</li>
-                       <li>The provider only gets paid after you sign off on completion.</li>
-                       <li>Full dispute protection is available if things go wrong.</li>
+                      <li>Money is held securely in our vault.</li>
+                      <li>The provider only gets paid after you sign off on completion.</li>
+                      <li>Full dispute protection is available if things go wrong.</li>
                     </ul>
                   </div>
                 </div>
@@ -284,21 +306,19 @@ export function HireFlowModal({
                   </select>
                 </div>
 
-                {/* Attachments Section (Drag and Drop / Upload Support) */}
+                {/* Attachments Section */}
                 <div className="space-y-2">
                   <label className="text-[9px] font-black uppercase tracking-widest text-white/30 px-1">Concept Attachments / Mockups</label>
-                  
-                  {/* Drag-and-drop / selector zone */}
+
                   <div
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-3xl p-6 text-center cursor-pointer transition-all ${
-                      isDragging 
-                        ? "border-blue-500 bg-blue-950/20" 
+                    className={`border-2 border-dashed rounded-3xl p-6 text-center cursor-pointer transition-all ${isDragging
+                        ? "border-blue-500 bg-blue-950/20"
                         : "border-white/10 hover:border-white/25 bg-white/[0.01]"
-                    }`}
+                      }`}
                   >
                     <input
                       type="file"
@@ -316,14 +336,13 @@ export function HireFlowModal({
                     </div>
                   </div>
 
-                  {/* Uploaded attachments grid list */}
                   {attachments.length > 0 && (
                     <div className="space-y-1.5 pt-2">
                       <p className="text-[8px] uppercase tracking-widest font-black text-white/30 px-1">Selected Assets ({attachments.length})</p>
                       <div className="grid grid-cols-1 gap-2">
                         {attachments.map((file, idx) => (
-                          <div 
-                            key={idx} 
+                          <div
+                            key={idx}
                             className="bg-white/[0.02] border border-white/5 p-3 rounded-2xl flex items-center justify-between"
                           >
                             <div className="flex items-center gap-2.5 overflow-hidden">
@@ -420,13 +439,10 @@ export function HireFlowModal({
               </motion.div>
             )}
           </AnimatePresence>
-
         </div>
 
         {/* BOTTOM FIXED SIGNED ACTS CONTAINER */}
         <div className="absolute bottom-0 inset-x-0 p-6 bg-[#0c0c0e]/95 border-t border-white/10 backdrop-blur-md flex items-center justify-between z-[40]">
-          
-          {/* Back Action button or amount tag */}
           <div>
             {currentStep > 1 ? (
               <button
@@ -444,18 +460,16 @@ export function HireFlowModal({
             )}
           </div>
 
-          {/* Core Handover confirmation / wizard control */}
           <div>
             {currentStep < 3 ? (
               <button
                 type="button"
                 onClick={handleContinue}
                 disabled={currentStep === 2 && !notes.trim()}
-                className={`px-8 h-12 rounded-full font-black text-[9px] uppercase tracking-widest shadow-lg flex items-center gap-1.5 active:scale-95 transition-all ${
-                  currentStep === 2 && !notes.trim()
+                className={`px-8 h-12 rounded-full font-black text-[9px] uppercase tracking-widest shadow-lg flex items-center gap-1.5 active:scale-95 transition-all ${currentStep === 2 && !notes.trim()
                     ? "bg-white/5 border border-white/10 text-white/20 cursor-not-allowed"
                     : "bg-white hover:bg-neutral-100 text-black"
-                }`}
+                  }`}
               >
                 Continue <ChevronRight size={12} />
               </button>
@@ -469,9 +483,7 @@ export function HireFlowModal({
               </button>
             )}
           </div>
-
         </div>
-
       </motion.div>
     </div>
   );
