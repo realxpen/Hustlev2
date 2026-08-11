@@ -1,4 +1,4 @@
-import type { Profile } from '../auth/types'; // adjustments based on tree pathing
+import type { Profile } from './index';
 
 export interface FeedPost {
   id: string;

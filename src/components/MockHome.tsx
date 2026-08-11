@@ -56,7 +56,7 @@ export default function MockHome() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedHustler, setSelectedHustler] = useState<any>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "profile">("home");
+  const [activeNav, setActiveNav] = useState<"home" | "live" | "wallet" | "profile" | "bookings" | "feed">("home");
   const [selectedChat, setSelectedChat] = useState<any>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeConversation, setActiveConversation] = useState<any>(null);
@@ -264,7 +264,7 @@ export default function MockHome() {
   };
 
   // Tab Order for Gestures
-  const TABS = ["home", "live", "wallet", "profile"] as const;
+  const TABS = ["home", "live", "wallet", "profile", "bookings", "feed"] as const;
 
   const handleTabChange = (dir: "left" | "right") => {
     const currentIndex = TABS.indexOf(activeNav);

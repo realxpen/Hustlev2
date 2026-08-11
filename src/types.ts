@@ -40,17 +40,19 @@ export enum EscrowStatus {
 
 export interface User {
   id: string;
-  name: string;
-  email: string;
+  name?: string;
+  email?: string;
   phone?: string;
   avatar?: string;
-  role: UserRole;
-  location: string;
-  rating: number;
-  jobsCompleted: number;
-  trustScore: number;
-  isVerified: boolean;
-  createdAt: string;
+  role?: UserRole;
+  location?: string;
+  rating?: number;
+  jobsCompleted?: number;
+  trustScore?: number;
+  isVerified?: boolean;
+  createdAt?: string;
+  created_at?: string;
+  user_metadata?: Record<string, any>;
 }
 
 export interface HustlerProfile {

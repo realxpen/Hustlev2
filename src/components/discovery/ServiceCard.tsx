@@ -98,7 +98,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({
                   {providerName}
                 </span>
                 {isVerified && (
-                  <ShieldCheck size={12} className="text-blue-400 shrink-0" title="Verified Professional" />
+                  <ShieldCheck size={12} className="text-blue-400 shrink-0" />
                 )}
               </div>
             </div>

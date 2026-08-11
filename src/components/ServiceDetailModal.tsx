@@ -11,6 +11,9 @@ interface ServiceDetailModalProps {
 
 export default function ServiceDetailModal({ listing, isOwner = false, onClose, onBook }: ServiceDetailModalProps) {
   const [activeTab, setActiveTab] = useState<"details" | "portfolio" | "analytics">("details");
+  const tabOptions: Array<"details" | "portfolio" | "analytics"> = isOwner
+    ? ["details", "portfolio", "analytics"]
+    : ["details", "portfolio"];
 
   if (!listing) return null;
 
@@ -98,7 +101,7 @@ export default function ServiceDetailModal({ listing, isOwner = false, onClose, 
 
              {/* Internal Navigation */}
              <div className="flex gap-6 border-b border-white/10 pb-4">
-                {(["details", "portfolio", ...(isOwner ? ["analytics"] : [])] as const).map(tab => (
+                {tabOptions.map((tab) => (
                    <button 
                      key={tab}
                      onClick={() => setActiveTab(tab)}

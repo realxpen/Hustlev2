@@ -11,11 +11,11 @@ interface AuthState {
   error: string | null;
   isInitialized: boolean;
   isRecoveryMode: boolean;
-  
+   
   // Capability permissions flags mapping user profile status properties
   isHustlerVerified: boolean;
   isAgentVerified: boolean;
-
+ 
   setUser: (user: User | null) => void;
   setProfile: (profile: Profile | null) => void;
   setLoading: (isLoading: boolean) => void;
@@ -24,6 +24,7 @@ interface AuthState {
   fetchProfile: (userId: string) => Promise<Profile | null>;
   initialize: () => Promise<void>; // Corrected name matching hook consumption fields exactly
   updateProfile: (profile: Partial<Profile>) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -73,6 +74,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     get().setProfile(merged);
   },
 
+  loginAsGuest: async () => {
+    const guestUser: User = {
+      id: 'guest-wqtg1i7',
+      email: 'guest@hustle.xyz',
+      created_at: new Date().toISOString(),
+      user_metadata: {
+        full_name: 'Guest Hustler',
+        username: 'guest_hustler',
+        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop'
+      }
+    } as any;
+
+    const guestProfile: Profile = {
+      id: guestUser.id,
+      username: 'guest_hustler',
+      full_name: 'Guest Hustler',
+      avatar_url: guestUser.user_metadata?.avatar_url || null,
+      bio: 'Guest mode profile for local onboarding demos.',
+      location: 'Lagos, Nigeria',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_hustler: true,
+      is_agent: false
+    } as any;
+
+    set({ user: guestUser, profile: guestProfile, session: null, isLoading: false, isInitialized: true, isRecoveryMode: false, isHustlerVerified: true, isAgentVerified: false });
+  },
+ 
   fetchProfile: async (userId) => {
     if (userId.includes('guest') || userId === 'usr_lagos_9081') {
       const mockProfile: Profile = {

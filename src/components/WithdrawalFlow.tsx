@@ -40,9 +40,11 @@ type WithdrawalStep =
   | "fiat_amount" 
   | "fiat_method" 
   | "fiat_status" 
-  | "crypto_select" 
-  | "crypto_address" 
-  | "crypto_status";
+  | "fiat_confirm"
+  | "crypto_select"
+  | "crypto_address"
+  | "crypto_status"
+  | "crypto_confirm";
 
 type StatusState = "pending" | "processing" | "approved" | "completed" | "failed";
 

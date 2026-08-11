@@ -6,7 +6,7 @@ import {
   Maximize2, Share, FileText, Settings, X, Disc, Hand
 } from "lucide-react";
 
-export type CallMode = "voice" | "video" | "conference";
+export type CallMode = "voice" | "video" | "conference" | "audio";
 export type CallState = "outgoing" | "connecting" | "active" | "ended";
 
 export interface CallInfo {
@@ -18,7 +18,7 @@ export interface CallInfo {
   mode: CallMode;
   context?: {
     title: string;
-    stage: string;
+    stage?: string;
     price?: string;
   };
 }

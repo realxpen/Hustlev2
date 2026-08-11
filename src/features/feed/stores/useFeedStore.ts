@@ -18,7 +18,7 @@ interface FeedState {
   activeMediaId: string | null;
   
   setCurrentPostIndex: (index: number) => void;
-  fetchDiscoveryFeed: (isRefresh: boolean) => Promise<void>;
+  fetchDiscoveryFeed: (isRefresh?: boolean) => Promise<void>;
   setPosts: (nextPosts: FeedPost[] | ((posts: FeedPost[]) => FeedPost[])) => void;
   addPostOptimistically: (post: FeedPost) => void;
   incrementLikes: (postId: string) => void;
@@ -40,6 +40,7 @@ interface FeedState {
   removePostFromCollection: (postId: string) => Promise<void>;
   copyPostLink: (postId: string) => Promise<void>;
   sharePostToUser: (postId: string, targetUserId: string) => Promise<void>;
+  hydrateFeed: (posts: FeedPost[]) => Promise<FeedPost[]>;
 }
 
 const ITEMS_PER_PAGE = 5;
@@ -390,5 +391,22 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     await navigator.clipboard?.writeText(url);
   },
 
-  sharePostToUser: async () => undefined
+  sharePostToUser: async () => undefined,
+
+  hydrateFeed: async (posts) => {
+    const hydratedPosts = posts.map((post) => ({
+      ...post,
+      likes_count: post.likes_count ?? 0,
+      views_count: post.views_count ?? 0,
+      comments_count: post.comments_count ?? 0,
+      reposts_count: post.reposts_count ?? 0,
+      saves_count: post.saves_count ?? 0,
+      userHasLiked: post.userHasLiked ?? false,
+      userHasReposted: post.userHasReposted ?? false,
+      userHasSaved: post.userHasSaved ?? false
+    }));
+
+    set({ posts: hydratedPosts, currentPostIndex: 0, hasMore: hydratedPosts.length >= ITEMS_PER_PAGE });
+    return hydratedPosts;
+  }
 }));

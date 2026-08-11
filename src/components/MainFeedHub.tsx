@@ -142,24 +142,46 @@ export default function MainFeedHub({
         embedCTA: (() => {
           const listing = targetPost?.attached_listing_data;
           const lType = targetPost?.attached_listing_type;
+          const cta: { type: "book" | "buy" | "apply" | "ad"; label: string; price?: number } = { type: "book", label: "View Profile" };
           
           if (listing && listing.is_active !== false) { // listing.is_active is true or undefined/null (if it exists it should be active due to our query)
-            if (lType === 'product') return { type: "buy", label: `Buy ${listing.title}`, price: listing.price };
-            if (lType === 'service') return { type: "book", label: `Book ${listing.title}`, price: listing.base_price };
-            if (lType === 'training') return { type: "book", label: `Join ${listing.title}`, price: listing.price };
+            if (lType === 'product') {
+              cta.type = "buy";
+              cta.label = `Buy ${listing.title}`;
+              cta.price = listing.price;
+            } else if (lType === 'service') {
+              cta.type = "book";
+              cta.label = `Book ${listing.title}`;
+              cta.price = listing.base_price;
+            } else if (lType === 'training') {
+              cta.type = "book";
+              cta.label = `Join ${listing.title}`;
+              cta.price = listing.price;
+            }
           }
-          return { type: "book", label: "View Profile" };
+
+          return cta;
         })(),
         detailData: {
           id: targetPost?.id || post.id,
-          type: targetPost?.attached_listing_type || "hustler",
+          type: targetPost?.attached_listing_type === "product"
+            ? "product"
+            : targetPost?.attached_listing_type === "training"
+              ? "training"
+              : "service",
           title: targetPost?.attached_listing_data?.title || targetPost?.caption?.slice(0, 50) || "Profile",
           description: targetPost?.attached_listing_data?.description || targetPost?.caption,
           price: targetPost?.attached_listing_data?.price || targetPost?.attached_listing_data?.base_price,
+          heroMedia: [targetPost?.media_url || targetPost?.thumbnail_url || ""].filter(Boolean),
           creator: {
             id: targetPost?.user_id || post.user_id,
             name: creatorName,
             avatar: creatorAvatar,
+            category: creatorProfile?.primary_skill || creatorProfile?.profession || "Member",
+            location: creatorProfile?.location || "Online",
+            rating: isPostHustler ? Number(creatorProfile?.rating_average || 0) : 0,
+            verified: !!creatorProfile?.verified,
+            is_hustler: isPostHustler,
           },
           reviews: [],
           recommendations: [],
@@ -168,7 +190,12 @@ export default function MainFeedHub({
             shares: post.reposts_count || 0,
             saves: targetPost?.saves_count || 0,
           },
-        },
+          ...(targetPost?.attached_listing_type === "product"
+            ? { stockStatus: "in-stock" as const, features: ["Escrow protected", "Fast delivery"] }
+            : targetPost?.attached_listing_type === "training"
+              ? { mentor: { id: targetPost?.user_id || post.user_id, name: creatorName, avatar: creatorAvatar, category: creatorProfile?.primary_skill || creatorProfile?.profession || "Member", location: creatorProfile?.location || "Online", rating: isPostHustler ? Number(creatorProfile?.rating_average || 0) : 0, verified: !!creatorProfile?.verified, is_hustler: isPostHustler }, curriculum: [{ module: "Start here", topics: ["Welcome"] }], duration: "1 week", format: "online" as const, outcomes: ["Build confidence"], requirements: ["Bring curiosity"] }
+              : { priceStructure: { startingPrice: Number(targetPost?.attached_listing_data?.base_price || 0), packages: [] }, portfolio: [] })
+        } as any,
         recommendationReason: "Based on your activity",
         isAd: false,
       };

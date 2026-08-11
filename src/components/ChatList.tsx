@@ -133,7 +133,9 @@ export default function ChatList({ onChatSelect }: ChatListProps) {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (a.unread > 0 && b.unread === 0) return -1;
       if (b.unread > 0 && a.unread === 0) return 1;
-      return a.id - b.id;
+      const aId = typeof a.id === "number" ? a.id : Number(a.id) || 0;
+      const bId = typeof b.id === "number" ? b.id : Number(b.id) || 0;
+      return aId - bId;
     });
   };
 

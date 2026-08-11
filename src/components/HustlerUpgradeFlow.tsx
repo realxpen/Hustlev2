@@ -9,7 +9,7 @@ interface HustlerUpgradeFlowProps {
   initialStep?: UpgradeStep;
 }
 
-export type UpgradeStep = "intro" | "basic_info" | "skills" | "portfolio" | "review" | "status" | "success" | "rejected" | "needs_info";
+export type UpgradeStep = "intro" | "basic_info" | "skills" | "skill" | "portfolio" | "review" | "status" | "success" | "rejected" | "needs_info";
 
 export default function HustlerUpgradeFlow({ onClose, onSuccess, initialStep }: HustlerUpgradeFlowProps) {
   const [step, setStep] = useState<UpgradeStep>(initialStep || "intro");
