@@ -24,6 +24,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.38.0",
     "multer": "^2.1.1",
+    "portfinder": "^1.0.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^3.6.0",
@@ -46,5 +47,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "^0.28.2"
   }
 }

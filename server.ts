@@ -28,7 +28,7 @@ import { socketService } from './server/services/socketService';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const INITIAL_PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const server = createServer(app);
 
   // JSON request body parser
@@ -121,7 +121,6 @@ async function startServer() {
   app.use('/referrals', referralRoutes);
   app.use('/api/referrals', referralRoutes);
 
-
   // Healthcheck endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -147,9 +146,31 @@ async function startServer() {
   // Initialize socket service
   socketService.initialize(server);
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server initialized. API and application accessible on http://localhost:${PORT}`);
+  // Helper to attempt binding to port with dynamic fallback
+  const listen = (port: number) => {
+    server.listen(port, '0.0.0.0');
+  };
+
+  server.on('listening', () => {
+    const address = server.address();
+    const activePort = typeof address === 'string' ? address : address?.port;
+    console.log(`🚀 Server initialized. API and application accessible on http://localhost:${activePort}`);
   });
+
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      const currentPort = error.port || INITIAL_PORT;
+      const nextPort = currentPort + 1;
+      console.warn(`⚠️ Port ${currentPort} is in use. Retrying on http://localhost:${nextPort}...`);
+      listen(nextPort);
+    } else {
+      console.error("Critical error starting backend server:", error);
+      process.exit(1);
+    }
+  });
+
+  // Start initial connection attempt
+  listen(INITIAL_PORT);
 }
 
 startServer().catch((err) => {
