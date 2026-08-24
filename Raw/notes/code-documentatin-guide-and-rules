@@ -1,0 +1,180 @@
+LESSON CONTENT 
+
+Code is read more than it is written
+A program is not only for the computer. It is also for humans. Other developers, and your future self, will read your code many times.
+
+When you write code, you are communicating. You are telling the computer what to do, but you are also telling a human what you intended. Clean code with good comments is like a well-written letter. Messy code with no comments is like a cryptic note.
+
+This sub-lesson is about comments and how they document developer intent.
+
+
+
+What is a comment?
+A comment is text in your source code that Python ignores. It is for humans only.
+
+In Python, a single-line comment starts with #. Everything after # on that line is ignored by the interpreter.
+
+For example:
+
+# This is a comment
+print("Hello")  # This is an inline comment
+The first line is a comment. It does nothing. The second line has an inline comment after the code.
+
+When Python runs this, the output is:
+
+Hello
+The comments are stripped away during compilation. They are not executed.
+
+
+
+Why comments exist
+Comments exist to explain why, not just what. Code shows what you are doing. Comments explain why you chose to do it that way.
+
+For example:
+
+# Minimum withdrawal threshold set by the bank policy
+MIN_WITHDRAWAL = 100
+The code says MIN_WITHDRAWAL = 100. The comment explains why 100 was chosen.
+
+Another example:
+
+# Convert to kobo because the payment gateway requires kobo
+amount_kobo = amount_naira * 100
+The code shows multiplication by 100. The comment explains why the conversion is necessary.
+
+Good comments add context. They help a future developer understand decisions that are not obvious from the code alone.
+
+
+
+Bad comments
+Not all comments are useful. Some comments are noise.
+
+A bad comment repeats what the code already says:
+
+# Add 1 to age
+age = age + 1
+This comment does not help. The code is already clear. A better comment would explain why age is incremented:
+
+# Increment age because the customer just had a birthday
+age = age + 1
+Or no comment might be needed if the code is clear:
+
+age += 1
+A bad comment can be misleading. If code changes and the comment is not updated, the comment may lie.
+
+# Multiply by 100 to convert to kobo
+amount = amount_naira * 1000  # Wrong comment
+This comment is now wrong. It is worse than no comment because it confuses the reader.
+
+
+
+Comments for future developers
+Imagine you are leaving your job and a new developer takes over your project. That developer did not sit with you during your design decisions. They only have the code.
+
+Your comments are the voice you leave behind. They should explain the tricky parts, the business rules, and the reasons for non-obvious choices.
+
+For example:
+
+# The bank processes transfers in batches at 2 a.m.
+# This job must finish before the batch starts.
+start_time = "1:30 a.m."
+This comment tells the future developer why the start time was chosen. Without it, they might change it and break the system.
+
+Another example:
+
+# Use a dictionary instead of a list because lookups are faster
+# and we need to search by customer ID.
+accounts = {}
+This explains a design decision. It helps the next person avoid switching back to a list.
+
+
+
+Inline comments vs. block comments
+You can write comments in two common styles:
+
+Inline comment: placed on the same line as code.
+
+balance = 5000  # initial balance from account opening
+Block comment: placed on its own line, above the code.
+
+# Check if the customer qualifies for a loan.
+# The customer must be at least 18 and have an income.
+if age >= 18 and monthly_income > 0:
+    print("Eligible")
+Use whichever is clearer. For longer explanations, block comments are better.
+
+
+
+Comments are not executed
+A key point: Python completely ignores comments. They add no runtime cost. You can write many comments without slowing the program.
+
+But avoid writing too many useless comments. The goal is clarity, not volume. A few well-placed comments are better than a wall of noise.
+
+
+
+Commenting out code
+Sometimes developers use # to temporarily disable a line of code. This is called commenting out.
+
+# print("This line will not run")
+print("This line will run")
+This is useful for testing. But do not leave large amounts of commented-out code in a final program. It creates confusion. If the code is not needed, delete it.
+
+
+
+Code itself can be documentation
+The best documentation is often clear code.
+
+If you choose good names, structure your code well, and keep functions short, the code can be almost self-explanatory.
+
+For example:
+
+customer_age = 22
+is_adult = customer_age >= 18
+This code is clear without comments. The names tell you what is happening.
+
+But even clear code sometimes needs comments for complex business logic. Use comments to supplement, not replace, good naming.
+
+
+
+analogy: market receipt labels
+Imagine a container of goods in a warehouse. The container has a label: “Perishable tomatoes — deliver to Shop 12 before noon.”
+
+The label does not tell you how to drive the forklift. The goods themselves are the code. The label is the comment. It explains something important that is not obvious from the box alone.
+
+If the label says “box,” that is useless. If the label says “Handle with care because this batch is for a wedding,” that is useful.
+
+Good comments are like good labels. They add context that prevents mistakes.
+
+
+
+Common mistakes and misconceptions
+A common mistake is to write a comment that describes what the code does without adding value. Avoid that.
+
+Another mistake is to write comments that become outdated when code changes. Update comments when you change code.
+
+A third mistake is to comment on every line. This is noisy. Comment only where necessary.
+
+A fourth mistake is to use comments to explain poorly written code instead of improving the code. If the code is confusing, first try to make it clearer. Then add a comment if needed.
+
+A fifth mistake is to think comments are a sign of weakness. They are not. Professional developers write comments all the time.
+
+A sixth mistake is to write comments in a language future developers may not understand. In a Nigerian team, English is usually fine, but be consistent.
+
+
+
+Summary
+Comments are text ignored by Python.
+Comments explain why, not what.
+A single-line comment starts with #.
+Good comments add context for future developers.
+Bad comments add noise and can mislead.
+Clear code with good names is its own documentation.
+Update comments when code changes.
+Commenting out code is useful for testing but avoid leaving dead code.
+
+
+Additional Resources
+Python Documentation: Comments
+PEP 8: Comments
+Real Python: Writing Comments in Python
+GeeksforGeeks: Comments in Python
